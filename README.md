@@ -21,6 +21,8 @@
 ## 📢 News
 
 - **2026-02-10** 🔐 Added secret sanitizer & interactive configuration wizard — secure, user-friendly setup!
+- **2026-02-10** 🧬 Added evolutionary mode — bots can now self-improve while maintaining security boundaries!
+- **2026-02-09** 🎯 Enhanced Smart Routing with CODING tier and per-tier secondary models — better model selection!
 - **2026-02-09** 💬 Added Slack, Email, and QQ support — nanobot now supports multiple chat platforms!
 - **2026-02-08** 🔧 Refactored Providers—adding a new LLM provider now takes just 2 simple steps! Check [here](#providers).
 - **2026-02-07** 🚀 Released v0.1.3.post5 with Qwen support & several key improvements! Check [here](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post5) for details.
