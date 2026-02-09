@@ -49,6 +49,8 @@ class AgentLoop:
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         routing_config: RoutingConfig | None = None,
+        evolutionary: bool = False,
+        allowed_paths: list[str] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -61,6 +63,8 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.evolutionary = evolutionary
+        self.allowed_paths = allowed_paths or []
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -85,6 +89,8 @@ class AgentLoop:
             brave_api_key=brave_api_key,
             exec_config=self.exec_config,
             restrict_to_workspace=restrict_to_workspace,
+            evolutionary=evolutionary,
+            allowed_paths=allowed_paths,
         )
         
         self._running = False
@@ -92,19 +98,36 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        # File tools (restrict to workspace if configured)
-        allowed_dir = self.workspace if self.restrict_to_workspace else None
-        self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
-        self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
-        self.tools.register(EditFileTool(allowed_dir=allowed_dir))
-        self.tools.register(ListDirTool(allowed_dir=allowed_dir))
-        
-        # Shell tool
-        self.tools.register(ExecTool(
-            working_dir=str(self.workspace),
-            timeout=self.exec_config.timeout,
-            restrict_to_workspace=self.restrict_to_workspace,
-        ))
+        # Determine tool restrictions based on evolutionary mode
+        if self.evolutionary and self.allowed_paths:
+            # Evolutionary mode: use allowed_paths whitelist
+            logger.info(f"Evolutionary mode enabled with allowed paths: {self.allowed_paths}")
+            allowed_dirs = [Path(p).expanduser().resolve() for p in self.allowed_paths]
+            self.tools.register(ReadFileTool(allowed_paths=allowed_dirs))
+            self.tools.register(WriteFileTool(allowed_paths=allowed_dirs))
+            self.tools.register(EditFileTool(allowed_paths=allowed_dirs))
+            self.tools.register(ListDirTool(allowed_paths=allowed_dirs))
+            
+            # Shell tool with allowed_paths
+            self.tools.register(ExecTool(
+                working_dir=str(self.workspace),
+                timeout=self.exec_config.timeout,
+                allowed_paths=self.allowed_paths,
+            ))
+        else:
+            # Standard mode: use restrict_to_workspace behavior
+            allowed_dir = self.workspace if self.restrict_to_workspace else None
+            self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
+            self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
+            self.tools.register(EditFileTool(allowed_dir=allowed_dir))
+            self.tools.register(ListDirTool(allowed_dir=allowed_dir))
+            
+            # Shell tool
+            self.tools.register(ExecTool(
+                working_dir=str(self.workspace),
+                timeout=self.exec_config.timeout,
+                restrict_to_workspace=self.restrict_to_workspace,
+            ))
         
         # Web tools
         self.tools.register(WebSearchTool(api_key=self.brave_api_key))

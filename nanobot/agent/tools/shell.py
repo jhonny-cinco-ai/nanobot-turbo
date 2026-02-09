@@ -19,6 +19,7 @@ class ExecTool(Tool):
         deny_patterns: list[str] | None = None,
         allow_patterns: list[str] | None = None,
         restrict_to_workspace: bool = False,
+        allowed_paths: list[str] | None = None,
     ):
         self.timeout = timeout
         self.working_dir = working_dir
@@ -34,6 +35,7 @@ class ExecTool(Tool):
         ]
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
+        self.allowed_paths = [Path(p).expanduser().resolve() for p in (allowed_paths or [])]
     
     @property
     def name(self) -> str:
@@ -121,7 +123,27 @@ class ExecTool(Tool):
             if not any(re.search(p, lower) for p in self.allow_patterns):
                 return "Error: Command blocked by safety guard (not in allowlist)"
 
-        if self.restrict_to_workspace:
+        # Check evolutionary mode allowed_paths
+        if self.allowed_paths:
+            # Extract paths from command
+            win_paths = re.findall(r"[A-Za-z]:\\[^\\\"']+", cmd)
+            posix_paths = re.findall(r"/[^\s\"']+", cmd)
+            
+            for raw in win_paths + posix_paths:
+                try:
+                    p = Path(raw).expanduser().resolve()
+                except Exception:
+                    continue
+                # Check if path is within any allowed path
+                is_allowed = any(
+                    str(p).startswith(str(allowed_path))
+                    for allowed_path in self.allowed_paths
+                )
+                if not is_allowed:
+                    allowed_list = ", ".join(str(p) for p in self.allowed_paths)
+                    return f"Error: Command blocked - path {raw} is outside allowed paths: {allowed_list}"
+        
+        elif self.restrict_to_workspace:
             if "..\\" in cmd or "../" in cmd:
                 return "Error: Command blocked by safety guard (path traversal detected)"
 

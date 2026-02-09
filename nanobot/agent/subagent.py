@@ -35,6 +35,8 @@ class SubagentManager:
         brave_api_key: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
         restrict_to_workspace: bool = False,
+        evolutionary: bool = False,
+        allowed_paths: list[str] | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.provider = provider
@@ -44,6 +46,8 @@ class SubagentManager:
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
+        self.evolutionary = evolutionary
+        self.allowed_paths = allowed_paths or []
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
     
     async def spawn(
@@ -98,15 +102,31 @@ class SubagentManager:
         try:
             # Build subagent tools (no message tool, no spawn tool)
             tools = ToolRegistry()
-            allowed_dir = self.workspace if self.restrict_to_workspace else None
-            tools.register(ReadFileTool(allowed_dir=allowed_dir))
-            tools.register(WriteFileTool(allowed_dir=allowed_dir))
-            tools.register(ListDirTool(allowed_dir=allowed_dir))
-            tools.register(ExecTool(
-                working_dir=str(self.workspace),
-                timeout=self.exec_config.timeout,
-                restrict_to_workspace=self.restrict_to_workspace,
-            ))
+            
+            # Determine tool restrictions based on evolutionary mode
+            if self.evolutionary and self.allowed_paths:
+                # Evolutionary mode: use allowed_paths whitelist
+                allowed_dirs = [Path(p).expanduser().resolve() for p in self.allowed_paths]
+                tools.register(ReadFileTool(allowed_paths=allowed_dirs))
+                tools.register(WriteFileTool(allowed_paths=allowed_dirs))
+                tools.register(ListDirTool(allowed_paths=allowed_dirs))
+                tools.register(ExecTool(
+                    working_dir=str(self.workspace),
+                    timeout=self.exec_config.timeout,
+                    allowed_paths=self.allowed_paths,
+                ))
+            else:
+                # Standard mode: use restrict_to_workspace behavior
+                allowed_dir = self.workspace if self.restrict_to_workspace else None
+                tools.register(ReadFileTool(allowed_dir=allowed_dir))
+                tools.register(WriteFileTool(allowed_dir=allowed_dir))
+                tools.register(ListDirTool(allowed_dir=allowed_dir))
+                tools.register(ExecTool(
+                    working_dir=str(self.workspace),
+                    timeout=self.exec_config.timeout,
+                    restrict_to_workspace=self.restrict_to_workspace,
+                ))
+            
             tools.register(WebSearchTool(api_key=self.brave_api_key))
             tools.register(WebFetchTool())
             
