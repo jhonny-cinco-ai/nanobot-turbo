@@ -50,7 +50,19 @@ class StickyRouter:
         
         # Layer 2: LLM-assisted fallback (if available)
         if self.llm_router:
-            llm_decision = await self.llm_router.classify(content)
+            # Build context from Layer 1 for Layer 2
+            from .llm_router import ClassificationContext
+            
+            context = ClassificationContext(
+                action_type=client_decision.metadata.get("action_type", "general"),
+                has_negations=len(client_decision.metadata.get("negations", [])) > 0,
+                negation_details=client_decision.metadata.get("negations", []),
+                has_code_blocks=scores.code_presence > 0.7,
+                question_type=client_decision.metadata.get("question_type"),
+            )
+            
+            # Pass context to LLM router
+            llm_decision = await self.llm_router.classify(content, context=context)
             
             # Learn: Record comparison for feedback loop
             self._record_feedback(content, client_decision, llm_decision)
