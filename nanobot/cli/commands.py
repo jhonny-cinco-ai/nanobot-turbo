@@ -755,6 +755,329 @@ def cron_run(
 
 
 # ============================================================================
+# Routing Commands
+# ============================================================================
+
+
+routing_app = typer.Typer(help="Smart routing management")
+
+
+@routing_app.command("status")
+def routing_status():
+    """Show smart routing status and configuration."""
+    from nanobot.config.loader import load_config
+    from nanobot.agent.stages import RoutingStage
+    
+    config = load_config()
+    
+    console.print(f"{__logo__} Smart Routing Status\n")
+    
+    if not config.routing.enabled:
+        console.print("[yellow]Smart routing is disabled[/yellow]")
+        console.print("Enable it in ~/.nanobot/config.json:")
+        console.print('  "routing": {"enabled": true}')
+        return
+    
+    console.print("[green]✓ Smart routing is enabled[/green]\n")
+    
+    # Create routing stage to get info
+    try:
+        routing_stage = RoutingStage(config.routing, workspace=config.workspace_path)
+        info = routing_stage.get_routing_info()
+        
+        # Tiers table
+        table = Table(title="Model Tiers")
+        table.add_column("Tier", style="cyan")
+        table.add_column("Model", style="green")
+        table.add_column("Cost/M tokens", style="yellow")
+        
+        for tier_name, tier_config in info["tiers"].items():
+            table.add_row(
+                tier_name.upper(),
+                tier_config["model"],
+                f"${tier_config['cost_per_mtok']:.2f}"
+            )
+        
+        console.print(table)
+        console.print()
+        
+        # Configuration
+        console.print("[bold]Configuration:[/bold]")
+        console.print(f"  Client confidence threshold: {info['client_confidence_threshold']}")
+        console.print(f"  LLM classifier: {info['llm_classifier']['model']} (timeout: {info['llm_classifier']['timeout_ms']}ms)")
+        console.print(f"  Sticky context window: {info['sticky']['context_window']} messages")
+        console.print(f"  Downgrade confidence: {info['sticky']['downgrade_confidence']}")
+        console.print()
+        
+        # Calibration info
+        if "calibration" in info:
+            console.print("[bold]Calibration:[/bold]")
+            console.print(f"  Enabled: {info['calibration']['enabled']}")
+            console.print(f"  Interval: {info['calibration']['interval']}")
+            if info['calibration']['last_run']:
+                console.print(f"  Last run: {info['calibration']['last_run']}")
+            console.print(f"  Total classifications: {info['calibration']['total_classifications']}")
+        
+    except Exception as e:
+        console.print(f"[red]Error loading routing info: {e}[/red]")
+
+
+@routing_app.command("calibrate")
+def routing_calibrate(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+):
+    """Manually trigger routing calibration."""
+    from nanobot.config.loader import load_config
+    from nanobot.agent.router.calibration import CalibrationManager
+    
+    config = load_config()
+    
+    if not config.routing.enabled:
+        console.print("[red]Error: Smart routing is disabled[/red]")
+        raise typer.Exit(1)
+    
+    if not config.routing.auto_calibration.enabled:
+        console.print("[yellow]Warning: Auto-calibration is disabled[/yellow]")
+        console.print("Enable it in config or use --force to calibrate anyway")
+        if not typer.confirm("Continue anyway?"):
+            raise typer.Exit(0)
+    
+    console.print(f"{__logo__} Running calibration...\n")
+    
+    try:
+        patterns_file = config.workspace_path / "memory" / "ROUTING_PATTERNS.json"
+        analytics_file = config.workspace_path / "analytics" / "routing_stats.json"
+        
+        calibration = CalibrationManager(
+            patterns_file=patterns_file,
+            analytics_file=analytics_file,
+            config=config.routing.auto_calibration.model_dump(),
+        )
+        
+        if dry_run:
+            console.print("[blue]Dry run mode - no changes will be made[/blue]")
+            console.print(f"Would analyze {len(calibration._classifications)} classifications")
+            if calibration.should_calibrate():
+                console.print("[green]Calibration would run[/green]")
+            else:
+                console.print("[yellow]Calibration would be skipped (not enough data)[/yellow]")
+        else:
+            if not calibration.should_calibrate():
+                console.print("[yellow]Not enough data for calibration yet[/yellow]")
+                console.print(f"Need {config.routing.auto_calibration.min_classifications} classifications")
+                console.print(f"Current: {len(calibration._classifications)}")
+                raise typer.Exit(1)
+            
+            results = calibration.calibrate()
+            
+            console.print("[green]✓ Calibration complete[/green]\n")
+            console.print(f"Classifications analyzed: {results['classifications_analyzed']}")
+            console.print(f"Patterns added: {results['patterns_added']}")
+            console.print(f"Patterns removed: {results['patterns_removed']}")
+            console.print(f"Total patterns: {results['total_patterns']}")
+    
+    except Exception as e:
+        console.print(f"[red]Calibration failed: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@routing_app.command("patterns")
+def routing_patterns(
+    limit: int = typer.Option(20, "--limit", "-n", help="Maximum patterns to show"),
+    tier: str = typer.Option(None, "--tier", "-t", help="Filter by tier (simple/medium/complex/reasoning)"),
+):
+    """Show learned routing patterns."""
+    from nanobot.config.loader import load_config
+    from nanobot.agent.router.models import RoutingPattern
+    import json
+    
+    config = load_config()
+    
+    patterns_file = config.workspace_path / "memory" / "ROUTING_PATTERNS.json"
+    
+    if not patterns_file.exists():
+        console.print("[yellow]No patterns file found[/yellow]")
+        console.print(f"Expected at: {patterns_file}")
+        console.print("\nPatterns are learned automatically over time.")
+        return
+    
+    try:
+        data = json.loads(patterns_file.read_text())
+        patterns_data = data.get("patterns", [])
+        
+        # Filter by tier if specified
+        if tier:
+            tier = tier.lower()
+            patterns_data = [p for p in patterns_data if p.get("tier") == tier]
+        
+        # Sort by success rate
+        patterns_data.sort(key=lambda p: p.get("success_rate", 0), reverse=True)
+        
+        console.print(f"{__logo__} Learned Patterns ({len(patterns_data)} total)\n")
+        
+        table = Table()
+        table.add_column("Tier", style="cyan")
+        table.add_column("Pattern", style="green")
+        table.add_column("Confidence", style="yellow")
+        table.add_column("Success", style="blue")
+        table.add_column("Uses", style="dim")
+        
+        for pattern_data in patterns_data[:limit]:
+            table.add_row(
+                pattern_data.get("tier", "unknown").upper(),
+                pattern_data.get("regex", "")[:50],
+                f"{pattern_data.get('confidence', 0):.2f}",
+                f"{pattern_data.get('success_rate', 0):.1%}",
+                str(pattern_data.get("usage_count", 0)),
+            )
+        
+        console.print(table)
+        
+        if len(patterns_data) > limit:
+            console.print(f"\n[dim]... and {len(patterns_data) - limit} more[/dim]")
+    
+    except Exception as e:
+        console.print(f"[red]Error reading patterns: {e}[/red]")
+
+
+@routing_app.command("test")
+def routing_test(
+    message: str = typer.Argument(..., help="Message to test classification on"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed scores"),
+):
+    """Test classification on a message."""
+    from nanobot.agent.router import classify_content
+    
+    console.print(f"{__logo__} Testing Classification\n")
+    console.print(f"Message: [cyan]{message}[/cyan]\n")
+    
+    try:
+        decision, scores = classify_content(message)
+        
+        # Results table
+        table = Table(title="Classification Result")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Tier", decision.tier.value.upper())
+        table.add_row("Confidence", f"{decision.confidence:.2f}")
+        table.add_row("Layer", decision.layer)
+        table.add_row("Estimated Tokens", str(decision.estimated_tokens))
+        table.add_row("Needs Tools", "Yes" if decision.needs_tools else "No")
+        
+        console.print(table)
+        
+        if verbose:
+            console.print("\n[bold]Dimension Scores:[/bold]")
+            scores_table = Table()
+            scores_table.add_column("Dimension", style="cyan")
+            scores_table.add_column("Score", style="yellow")
+            
+            for dim, score in scores.to_dict().items():
+                bar = "█" * int(score * 20)
+                scores_table.add_row(dim, f"{score:.2f} {bar}")
+            
+            console.print(scores_table)
+        
+        console.print(f"\n[dim]{decision.reasoning}[/dim]")
+    
+    except Exception as e:
+        console.print(f"[red]Classification failed: {e}[/red]")
+
+
+@routing_app.command("analytics")
+def routing_analytics():
+    """Show routing analytics and cost savings."""
+    from nanobot.config.loader import load_config
+    import json
+    
+    config = load_config()
+    
+    if not config.routing.enabled:
+        console.print("[red]Smart routing is disabled[/red]")
+        return
+    
+    analytics_file = config.workspace_path / "analytics" / "routing_stats.json"
+    
+    console.print(f"{__logo__} Routing Analytics\n")
+    
+    # Load analytics data
+    classifications = []
+    if analytics_file.exists():
+        try:
+            data = json.loads(analytics_file.read_text())
+            classifications = data.get("classifications", [])
+        except:
+            pass
+    
+    if not classifications:
+        console.print("[yellow]No analytics data yet[/yellow]")
+        console.print("Data is collected automatically as you use the system.")
+        return
+    
+    # Calculate tier distribution
+    tier_counts = {}
+    layer_counts = {"client": 0, "llm": 0}
+    
+    for c in classifications:
+        tier = c.get("final_tier", "unknown")
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        layer_counts[c.get("layer", "client")] += 1
+    
+    # Cost calculation
+    total = len(classifications)
+    cost_table = Table(title="Cost Analysis")
+    cost_table.add_column("Metric", style="cyan")
+    cost_table.add_column("Value", style="green")
+    
+    # Calculate blended cost vs using most expensive model
+    blended_cost = 0
+    for tier_name, count in tier_counts.items():
+        tier_config = config.routing.tiers.get(tier_name)
+        if tier_config:
+            pct = count / total
+            blended_cost += pct * tier_config.cost_per_mtok
+    
+    most_expensive = max(
+        (t.cost_per_mtok for t in config.routing.tiers.values()),
+        default=75.0
+    )
+    
+    savings_pct = ((most_expensive - blended_cost) / most_expensive * 100) if most_expensive > 0 else 0
+    
+    cost_table.add_row("Total Classifications", str(total))
+    cost_table.add_row("Client-side Classifications", f"{layer_counts['client']} ({layer_counts['client']/total*100:.1f}%)")
+    cost_table.add_row("LLM-assisted Classifications", f"{layer_counts['llm']} ({layer_counts['llm']/total*100:.1f}%)")
+    cost_table.add_row("Blended Cost", f"${blended_cost:.2f}/M tokens")
+    cost_table.add_row("Most Expensive Model", f"${most_expensive:.2f}/M tokens")
+    cost_table.add_row("Estimated Savings", f"{savings_pct:.1f}%")
+    
+    console.print(cost_table)
+    console.print()
+    
+    # Tier distribution
+    tier_table = Table(title="Tier Distribution")
+    tier_table.add_column("Tier", style="cyan")
+    tier_table.add_column("Count", style="yellow")
+    tier_table.add_column("Percentage", style="green")
+    
+    for tier_name in ["simple", "medium", "complex", "reasoning"]:
+        count = tier_counts.get(tier_name, 0)
+        pct = count / total * 100 if total > 0 else 0
+        tier_table.add_row(
+            tier_name.upper(),
+            str(count),
+            f"{pct:.1f}%"
+        )
+    
+    console.print(tier_table)
+
+
+# Add routing subcommand to main app
+app.add_typer(routing_app, name="routing")
+
+
+# ============================================================================
 # Status Commands
 # ============================================================================
 
@@ -792,6 +1115,14 @@ def status():
             else:
                 has_key = bool(p.api_key)
                 console.print(f"{spec.label}: {'[green]✓[/green]' if has_key else '[dim]not set[/dim]'}")
+        
+        # Smart routing status
+        console.print()
+        if config.routing.enabled:
+            console.print(f"Smart Routing: [green]✓ enabled[/green]")
+            console.print("  Run [cyan]nanobot routing status[/cyan] for details")
+        else:
+            console.print(f"Smart Routing: [dim]disabled[/dim]")
 
 
 if __name__ == "__main__":
