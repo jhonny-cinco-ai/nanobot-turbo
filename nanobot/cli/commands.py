@@ -322,7 +322,7 @@ def gateway(
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
     
-    # Create agent with cron service
+    # Create agent with cron service and smart routing
     agent = AgentLoop(
         bus=bus,
         provider=provider,
@@ -334,6 +334,7 @@ def gateway(
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         session_manager=session_manager,
+        routing_config=config.routing,
     )
     
     # Set cron callback (needs agent)
@@ -428,6 +429,7 @@ def agent(
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
+        routing_config=config.routing,
     )
     
     if message:

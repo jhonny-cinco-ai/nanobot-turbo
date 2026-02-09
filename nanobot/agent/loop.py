@@ -19,7 +19,9 @@ from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
 from nanobot.agent.subagent import SubagentManager
-from nanobot.session.manager import SessionManager
+from nanobot.agent.stages import RoutingStage, RoutingContext
+from nanobot.config.schema import RoutingConfig
+from nanobot.session.manager import SessionManager, Session
 
 
 class AgentLoop:
@@ -46,6 +48,7 @@ class AgentLoop:
         cron_service: "CronService | None" = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
+        routing_config: RoutingConfig | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -62,6 +65,18 @@ class AgentLoop:
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
         self.tools = ToolRegistry()
+        
+        # Initialize smart router if enabled
+        self.routing_config = routing_config
+        self.routing_stage = None
+        if routing_config and routing_config.enabled:
+            self.routing_stage = RoutingStage(
+                config=routing_config,
+                provider=provider,
+                workspace=workspace,
+            )
+            logger.info("Smart routing enabled")
+        
         self.subagents = SubagentManager(
             provider=provider,
             workspace=workspace,
@@ -141,6 +156,47 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
     
+    async def _select_model(self, msg: InboundMessage, session: Session) -> str:
+        """
+        Select the appropriate model using smart routing.
+        
+        Args:
+            msg: The inbound message
+            session: The session for context
+            
+        Returns:
+            Model identifier to use
+        """
+        # If routing is disabled, use default model
+        if not self.routing_stage:
+            return self.model
+        
+        try:
+            # Create routing context
+            routing_ctx = RoutingContext(
+                message=msg,
+                session=session,
+                default_model=self.model,
+                config=self.routing_config,
+            )
+            
+            # Execute routing stage
+            routing_ctx = await self.routing_stage.execute(routing_ctx)
+            
+            # Log routing decision
+            if routing_ctx.decision:
+                logger.info(
+                    f"Smart routing: {routing_ctx.decision.tier.value} "
+                    f"(confidence: {routing_ctx.decision.confidence:.2f}, "
+                    f"layer: {routing_ctx.decision.layer})"
+                )
+            
+            return routing_ctx.model
+            
+        except Exception as e:
+            logger.warning(f"Smart routing failed, using default model: {e}")
+            return self.model
+    
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a single inbound message.
@@ -184,6 +240,9 @@ class AgentLoop:
             chat_id=msg.chat_id,
         )
         
+        # Select model using smart routing
+        selected_model = await self._select_model(msg, session)
+        
         # Agent loop
         iteration = 0
         final_content = None
@@ -191,11 +250,11 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
             
-            # Call LLM
+            # Call LLM with selected model
             response = await self.provider.chat(
                 messages=messages,
                 tools=self.tools.get_definitions(),
-                model=self.model
+                model=selected_model
             )
             
             # Handle tool calls
@@ -292,6 +351,9 @@ class AgentLoop:
             chat_id=origin_chat_id,
         )
         
+        # Select model using smart routing
+        selected_model = await self._select_model(msg, session)
+        
         # Agent loop (limited for announce handling)
         iteration = 0
         final_content = None
@@ -302,7 +364,7 @@ class AgentLoop:
             response = await self.provider.chat(
                 messages=messages,
                 tools=self.tools.get_definitions(),
-                model=self.model
+                model=selected_model
             )
             
             if response.has_tool_calls:
