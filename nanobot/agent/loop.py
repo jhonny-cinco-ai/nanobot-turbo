@@ -19,6 +19,7 @@ from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
 from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
+from nanobot.agent.tools.update_config import UpdateConfigTool
 from nanobot.agent.subagent import SubagentManager
 from nanobot.agent.stages import RoutingStage, RoutingContext
 from nanobot.config.schema import RoutingConfig
@@ -153,6 +154,9 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+        
+        # Config update tool
+        self.tools.register(UpdateConfigTool())
     
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
@@ -243,6 +247,10 @@ class AgentLoop:
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
             return await self._process_system_message(msg)
+        
+        # Check if required configuration is present
+        if not self._has_required_config():
+            return await self._send_onboarding_message(msg)
         
         # Sanitize message content for logging to prevent secret exposure
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
@@ -491,13 +499,13 @@ class AgentLoop:
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
-        
+
         Args:
             content: The message content.
             session_key: Session identifier.
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
-        
+
         Returns:
             The agent's response.
         """
@@ -507,6 +515,53 @@ class AgentLoop:
             chat_id=chat_id,
             content=content
         )
-        
+
         response = await self._process_message(msg)
         return response.content if response else ""
+
+    def _has_required_config(self) -> bool:
+        """Check if required configuration is present."""
+        # Check if at least one provider has an API key
+        from nanobot.config.loader import load_config
+        config = load_config()
+
+        providers = ['openrouter', 'anthropic', 'openai', 'groq', 'deepseek', 'moonshot']
+        for provider_name in providers:
+            provider = getattr(config.providers, provider_name, None)
+            if provider and provider.api_key:
+                return True
+
+        return False
+
+    async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
+        """Send onboarding message when config is missing."""
+        logger.info(f"Sending onboarding message to {msg.channel}:{msg.sender_id}")
+
+        content = """👋 Welcome to nanobot!
+
+I'm ready to help, but I need some configuration first.
+
+**Required Setup:**
+I need at least one LLM provider configured. Popular options:
+• OpenRouter (recommended) - multi-model access
+• Anthropic - Claude models
+• OpenAI - GPT models
+
+**To configure me:**
+1. Run: `nanobot configure`
+2. Select your preferred provider
+3. Enter your API key
+
+**Get an API key:**
+• OpenRouter: https://openrouter.ai/keys
+• Anthropic: https://console.anthropic.com/
+• OpenAI: https://platform.openai.com/api-keys
+
+Once configured, we can start chatting! 🤖"""
+
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=content,
+            metadata=msg.metadata or {}
+        )

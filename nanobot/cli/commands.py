@@ -215,10 +215,16 @@ def onboard():
     
     console.print(f"\n{__logo__} nanobot is ready!")
     console.print("\nNext steps:")
-    console.print("  1. Add your API key to [cyan]~/.nanobot/config.json[/cyan]")
-    console.print("     Get one at: https://openrouter.ai/keys")
+    console.print("  1. Run [cyan]nanobot configure[/cyan] to set up API keys")
     console.print("  2. Chat: [cyan]nanobot agent -m \"Hello!\"[/cyan]")
     console.print("\n[dim]Want Telegram/WhatsApp? See: https://github.com/HKUDS/nanobot#-chat-apps[/dim]")
+
+
+@app.command()
+def configure():
+    """Interactive configuration wizard."""
+    from nanobot.cli.configure import configure_cli
+    configure_cli()
 
 
 

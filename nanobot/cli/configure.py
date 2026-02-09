@@ -1,0 +1,503 @@
+"""Interactive CLI configuration wizard for nanobot.
+
+This module provides an interactive configuration interface using
+typer and rich for a nice user experience.
+"""
+
+import typer
+from pathlib import Path
+from typing import Optional
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.prompt import Prompt, Confirm
+from rich import box
+
+from nanobot.config.loader import load_config, save_config, get_config_path
+from nanobot.agent.tools.update_config import UpdateConfigTool
+
+
+console = Console()
+
+
+def configure_cli():
+    """Main entry point for the configuration wizard."""
+    # Show welcome
+    console.print(Panel.fit(
+        "[bold blue]🤖 nanobot Configuration Wizard[/bold blue]\n\n"
+        "Configure your nanobot installation interactively.",
+        title="Welcome",
+        border_style="blue"
+    ))
+    
+    # Check current config status
+    tool = UpdateConfigTool()
+    summary = tool.get_config_summary()
+    
+    # Show current status
+    _show_status(summary)
+    
+    # Main menu loop
+    while True:
+        choice = _show_main_menu(summary)
+        
+        if choice == "exit":
+            console.print("\n[green]✓[/green] Configuration complete!")
+            console.print("\nYou can now start using nanobot:")
+            console.print("  [cyan]nanobot agent[/cyan] - Start interactive chat")
+            console.print("  [cyan]nanobot gateway[/cyan] - Start gateway server")
+            break
+        
+        elif choice == "providers":
+            _configure_providers(summary)
+        
+        elif choice == "channels":
+            _configure_channels(summary)
+        
+        elif choice == "agents":
+            _configure_agents()
+        
+        elif choice == "tools":
+            _configure_tools()
+        
+        elif choice == "status":
+            _show_detailed_status()
+        
+        # Refresh summary
+        summary = tool.get_config_summary()
+
+
+def _show_status(summary: dict):
+    """Show current configuration status."""
+    table = Table(title="Current Configuration", box=box.ROUNDED)
+    table.add_column("Component", style="cyan")
+    table.add_column("Status", style="green")
+    
+    # Providers
+    configured_providers = [
+        name for name, info in summary['providers'].items() 
+        if info['has_key']
+    ]
+    if configured_providers:
+        table.add_row(
+            "LLM Providers",
+            f"[green]✓[/green] {', '.join(configured_providers)}"
+        )
+    else:
+        table.add_row(
+            "LLM Providers",
+            "[red]✗[/red] None configured [dim](Required)[/dim]"
+        )
+    
+    # Channels
+    enabled_channels = [
+        name for name, info in summary['channels'].items()
+        if info.get('enabled', False)
+    ]
+    if enabled_channels:
+        table.add_row(
+            "Channels",
+            f"[green]✓[/green] {', '.join(enabled_channels)}"
+        )
+    else:
+        table.add_row(
+            "Channels",
+            "[dim]○ None enabled (Optional)[/dim]"
+        )
+    
+    console.print(table)
+    console.print()
+
+
+def _show_main_menu(summary: dict) -> str:
+    """Show main menu and get user choice."""
+    has_required = summary['has_required_config']
+    
+    console.print(Panel(
+        "[bold]Main Menu[/bold]\n"
+        "Select a category to configure:",
+        border_style="blue"
+    ))
+    
+    options = []
+    
+    if not has_required:
+        console.print("[red]⚠ At least one LLM provider is required to start[/red]\n")
+        options.append(("1", "providers", "🤖 Model Providers [red](Required)[/red]"))
+    else:
+        options.append(("1", "providers", "🤖 Model Providers"))
+    
+    options.extend([
+        ("2", "channels", "💬 Chat Channels"),
+        ("3", "agents", "⚙️ Agent Settings"),
+        ("4", "tools", "🛠️ Tool Settings"),
+        ("5", "status", "📊 View Full Status"),
+        ("6", "exit", "✓ Done" if has_required else "⏭ Skip for now"),
+    ])
+    
+    for num, key, label in options:
+        console.print(f"  [{num}] {label}")
+    
+    console.print()
+    
+    # Get choice
+    choice_map = {num: key for num, key, _ in options}
+    default = "1" if not has_required else "6"
+    
+    while True:
+        choice = Prompt.ask(
+            "Select option",
+            choices=list(choice_map.keys()),
+            default=default
+        )
+        if choice in choice_map:
+            return choice_map[choice]
+
+
+def _configure_providers(summary: dict):
+    """Configure LLM providers."""
+    tool = UpdateConfigTool()
+    schema = tool.SCHEMA['providers']['providers']
+    
+    console.print(Panel(
+        "[bold]Model Providers[/bold]\n"
+        "Select a provider to configure:",
+        border_style="blue"
+    ))
+    
+    # Show provider options
+    providers_list = list(schema.items())
+    for i, (name, info) in enumerate(providers_list, 1):
+        configured = summary['providers'].get(name, {}).get('has_key', False)
+        status = "[green]✓[/green]" if configured else "[dim]○[/dim]"
+        models = ", ".join(info.get('models', [])[:2])
+        console.print(f"  [{i}] {status} {name.title()} - {models}...")
+    
+    console.print(f"  [0] Back to main menu")
+    console.print()
+    
+    # Get choice
+    choice = Prompt.ask(
+        "Select provider",
+        choices=[str(i) for i in range(len(providers_list) + 1)],
+        default="1"
+    )
+    
+    if choice == "0":
+        return
+    
+    provider_name = providers_list[int(choice) - 1][0]
+    provider_schema = schema[provider_name]
+    
+    # Show provider configuration
+    _configure_single_provider(provider_name, provider_schema)
+
+
+def _configure_single_provider(name: str, schema: dict):
+    """Configure a single provider."""
+    console.print(Panel(
+        f"[bold]{name.title()} Configuration[/bold]",
+        border_style="blue"
+    ))
+    
+    tool = UpdateConfigTool()
+    
+    # Show help
+    if 'models' in schema:
+        console.print(f"\n[dim]Available models:[/dim]")
+        for model in schema['models']:
+            console.print(f"  • {model}")
+    
+    if 'fields' in schema:
+        for field_name, field_info in schema['fields'].items():
+            if field_info.get('help'):
+                console.print(f"\n[dim]{field_info['help']}[/dim]")
+    
+    # Get API key
+    console.print()
+    api_key = Prompt.ask(
+        f"Enter {name} API key",
+        password=False  # Show input so user can see what they're typing
+    )
+    
+    if not api_key:
+        console.print("[yellow]⚠ No API key provided, skipping[/yellow]")
+        return
+    
+    # Show preview
+    if len(api_key) > 8:
+        preview = f"{api_key[:8]}...{api_key[-4:]}"
+        console.print(f"Key preview: {preview}")
+    
+    # Confirm
+    if not Confirm.ask("Save this API key?", default=True):
+        console.print("[yellow]Cancelled[/yellow]")
+        return
+    
+    # Update config
+    result = tool.execute(
+        path=f"providers.{name}.apiKey",
+        value=api_key
+    )
+    
+    if "Error" in result:
+        console.print(f"[red]{result}[/red]")
+    else:
+        console.print(f"[green]{result}[/green]")
+        
+        # Ask about default model
+        if 'models' in schema and len(schema['models']) > 0:
+            console.print("\n[dim]Available models:[/dim]")
+            for i, model in enumerate(schema['models'], 1):
+                console.print(f"  [{i}] {model}")
+            
+            model_choice = Prompt.ask(
+                "Select default model (or press Enter to skip)",
+                choices=[str(i) for i in range(len(schema['models']) + 1)],
+                default="1"
+            )
+            
+            if model_choice != "0":
+                model = schema['models'][int(model_choice) - 1]
+                result = tool.execute(
+                    path="agents.defaults.model",
+                    value=model
+                )
+                console.print(f"[green]✓ Set default model to {model}[/green]")
+
+
+def _configure_channels(summary: dict):
+    """Configure chat channels."""
+    tool = UpdateConfigTool()
+    schema = tool.SCHEMA['channels']['channels']
+    
+    console.print(Panel(
+        "[bold]Chat Channels[/bold]\n"
+        "Configure integrations with chat platforms:",
+        border_style="blue"
+    ))
+    
+    # Show channel options
+    channels_list = list(schema.items())
+    for i, (name, info) in enumerate(channels_list, 1):
+        enabled = summary['channels'].get(name, {}).get('enabled', False)
+        status = "[green]✓ Enabled[/green]" if enabled else "[dim]○ Disabled[/dim]"
+        difficulty = info.get('difficulty', 'Medium')
+        console.print(f"  [{i}] {status} {name.title()} ({difficulty})")
+    
+    console.print(f"  [0] Back to main menu")
+    console.print()
+    
+    # Get choice
+    choice = Prompt.ask(
+        "Select channel to configure",
+        choices=[str(i) for i in range(len(channels_list) + 1)],
+        default="1"
+    )
+    
+    if choice == "0":
+        return
+    
+    channel_name = channels_list[int(choice) - 1][0]
+    channel_schema = schema[channel_name]
+    
+    _configure_single_channel(channel_name, channel_schema)
+
+
+def _configure_single_channel(name: str, schema: dict):
+    """Configure a single channel."""
+    console.print(Panel(
+        f"[bold]{name.title()} Configuration[/bold]",
+        border_style="blue"
+    ))
+    
+    tool = UpdateConfigTool()
+    
+    # Show setup notes
+    if 'setup_note' in schema:
+        console.print(f"\n[yellow]⚠ {schema['setup_note']}[/yellow]")
+    
+    # Show current status
+    current = tool.get_config_summary()['channels'].get(name, {})
+    is_enabled = current.get('enabled', False)
+    
+    if is_enabled:
+        console.print(f"\n[green]✓ Channel is currently enabled[/green]")
+        if Confirm.ask("Disable this channel?", default=False):
+            tool.execute(path=f"channels.{name}.enabled", value=False)
+            console.print("[green]✓ Channel disabled[/green]")
+        return
+    
+    # Enable channel
+    console.print("\nTo enable this channel, I need some information:\n")
+    
+    # Collect required fields
+    if 'fields' in schema:
+        for field_name, field_info in schema['fields'].items():
+            if field_info.get('type') == 'boolean':
+                continue  # Skip boolean fields for now
+            
+            help_text = field_info.get('help', '')
+            if help_text:
+                console.print(f"[dim]{help_text}[/dim]")
+            
+            value = Prompt.ask(f"Enter {field_name}")
+            
+            if value:
+                result = tool.execute(
+                    path=f"channels.{name}.{field_name}",
+                    value=value
+                )
+                if "Error" in result:
+                    console.print(f"[red]{result}[/red]")
+    
+    # Enable the channel
+    if Confirm.ask("Enable this channel?", default=True):
+        result = tool.execute(path=f"channels.{name}.enabled", value=True)
+        console.print(f"[green]✓ {name.title()} channel enabled![/green]")
+        console.print(f"[dim]Start the gateway to activate: nanobot gateway[/dim]")
+
+
+def _configure_agents():
+    """Configure agent settings."""
+    tool = UpdateConfigTool()
+    
+    console.print(Panel(
+        "[bold]Agent Settings[/bold]",
+        border_style="blue"
+    ))
+    
+    # Show current settings
+    config = load_config()
+    
+    console.print(f"\n[dim]Current settings:[/dim]")
+    console.print(f"  Model: {config.agents.defaults.model}")
+    console.print(f"  Max tokens: {config.agents.defaults.max_tokens}")
+    console.print(f"  Temperature: {config.agents.defaults.temperature}")
+    
+    # Ask what to change
+    console.print("\nWhat would you like to change?")
+    console.print("  [1] Default model")
+    console.print("  [2] Max tokens")
+    console.print("  [3] Temperature")
+    console.print("  [0] Back")
+    
+    choice = Prompt.ask("Select", choices=["0", "1", "2", "3"], default="0")
+    
+    if choice == "1":
+        model = Prompt.ask("Enter model name (e.g., anthropic/claude-opus-4-5)")
+        if model:
+            result = tool.execute(path="agents.defaults.model", value=model)
+            console.print(f"[green]{result}[/green]")
+    
+    elif choice == "2":
+        tokens = Prompt.ask("Enter max tokens", default="8192")
+        result = tool.execute(path="agents.defaults.max_tokens", value=int(tokens))
+        console.print(f"[green]{result}[/green]")
+    
+    elif choice == "3":
+        temp = Prompt.ask("Enter temperature (0.0-2.0)", default="0.7")
+        result = tool.execute(path="agents.defaults.temperature", value=float(temp))
+        console.print(f"[green]{result}[/green]")
+
+
+def _configure_tools():
+    """Configure tool settings."""
+    tool = UpdateConfigTool()
+    
+    console.print(Panel(
+        "[bold]Tool Settings[/bold]",
+        border_style="blue"
+    ))
+    
+    console.print("\n[dim]Security Settings:[/dim]")
+    
+    # Evolutionary mode
+    config = load_config()
+    is_evolutionary = config.tools.evolutionary
+    
+    console.print(f"\nEvolutionary mode: {'[green]Enabled[/green]' if is_evolutionary else '[dim]Disabled[/dim]'}")
+    console.print("[dim]Allows bot to modify its own source code[/dim]")
+    
+    if Confirm.ask(
+        f"{'Disable' if is_evolutionary else 'Enable'} evolutionary mode?",
+        default=False
+    ):
+        result = tool.execute(
+            path="tools.evolutionary",
+            value=not is_evolutionary
+        )
+        console.print(f"[green]{result}[/green]")
+        
+        if not is_evolutionary:  # Just enabled
+            console.print("\n[yellow]⚠ Security Warning:[/yellow]")
+            console.print("Evolutionary mode allows the bot to modify files outside")
+            console.print("the workspace. Make sure allowedPaths is configured correctly.")
+
+
+def _show_detailed_status():
+    """Show detailed configuration status."""
+    config = load_config()
+    config_path = get_config_path()
+    
+    console.print(Panel(
+        "[bold]Detailed Configuration Status[/bold]",
+        border_style="blue"
+    ))
+    
+    # Config file location
+    console.print(f"\n[dim]Config file:[/dim] {config_path}")
+    console.print(f"[dim]Exists:[/dim] {'[green]Yes[/green]' if config_path.exists() else '[red]No[/red]'}\n")
+    
+    # Providers table
+    table = Table(title="Providers", box=box.ROUNDED)
+    table.add_column("Provider", style="cyan")
+    table.add_column("API Key", style="green")
+    table.add_column("Default", style="yellow")
+    
+    for provider_name in ['openrouter', 'anthropic', 'openai', 'groq', 'deepseek', 'moonshot']:
+        provider = getattr(config.providers, provider_name, None)
+        has_key = bool(provider and provider.api_key)
+        is_default = provider_name in config.agents.defaults.model.lower()
+        
+        table.add_row(
+            provider_name.title(),
+            "[green]✓[/green]" if has_key else "[dim]✗[/dim]",
+            "[bold]✓[/bold]" if is_default else ""
+        )
+    
+    console.print(table)
+    
+    # Channels table
+    console.print()
+    table = Table(title="Channels", box=box.ROUNDED)
+    table.add_column("Channel", style="cyan")
+    table.add_column("Enabled", style="green")
+    
+    for channel_name in ['telegram', 'discord', 'whatsapp', 'slack', 'email']:
+        channel = getattr(config.channels, channel_name, None)
+        enabled = bool(channel and getattr(channel, 'enabled', False))
+        
+        table.add_row(
+            channel_name.title(),
+            "[green]✓[/green]" if enabled else "[dim]✗[/dim]"
+        )
+    
+    console.print(table)
+    
+    console.print("\n[dim]Press Enter to continue...[/dim]")
+    input()
+
+
+# Typer app for CLI integration
+app = typer.Typer(help="Configure nanobot interactively")
+
+
+@app.callback(invoke_without_command=True)
+def main():
+    """Interactive configuration wizard."""
+    configure_cli()
+
+
+if __name__ == "__main__":
+    app()

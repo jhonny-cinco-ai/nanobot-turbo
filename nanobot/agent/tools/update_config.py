@@ -1,0 +1,538 @@
+"""Update configuration tool for nanobot.
+
+This tool provides a centralized way to update configuration values
+from CLI, chat, or API calls. It handles validation, type conversion,
+and security considerations.
+"""
+
+from pathlib import Path
+from typing import Any, get_origin, get_args
+from loguru import logger
+
+from nanobot.agent.tools.base import Tool
+from nanobot.config.loader import load_config, save_config, get_config_path
+from nanobot.config.schema import Config, ToolsConfig, RoutingConfig
+from nanobot.security.sanitizer import SecretSanitizer
+
+
+class ConfigUpdateError(Exception):
+    """Error during configuration update."""
+    pass
+
+
+class UpdateConfigTool(Tool):
+    """
+    Tool to update nanobot configuration values.
+    
+    This tool provides secure configuration updates with:
+    - Path validation (dot notation like 'providers.openrouter.apiKey')
+    - Type validation and conversion
+    - Secret detection and masking in logs
+    - Backup before changes
+    - Support for arrays (append/remove)
+    """
+    
+    name = "update_config"
+    
+    # Configuration schema for validation
+    SCHEMA = {
+        'agents': {
+            'description': 'Agent behavior settings',
+            'required_for_startup': False,
+            'fields': {
+                'defaults.workspace': {'type': 'path', 'default': '~/.nanobot/workspace'},
+                'defaults.model': {'type': 'string', 'required': True},
+                'defaults.max_tokens': {'type': 'integer', 'default': 8192, 'min': 1, 'max': 128000},
+                'defaults.temperature': {'type': 'float', 'default': 0.7, 'min': 0.0, 'max': 2.0},
+                'defaults.max_tool_iterations': {'type': 'integer', 'default': 20, 'min': 1, 'max': 100},
+            }
+        },
+        'providers': {
+            'description': 'LLM API providers',
+            'required_for_startup': True,
+            'required_hint': 'At least one provider with apiKey is required',
+            'providers': {
+                'openrouter': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'pattern': r'^sk-or-v1-', 'help': 'Get from https://openrouter.ai/keys'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'anthropic/claude-opus-4-5',
+                        'openai/gpt-4o',
+                        'deepseek/deepseek-chat-v3-0324',
+                    ]
+                },
+                'anthropic': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'pattern': r'^sk-ant-', 'help': 'Get from https://console.anthropic.com/'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'claude-3-5-sonnet-20241022',
+                        'claude-3-opus-20240229',
+                    ]
+                },
+                'openai': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'pattern': r'^sk-', 'help': 'Get from https://platform.openai.com/api-keys'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'gpt-4o',
+                        'gpt-4o-mini',
+                        'gpt-4-turbo',
+                    ]
+                },
+                'groq': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'pattern': r'^gsk_', 'help': 'Get from https://console.groq.com/keys'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'llama-3.3-70b-versatile',
+                        'mixtral-8x7b-32768',
+                    ]
+                },
+                'deepseek': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://platform.deepseek.com/api_keys'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'deepseek-chat-v3-0324',
+                        'deepseek-coder-v2',
+                    ]
+                },
+                'moonshot': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://platform.moonshot.cn/'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'moonshotai/kimi-k2.5',
+                    ]
+                },
+                'gemini': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://aistudio.google.com/app/apikey'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'gemini-1.5-pro',
+                        'gemini-1.5-flash',
+                    ]
+                },
+            }
+        },
+        'channels': {
+            'description': 'Chat channel integrations',
+            'required_for_startup': False,
+            'channels': {
+                'telegram': {
+                    'difficulty': 'Easy',
+                    'fields': {
+                        'enabled': {'type': 'boolean', 'default': False},
+                        'token': {'type': 'string', 'help': 'Get from @BotFather on Telegram'},
+                        'allowFrom': {'type': 'array', 'item_type': 'string', 'help': 'List of allowed Telegram user IDs'},
+                    },
+                },
+                'discord': {
+                    'difficulty': 'Easy',
+                    'fields': {
+                        'enabled': {'type': 'boolean', 'default': False},
+                        'token': {'type': 'string', 'help': 'Get from Discord Developer Portal'},
+                        'allowFrom': {'type': 'array', 'item_type': 'string'},
+                    },
+                },
+                'whatsapp': {
+                    'difficulty': 'Medium',
+                    'setup_note': 'Requires Node.js bridge. Run: nanobot channels login',
+                    'fields': {
+                        'enabled': {'type': 'boolean', 'default': False},
+                        'bridgeUrl': {'type': 'url', 'default': 'ws://localhost:3001'},
+                        'allowFrom': {'type': 'array', 'item_type': 'string'},
+                    },
+                },
+                'slack': {
+                    'difficulty': 'Medium',
+                    'fields': {
+                        'enabled': {'type': 'boolean', 'default': False},
+                        'mode': {'type': 'enum', 'options': ['socket', 'webhook'], 'default': 'socket'},
+                        'botToken': {'type': 'string', 'help': 'Bot token (starts with xoxb-)'},
+                        'appToken': {'type': 'string', 'help': 'App token (starts with xapp-)'},
+                    },
+                },
+                'email': {
+                    'difficulty': 'Medium',
+                    'fields': {
+                        'enabled': {'type': 'boolean', 'default': False},
+                        'consentGranted': {'type': 'boolean', 'default': False, 'help': 'Explicit permission to access mailbox'},
+                        'imapHost': {'type': 'string'},
+                        'imapUsername': {'type': 'string'},
+                        'imapPassword': {'type': 'string'},
+                        'smtpHost': {'type': 'string'},
+                        'smtpUsername': {'type': 'string'},
+                        'smtpPassword': {'type': 'string'},
+                        'fromAddress': {'type': 'string'},
+                    },
+                },
+            }
+        },
+        'tools': {
+            'description': 'Tool behavior settings',
+            'required_for_startup': False,
+            'fields': {
+                'restrictToWorkspace': {'type': 'boolean', 'default': False, 'help': 'Sandbox: restrict file access to workspace only'},
+                'evolutionary': {'type': 'boolean', 'default': False, 'help': 'Allow bot to self-improve (see docs)'},
+                'allowedPaths': {'type': 'array', 'item_type': 'path', 'help': 'Paths bot can access when evolutionary=true'},
+                'protectedPaths': {'type': 'array', 'item_type': 'path', 'default': ['~/.nanobot/config.json']},
+                'exec.timeout': {'type': 'integer', 'default': 60, 'min': 1, 'max': 3600},
+                'web.search.apiKey': {'type': 'string', 'help': 'Brave Search API key (optional)'},
+                'web.search.maxResults': {'type': 'integer', 'default': 5, 'min': 1, 'max': 20},
+            }
+        },
+        'gateway': {
+            'description': 'Gateway server settings',
+            'required_for_startup': False,
+            'fields': {
+                'host': {'type': 'string', 'default': '0.0.0.0'},
+                'port': {'type': 'integer', 'default': 18790, 'min': 1, 'max': 65535},
+            }
+        },
+        'routing': {
+            'description': 'Smart routing settings (advanced)',
+            'required_for_startup': False,
+            'fields': {
+                'enabled': {'type': 'boolean', 'default': True},
+                'clientClassifier.minConfidence': {'type': 'float', 'default': 0.85, 'min': 0.0, 'max': 1.0},
+                'llmClassifier.model': {'type': 'string', 'default': 'gpt-4o-mini'},
+            }
+        },
+    }
+    
+    def __init__(self):
+        self.sanitizer = SecretSanitizer()
+    
+    @property
+    def description(self) -> str:
+        return """Update nanobot configuration values.
+        
+Use this tool to change configuration settings. Paths use dot notation:
+- providers.openrouter.apiKey
+- channels.telegram.enabled
+- agents.defaults.model
+
+Examples:
+- Update OpenRouter key: {"path": "providers.openrouter.apiKey", "value": "sk-or-..."}
+- Enable Telegram: {"path": "channels.telegram.enabled", "value": true}
+- Change model: {"path": "agents.defaults.model", "value": "anthropic/claude-opus-4-5"}
+"""
+    
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Configuration path using dot notation (e.g., 'providers.openrouter.apiKey')"
+                },
+                "value": {
+                    "type": ["string", "boolean", "integer", "array"],
+                    "description": "New value to set"
+                },
+                "operation": {
+                    "type": "string",
+                    "enum": ["set", "append", "remove"],
+                    "description": "Operation to perform: 'set' (default), 'append' to array, or 'remove' from array"
+                }
+            },
+            "required": ["path", "value"]
+        }
+    
+    async def execute(self, path: str, value: Any, operation: str = "set", **kwargs) -> str:
+        """
+        Update a configuration value.
+        
+        Args:
+            path: Dot-notation path (e.g., 'providers.openrouter.apiKey')
+            value: New value
+            operation: 'set', 'append', or 'remove'
+            
+        Returns:
+            Success message or error
+        """
+        try:
+            # Load current config
+            config = load_config()
+            
+            # Parse the path
+            parts = path.split('.')
+            if len(parts) < 2:
+                return f"Error: Invalid path '{path}'. Must have at least 2 parts (e.g., 'providers.openrouter.apiKey')"
+            
+            # Get schema info for this path
+            schema_info = self._get_schema_info(parts)
+            
+            # Validate and convert value
+            validated_value = self._validate_value(value, schema_info, path)
+            if validated_value is None:
+                return f"Error: Invalid value '{value}' for path '{path}'"
+            
+            # Check for secrets in the value
+            if isinstance(validated_value, str) and self.sanitizer.has_secrets(validated_value):
+                secret_types = self.sanitizer.get_secret_types(validated_value)
+                logger.warning(f"Configuration update contains secrets: {', '.join(secret_types)}")
+                logger.warning("Secrets will be stored securely")
+            
+            # Backup existing config
+            self._backup_config()
+            
+            # Navigate to the target and update
+            success = self._update_config_value(config, parts, validated_value, operation)
+            
+            if not success:
+                return f"Error: Could not update path '{path}'"
+            
+            # Save the config
+            save_config(config)
+            
+            # Log success (with sanitized value if it contains secrets)
+            display_value = self.sanitizer.sanitize(str(validated_value)) if isinstance(validated_value, str) else str(validated_value)
+            if len(display_value) > 50:
+                display_value = display_value[:50] + "..."
+            logger.info(f"Configuration updated: {path} = {display_value}")
+            
+            return f"✓ Updated {path} successfully"
+            
+        except ConfigUpdateError as e:
+            logger.error(f"Config update failed: {e}")
+            return f"Error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error updating config: {e}")
+            return f"Error: Failed to update configuration - {str(e)}"
+    
+    def _get_schema_info(self, parts: list[str]) -> dict:
+        """Get schema information for a configuration path."""
+        category = parts[0]
+        
+        if category not in self.SCHEMA:
+            return {}
+        
+        schema = self.SCHEMA[category]
+        
+        # Navigate nested schema
+        current = schema
+        for part in parts[1:]:
+            if 'fields' in current and part in current['fields']:
+                current = current['fields'][part]
+            elif 'providers' in current and part in current['providers']:
+                current = current['providers'][part]
+            elif 'channels' in current and part in current['channels']:
+                current = current['channels'][part]
+            else:
+                break
+        
+        return current if isinstance(current, dict) else {}
+    
+    def _validate_value(self, value: Any, schema: dict, path: str) -> Any:
+        """Validate and convert a value according to schema."""
+        field_type = schema.get('type', 'string')
+        
+        try:
+            if field_type == 'string':
+                str_value = str(value)
+                # Check pattern if specified
+                if 'pattern' in schema:
+                    import re
+                    if not re.match(schema['pattern'], str_value):
+                        raise ConfigUpdateError(
+                            f"Value does not match required pattern. {schema.get('help', '')}"
+                        )
+                return str_value
+            
+            elif field_type == 'boolean':
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, str):
+                    return value.lower() in ('true', 'yes', '1', 'on')
+                return bool(value)
+            
+            elif field_type == 'integer':
+                int_value = int(value)
+                if 'min' in schema and int_value < schema['min']:
+                    raise ConfigUpdateError(f"Value must be >= {schema['min']}")
+                if 'max' in schema and int_value > schema['max']:
+                    raise ConfigUpdateError(f"Value must be <= {schema['max']}")
+                return int_value
+            
+            elif field_type == 'float':
+                float_value = float(value)
+                if 'min' in schema and float_value < schema['min']:
+                    raise ConfigUpdateError(f"Value must be >= {schema['min']}")
+                if 'max' in schema and float_value > schema['max']:
+                    raise ConfigUpdateError(f"Value must be <= {schema['max']}")
+                return float_value
+            
+            elif field_type == 'array':
+                if isinstance(value, list):
+                    return value
+                if isinstance(value, str):
+                    # Parse comma-separated or JSON array
+                    try:
+                        import json
+                        return json.loads(value)
+                    except:
+                        return [item.strip() for item in value.split(',') if item.strip()]
+                return [value]
+            
+            elif field_type == 'enum':
+                options = schema.get('options', [])
+                str_value = str(value)
+                if str_value not in options:
+                    raise ConfigUpdateError(f"Value must be one of: {', '.join(options)}")
+                return str_value
+            
+            elif field_type == 'path':
+                # Expand user home directory
+                path_value = str(value)
+                if path_value.startswith('~'):
+                    path_value = str(Path.home() / path_value[2:])
+                return path_value
+            
+            elif field_type == 'url':
+                url_value = str(value)
+                if url_value and not url_value.startswith(('http://', 'https://', 'ws://', 'wss://')):
+                    raise ConfigUpdateError("Value must be a valid URL")
+                return url_value if url_value else None
+            
+            else:
+                return str(value)
+                
+        except (ValueError, TypeError) as e:
+            raise ConfigUpdateError(f"Invalid value type. Expected {field_type}, got {type(value).__name__}")
+    
+    def _backup_config(self):
+        """Create a backup of the current config file."""
+        config_path = get_config_path()
+        if config_path.exists():
+            backup_path = config_path.with_suffix('.json.backup')
+            try:
+                import shutil
+                shutil.copy2(config_path, backup_path)
+                logger.debug(f"Config backed up to {backup_path}")
+            except Exception as e:
+                logger.warning(f"Failed to backup config: {e}")
+    
+    def _update_config_value(self, config: Config, parts: list[str], value: Any, operation: str) -> bool:
+        """
+        Update a value in the config object.
+        
+        Args:
+            config: Config object to update
+            parts: Path parts
+            value: New value
+            operation: 'set', 'append', or 'remove'
+            
+        Returns:
+            True if successful
+        """
+        from nanobot.config.loader import convert_to_camel
+        
+        # Convert parts to camelCase for attribute access
+        camel_parts = [convert_to_camel(p) for p in parts]
+        
+        try:
+            # Navigate to the parent object
+            current = config
+            for part in camel_parts[:-1]:
+                if hasattr(current, part):
+                    current = getattr(current, part)
+                else:
+                    return False
+            
+            # Get the final attribute name
+            final_part = camel_parts[-1]
+            
+            if operation == 'set':
+                if hasattr(current, final_part):
+                    setattr(current, final_part, value)
+                    return True
+                return False
+            
+            elif operation == 'append':
+                # Append to array
+                if hasattr(current, final_part):
+                    arr = getattr(current, final_part)
+                    if isinstance(arr, list):
+                        if value not in arr:
+                            arr.append(value)
+                        return True
+                return False
+            
+            elif operation == 'remove':
+                # Remove from array
+                if hasattr(current, final_part):
+                    arr = getattr(current, final_part)
+                    if isinstance(arr, list) and value in arr:
+                        arr.remove(value)
+                        return True
+                return False
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error updating config value: {e}")
+            return False
+    
+    def get_required_for_startup(self) -> dict:
+        """Get configuration required for startup."""
+        required = {}
+        
+        # Check providers - at least one with apiKey
+        required['providers'] = {
+            'description': 'At least one LLM provider with API key',
+            'providers': list(self.SCHEMA['providers']['providers'].keys()),
+        }
+        
+        return required
+    
+    def get_config_summary(self) -> dict:
+        """Get a summary of current configuration."""
+        config = load_config()
+        
+        summary = {
+            'providers': {},
+            'channels': {},
+            'has_required_config': False,
+        }
+        
+        # Check providers
+        for provider_name in self.SCHEMA['providers']['providers'].keys():
+            provider = getattr(config.providers, provider_name, None)
+            if provider and provider.api_key:
+                summary['providers'][provider_name] = {
+                    'configured': True,
+                    'has_key': True,
+                }
+            else:
+                summary['providers'][provider_name] = {
+                    'configured': False,
+                    'has_key': False,
+                }
+        
+        # Check if any provider is configured
+        summary['has_required_config'] = any(
+            p['has_key'] for p in summary['providers'].values()
+        )
+        
+        # Check channels
+        for channel_name in self.SCHEMA['channels']['channels'].keys():
+            channel = getattr(config.channels, channel_name, None)
+            if channel:
+                summary['channels'][channel_name] = {
+                    'enabled': getattr(channel, 'enabled', False),
+                }
+        
+        return summary
