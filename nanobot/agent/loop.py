@@ -8,6 +8,7 @@ from typing import Any
 from loguru import logger
 
 from nanobot.bus.events import InboundMessage, OutboundMessage
+from nanobot.security.sanitizer import SecretSanitizer, mask_logs
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
 from nanobot.agent.context import ContextBuilder
@@ -67,6 +68,9 @@ class AgentLoop:
         self.evolutionary = evolutionary
         self.allowed_paths = allowed_paths or []
         self.protected_paths = protected_paths or []
+        
+        # Initialize secret sanitizer for security
+        self.sanitizer = SecretSanitizer()
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -240,8 +244,16 @@ class AgentLoop:
         if msg.channel == "system":
             return await self._process_system_message(msg)
         
+        # Sanitize message content for logging to prevent secret exposure
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
-        logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {preview}")
+        sanitized_preview = self.sanitizer.sanitize(preview)
+        logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {sanitized_preview}")
+        
+        # Warn if secrets were detected
+        if self.sanitizer.has_secrets(msg.content):
+            secret_types = self.sanitizer.get_secret_types(msg.content)
+            logger.warning(f"Detected potential secrets in message: {', '.join(secret_types)}")
+            logger.warning("Secrets have been masked before sending to LLM")
         
         # Get or create session
         session = self.sessions.get_or_create(msg.session_key)
@@ -259,10 +271,13 @@ class AgentLoop:
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(msg.channel, msg.chat_id)
         
+        # Sanitize message content before sending to LLM to prevent secret exposure
+        sanitized_content = self.sanitizer.sanitize(msg.content)
+        
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(
             history=session.get_history(),
-            current_message=msg.content,
+            current_message=sanitized_content,
             media=msg.media if msg.media else None,
             channel=msg.channel,
             chat_id=msg.chat_id,
@@ -331,7 +346,9 @@ class AgentLoop:
                 # Execute tools
                 for tool_call in response.tool_calls:
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
-                    logger.info(f"Tool call: {tool_call.name}({args_str[:200]})")
+                    # Sanitize tool arguments to prevent secrets in logs
+                    sanitized_args = self.sanitizer.sanitize(args_str[:200])
+                    logger.info(f"Tool call: {tool_call.name}({sanitized_args})")
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
@@ -344,13 +361,16 @@ class AgentLoop:
         if final_content is None:
             final_content = "I've completed processing but have no response to give."
         
-        # Log response preview
+        # Log response preview (sanitize to prevent echoing secrets)
         preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
-        logger.info(f"Response to {msg.channel}:{msg.sender_id}: {preview}")
+        sanitized_response_preview = self.sanitizer.sanitize(preview)
+        logger.info(f"Response to {msg.channel}:{msg.sender_id}: {sanitized_response_preview}")
         
-        # Save to session
-        session.add_message("user", msg.content)
-        session.add_message("assistant", final_content)
+        # Save to session (sanitize to prevent secrets in session history)
+        sanitized_user_content = self.sanitizer.sanitize(msg.content)
+        sanitized_assistant_content = self.sanitizer.sanitize(final_content)
+        session.add_message("user", sanitized_user_content)
+        session.add_message("assistant", sanitized_assistant_content)
         self.sessions.save(session)
         
         return OutboundMessage(

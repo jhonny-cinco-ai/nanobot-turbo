@@ -9,6 +9,7 @@ from typing import Any
 from loguru import logger
 
 from nanobot.bus.events import InboundMessage
+from nanobot.security.sanitizer import SecretSanitizer
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
 from nanobot.agent.tools.registry import ToolRegistry
@@ -51,6 +52,9 @@ class SubagentManager:
         self.protected_paths = protected_paths or []
         self.allowed_paths = allowed_paths or []
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        
+        # Initialize secret sanitizer for security
+        self.sanitizer = SecretSanitizer()
     
     async def spawn(
         self,
@@ -177,7 +181,9 @@ class SubagentManager:
                     # Execute tools
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
-                        logger.debug(f"Subagent [{task_id}] executing: {tool_call.name} with arguments: {args_str}")
+                        # Sanitize tool arguments to prevent secrets in logs
+                        sanitized_args = self.sanitizer.sanitize(args_str)
+                        logger.debug(f"Subagent [{task_id}] executing: {tool_call.name} with arguments: {sanitized_args}")
                         result = await tools.execute(tool_call.name, tool_call.arguments)
                         messages.append({
                             "role": "tool",
