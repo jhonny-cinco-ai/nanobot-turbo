@@ -121,6 +121,68 @@ class ToolsConfig(BaseModel):
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
 
 
+class RoutingTierConfig(BaseModel):
+    """Configuration for a routing tier."""
+    model: str
+    cost_per_mtok: float = 1.0
+
+
+class RoutingTiersConfig(BaseModel):
+    """Configuration for all routing tiers."""
+    simple: RoutingTierConfig = Field(default_factory=lambda: RoutingTierConfig(
+        model="deepseek-chat",
+        cost_per_mtok=0.27
+    ))
+    medium: RoutingTierConfig = Field(default_factory=lambda: RoutingTierConfig(
+        model="gpt-4o-mini",
+        cost_per_mtok=0.60
+    ))
+    complex: RoutingTierConfig = Field(default_factory=lambda: RoutingTierConfig(
+        model="anthropic/claude-sonnet-4",
+        cost_per_mtok=15.0
+    ))
+    reasoning: RoutingTierConfig = Field(default_factory=lambda: RoutingTierConfig(
+        model="o3",
+        cost_per_mtok=10.0
+    ))
+
+
+class ClientClassifierConfig(BaseModel):
+    """Configuration for client-side classifier."""
+    min_confidence: float = 0.85
+
+
+class LLMClassifierConfig(BaseModel):
+    """Configuration for LLM-assisted classifier."""
+    model: str = "gpt-4o-mini"
+    timeout_ms: int = 500
+
+
+class StickyRoutingConfig(BaseModel):
+    """Configuration for sticky routing behavior."""
+    context_window: int = 5
+    downgrade_confidence: float = 0.9
+
+
+class AutoCalibrationConfig(BaseModel):
+    """Configuration for auto-calibration."""
+    enabled: bool = True
+    interval: str = "24h"
+    min_classifications: int = 50
+    max_patterns: int = 100
+    backup_before_calibration: bool = True
+
+
+class RoutingConfig(BaseModel):
+    """Configuration for smart routing."""
+    enabled: bool = True
+    tiers: RoutingTiersConfig = Field(default_factory=RoutingTiersConfig)
+    client_classifier: ClientClassifierConfig = Field(default_factory=ClientClassifierConfig)
+    llm_classifier: LLMClassifierConfig = Field(default_factory=LLMClassifierConfig)
+    sticky: StickyRoutingConfig = Field(default_factory=StickyRoutingConfig)
+    auto_calibration: AutoCalibrationConfig = Field(default_factory=AutoCalibrationConfig)
+
+
 class Config(BaseSettings):
     """Root configuration for nanobot."""
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
@@ -128,6 +190,7 @@ class Config(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    routing: RoutingConfig = Field(default_factory=RoutingConfig)
     
     @property
     def workspace_path(self) -> Path:

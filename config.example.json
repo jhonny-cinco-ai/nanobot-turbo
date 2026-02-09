@@ -1,0 +1,61 @@
+{
+  "_comment": "Example configuration for nanobot-turbo with smart routing",
+  "agents": {
+    "defaults": {
+      "workspace": "~/.nanobot/workspace",
+      "model": "anthropic/claude-opus-4-5",
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "max_tool_iterations": 20
+    }
+  },
+  "providers": {
+    "openrouter": {
+      "apiKey": "sk-or-v1-xxx"
+    }
+  },
+  "routing": {
+    "_comment": "Smart routing configuration - automatically selects models based on message complexity",
+    "enabled": true,
+    "tiers": {
+      "simple": {
+        "model": "deepseek-chat",
+        "cost_per_mtok": 0.27
+      },
+      "medium": {
+        "model": "gpt-4o-mini",
+        "cost_per_mtok": 0.60
+      },
+      "complex": {
+        "model": "anthropic/claude-sonnet-4",
+        "cost_per_mtok": 15.0
+      },
+      "reasoning": {
+        "model": "o3",
+        "cost_per_mtok": 10.0
+      }
+    },
+    "client_classifier": {
+      "_comment": "Layer 1: Fast pattern matching (if confidence >= 0.85, use this result)",
+      "min_confidence": 0.85
+    },
+    "llm_classifier": {
+      "_comment": "Layer 2: LLM-assisted fallback for uncertain cases",
+      "model": "gpt-4o-mini",
+      "timeout_ms": 500
+    },
+    "sticky": {
+      "_comment": "Sticky routing: maintains tier across conversation context",
+      "context_window": 5,
+      "downgrade_confidence": 0.9
+    },
+    "auto_calibration": {
+      "_comment": "Auto-improves routing patterns based on Layer 1 vs Layer 2 comparisons",
+      "enabled": true,
+      "interval": "24h",
+      "min_classifications": 50,
+      "max_patterns": 100,
+      "backup_before_calibration": true
+    }
+  }
+}
