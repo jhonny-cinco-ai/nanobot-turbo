@@ -201,12 +201,61 @@ class UpdateConfigTool(Tool):
             }
         },
         'routing': {
-            'description': 'Smart routing settings (advanced)',
+            'description': 'Smart routing automatically selects the best model based on query complexity',
             'required_for_startup': False,
             'fields': {
-                'enabled': {'type': 'boolean', 'default': True},
-                'clientClassifier.minConfidence': {'type': 'float', 'default': 0.85, 'min': 0.0, 'max': 1.0},
-                'llmClassifier.model': {'type': 'string', 'default': 'gpt-4o-mini'},
+                'enabled': {'type': 'boolean', 'default': True, 'help': 'Enable smart routing (recommended)'},
+            },
+            'tiers': {
+                'description': 'Model tiers for different query complexities',
+                'simple': {
+                    'description': 'Quick queries, greetings, simple facts',
+                    'fields': {
+                        'model': {'type': 'string', 'default': 'deepseek/deepseek-chat-v3-0324'},
+                        'costPerMtok': {'type': 'float', 'default': 0.27},
+                        'secondaryModel': {'type': 'string', 'default': 'deepseek/deepseek-chat-v3.1'},
+                    }
+                },
+                'medium': {
+                    'description': 'General questions, explanations',
+                    'fields': {
+                        'model': {'type': 'string', 'default': 'openai/gpt-4.1-mini'},
+                        'costPerMtok': {'type': 'float', 'default': 0.40},
+                        'secondaryModel': {'type': 'string', 'default': 'openai/gpt-4o-mini'},
+                    }
+                },
+                'complex': {
+                    'description': 'Deep analysis, debugging',
+                    'fields': {
+                        'model': {'type': 'string', 'default': 'anthropic/claude-sonnet-4.5'},
+                        'costPerMtok': {'type': 'float', 'default': 3.0},
+                        'secondaryModel': {'type': 'string', 'default': 'anthropic/claude-sonnet-4'},
+                    }
+                },
+                'reasoning': {
+                    'description': 'Multi-step logic, proofs, planning',
+                    'fields': {
+                        'model': {'type': 'string', 'default': 'openai/o3'},
+                        'costPerMtok': {'type': 'float', 'default': 2.0},
+                        'secondaryModel': {'type': 'string', 'default': 'openai/gpt-4o'},
+                    }
+                },
+                'coding': {
+                    'description': 'Code generation, refactoring, debugging',
+                    'fields': {
+                        'model': {'type': 'string', 'default': 'moonshotai/kimi-k2.5'},
+                        'costPerMtok': {'type': 'float', 'default': 0.45},
+                        'secondaryModel': {'type': 'string', 'default': 'anthropic/claude-sonnet-4'},
+                    }
+                },
+            },
+            'advanced': {
+                'description': 'Advanced routing settings',
+                'clientClassifier.minConfidence': {'type': 'float', 'default': 0.85, 'min': 0.0, 'max': 1.0, 'help': 'Confidence threshold for client-side classification'},
+                'llmClassifier.model': {'type': 'string', 'default': 'gpt-4o-mini', 'help': 'Model for LLM-assisted classification'},
+                'sticky.contextWindow': {'type': 'integer', 'default': 5, 'min': 1, 'max': 20, 'help': 'Context window for sticky routing'},
+                'sticky.downgradeConfidence': {'type': 'float', 'default': 0.9, 'min': 0.0, 'max': 1.0, 'help': 'Confidence threshold for tier downgrade'},
+                'autoCalibration.enabled': {'type': 'boolean', 'default': True, 'help': 'Enable automatic routing calibration'},
             }
         },
     }

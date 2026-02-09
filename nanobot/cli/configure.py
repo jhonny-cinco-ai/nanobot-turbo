@@ -57,6 +57,9 @@ def configure_cli():
         elif choice == "agents":
             _configure_agents()
         
+        elif choice == "routing":
+            _configure_routing()
+        
         elif choice == "tools":
             _configure_tools()
         
@@ -130,9 +133,10 @@ def _show_main_menu(summary: dict) -> str:
     options.extend([
         ("2", "channels", "💬 Chat Channels"),
         ("3", "agents", "⚙️ Agent Settings"),
-        ("4", "tools", "🛠️ Tool Settings"),
-        ("5", "status", "📊 View Full Status"),
-        ("6", "exit", "✓ Done" if has_required else "⏭ Skip for now"),
+        ("4", "routing", "🧠 Smart Routing"),
+        ("5", "tools", "🛠️ Tool Settings"),
+        ("6", "status", "📊 View Full Status"),
+        ("7", "exit", "✓ Done" if has_required else "⏭ Skip for now"),
     ])
     
     for num, key, label in options:
@@ -399,6 +403,113 @@ def _configure_agents():
         temp = Prompt.ask("Enter temperature (0.0-2.0)", default="0.7")
         result = tool.execute(path="agents.defaults.temperature", value=float(temp))
         console.print(f"[green]{result}[/green]")
+
+
+def _configure_routing():
+    """Configure smart routing settings."""
+    from nanobot.config.loader import load_config
+    
+    tool = UpdateConfigTool()
+    config = load_config()
+    
+    console.print(Panel(
+        "[bold]Smart Routing Configuration[/bold]\n"
+        "Smart routing automatically selects the best model based on query complexity",
+        border_style="blue"
+    ))
+    
+    # Show current status
+    is_enabled = config.routing.enabled
+    console.print(f"\nSmart Routing: {'[green]Enabled[/green]' if is_enabled else '[dim]Disabled[/dim]'}")
+    
+    if not is_enabled:
+        if Confirm.ask("Enable smart routing?", default=True):
+            result = tool.execute(path="routing.enabled", value=True)
+            console.print(f"[green]{result}[/green]")
+            is_enabled = True
+    
+    if is_enabled:
+        console.print("\n[dim]Smart routing is active. The bot will automatically select models based on query complexity.[/dim]\n")
+        
+        # Show current tier configuration
+        console.print("[bold]Current Model Tiers:[/bold]")
+        tiers_table = Table(box=box.ROUNDED)
+        tiers_table.add_column("Tier", style="cyan")
+        tiers_table.add_column("Model", style="green")
+        tiers_table.add_column("Cost/M tokens", style="yellow")
+        tiers_table.add_column("Use Case", style="dim")
+        
+        tiers_info = [
+            ("Simple", config.routing.tiers.simple, "Quick queries, greetings"),
+            ("Medium", config.routing.tiers.medium, "General questions"),
+            ("Complex", config.routing.tiers.complex, "Deep analysis"),
+            ("Reasoning", config.routing.tiers.reasoning, "Multi-step logic"),
+            ("Coding", config.routing.tiers.coding, "Code generation"),
+        ]
+        
+        for tier_name, tier_config, use_case in tiers_info:
+            tiers_table.add_row(
+                tier_name,
+                tier_config.model,
+                f"${tier_config.cost_per_mtok:.2f}",
+                use_case
+            )
+        
+        console.print(tiers_table)
+        
+        # Ask if user wants to customize
+        console.print("\n[1] Customize tier models")
+        console.print("[2] Adjust confidence thresholds")
+        console.print("[0] Back")
+        
+        choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0")
+        
+        if choice == "1":
+            console.print("\n[bold]Customize Model Tiers:[/bold]")
+            console.print("Select a tier to customize:\n")
+            
+            for i, (tier_name, _, use_case) in enumerate(tiers_info, 1):
+                console.print(f"  [{i}] {tier_name} - {use_case}")
+            console.print("  [0] Back")
+            
+            tier_choice = Prompt.ask("Select tier", choices=["0", "1", "2", "3", "4", "5"], default="0")
+            
+            if tier_choice != "0":
+                tier_names = ["simple", "medium", "complex", "reasoning", "coding"]
+                selected_tier = tier_names[int(tier_choice) - 1]
+                
+                console.print(f"\n[bold]Configure {selected_tier.title()} Tier:[/bold]")
+                
+                new_model = Prompt.ask("Enter model name (or press Enter to keep current)", default="")
+                if new_model:
+                    result = tool.execute(
+                        path=f"routing.tiers.{selected_tier}.model",
+                        value=new_model
+                    )
+                    console.print(f"[green]{result}[/green]")
+                
+                secondary = Prompt.ask("Enter secondary/fallback model (optional)", default="")
+                if secondary:
+                    result = tool.execute(
+                        path=f"routing.tiers.{selected_tier}.secondaryModel",
+                        value=secondary
+                    )
+                    console.print(f"[green]{result}[/green]")
+        
+        elif choice == "2":
+            console.print("\n[bold]Confidence Thresholds:[/bold]")
+            console.print(f"Current client classifier confidence: {config.routing.client_classifier.min_confidence}")
+            
+            new_confidence = Prompt.ask(
+                "Enter new confidence threshold (0.0-1.0, or press Enter to keep)",
+                default=""
+            )
+            if new_confidence:
+                result = tool.execute(
+                    path="routing.clientClassifier.minConfidence",
+                    value=float(new_confidence)
+                )
+                console.print(f"[green]{result}[/green]")
 
 
 def _configure_tools():
