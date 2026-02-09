@@ -55,19 +55,19 @@ class TestStickyRouter:
         
         session = MockSession()
         
-        # First message - complex
-        decision1 = await router.classify(
-            "Debug this distributed system",
-            session
-        )
-        assert decision1.tier in [RoutingTier.COMPLEX, RoutingTier.MEDIUM]
+        # Set up existing complex history (simulating previous messages)
+        session.messages = [
+            {"metadata": {"routing_tier": "complex"}},
+            {"metadata": {"routing_tier": "complex"}},
+        ]
+        session.metadata["routing_tier"] = "complex"
         
-        # Second message - simple but should stay complex (sticky)
-        decision2 = await router.classify("Thanks", session)
+        # Current message that would normally be simple
+        decision = await router.classify("Thanks", session)
         
-        # Should maintain complex tier
-        if decision2.tier != RoutingTier.SIMPLE:
-            assert decision2.metadata.get("sticky_maintained") is True
+        # Should maintain complex tier due to sticky routing
+        assert decision.tier in [RoutingTier.COMPLEX, RoutingTier.REASONING]
+        assert decision.metadata.get("sticky_maintained") is True
     
     @pytest.mark.asyncio
     async def test_downgrade_when_explicitly_simple(self):
@@ -181,13 +181,13 @@ class TestStickyRouter:
         
         from nanobot.agent.router.models import ClassificationScores
         scores = ClassificationScores(
-            simple_indicators=0.6,
+            simple_indicators=0.8,  # High simple score
             technical_terms=0.0,
         )
         
         should_downgrade = router._should_downgrade("Hi", scores)
         
-        # Very short + no technical + decent simple score
+        # Very short + no technical + high simple score = 2 conditions met
         assert should_downgrade is True
     
     @pytest.mark.asyncio

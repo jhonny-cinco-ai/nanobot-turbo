@@ -286,11 +286,14 @@ class CalibrationManager:
     
     def _parse_interval(self, interval: str) -> int:
         """Parse interval string to hours."""
-        if interval.endswith("h"):
-            return int(interval[:-1])
-        elif interval.endswith("d"):
-            return int(interval[:-1]) * 24
-        elif interval.isdigit():
-            return int(interval)
-        else:
-            return 24  # Default 24 hours
+        try:
+            if interval.endswith("h"):
+                return int(interval[:-1])
+            elif interval.endswith("d"):
+                return int(interval[:-1]) * 24
+            elif interval.isdigit():
+                return int(interval)
+            else:
+                return 24  # Default 24 hours
+        except ValueError:
+            return 24  # Default 24 hours on any parsing error

@@ -36,7 +36,7 @@ class RoutingContext:
         self.decision = decision
         
         # Map tier to model
-        tier_config = self.config.tiers.get(decision.tier.value)
+        tier_config = getattr(self.config.tiers, decision.tier.value, None)
         if tier_config:
             self.model = tier_config.model
         
@@ -191,10 +191,10 @@ class RoutingStage:
         info = {
             "tiers": {
                 tier: {
-                    "model": config.model,
-                    "cost_per_mtok": config.cost_per_mtok,
+                    "model": getattr(self.config.tiers, tier).model,
+                    "cost_per_mtok": getattr(self.config.tiers, tier).cost_per_mtok,
                 }
-                for tier, config in self.config.tiers.items()
+                for tier in ["simple", "medium", "complex", "reasoning"]
             },
             "client_confidence_threshold": self.config.client_classifier.min_confidence,
             "llm_classifier": {
