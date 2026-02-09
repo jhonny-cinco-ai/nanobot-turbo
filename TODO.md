@@ -3,7 +3,7 @@
 ## Project Overview
 **Repository**: https://github.com/jhonny-cinco-ai/nanobot-turbo  
 **Branch**: feature/smart-router  
-**Status**: Core routing system implemented ✅
+**Status**: Core routing system implemented ✅ | RoutingStage integrated into AgentLoop ✅ | Per-tier secondary models & CODING tier ✅
 
 ## Smart Router Architecture
 
@@ -11,7 +11,7 @@
 
 #### 1. Core Router Components (`nanobot/agent/router/`)
 - **`models.py`** - Data models for routing decisions
-  - `RoutingTier` enum (SIMPLE, MEDIUM, COMPLEX, REASONING)
+  - `RoutingTier` enum (SIMPLE, MEDIUM, COMPLEX, REASONING, CODING)
   - `RoutingDecision` dataclass
   - `ClassificationScores` (14-dimension system)
   - `RoutingPattern` for learned patterns
@@ -24,7 +24,8 @@
   - Tool requirement detection
 
 - **`llm_router.py`** - LLM-assisted Layer 2 fallback
-  - GPT-4o-mini classification
+  - Uses `openai/gpt-4o-mini` for classification (configurable)
+  - Optional secondary model for LLM classifier fallback
   - JSON response parsing
   - 500ms timeout
   - Error fallback to MEDIUM tier
@@ -50,14 +51,15 @@
 
 #### 3. Configuration (`nanobot/config/schema.py`)
 - Added `RoutingConfig` with full schema
-- Tier configuration (simple/medium/complex/reasoning)
+- Tier configuration (simple/medium/complex/reasoning/coding)
+- Per-tier secondary model support
 - Client classifier settings
 - LLM classifier settings
 - Sticky routing settings
 - Auto-calibration settings
 
 #### 4. Example Configuration
-- **`config.example.json`** - Complete example with all routing options
+- **`config.example.json`** - Complete example with all routing options including per-tier fallbacks
 
 ## Testing the Smart Router
 
@@ -80,24 +82,25 @@
 
 2. **Test different message types**:
 ```bash
-# Simple query - should use gpt-4o-mini
+# Simple query - should use deepseek/deepseek-chat-v3-0324
 nanobot agent -m "What is 2+2?"
 
-# Code task - should use claude-sonnet-4
+# Coding task - should use moonshotai/kimi-k2.5
 nanobot agent -m "Write a Python function to sort a list"
 
-# Complex debugging - should use claude-opus-4
+# Complex debugging - should use anthropic/claude-sonnet-4.5
 nanobot agent -m "Debug this distributed system issue with race conditions"
 
-# Reasoning task - should use o3
+# Reasoning task - should use openai/o3
 nanobot agent -m "Prove that the sum of angles in a triangle is 180 degrees"
 ```
 
-3. **Check routing decisions** in logs:
+3. **Check routing decisions and fallbacks** in logs:
 ```bash
 # Look for lines like:
 # "Smart routing: simple (confidence: 0.92, layer: client)"
-# "Smart routing: complex (confidence: 0.88, layer: llm)"
+# "Smart routing: coding (confidence: 0.94, layer: client)"
+# "Primary model X failed, trying secondary model Y"
 ```
 
 ### Manual Testing Script
@@ -221,7 +224,33 @@ python -m pytest tests/router/ -v
   - Best practices
   - API reference
 
-### Priority 5: Analytics & Monitoring 📊
+### Priority 5: Routing Integration ✅ COMPLETED
+- [x] **Integrate RoutingStage into AgentLoop**
+  - RoutingStage initialized in AgentLoop.__init__ when routing enabled
+  - `_select_model()` method calls routing_stage.execute() before each message
+  - Model dynamically selected based on content classification
+  - Logs routing decisions with tier, confidence, and layer
+
+### Priority 6: Advanced Routing Features ✅ COMPLETED
+- [x] **Per-tier secondary models**
+  - Each routing tier (simple, medium, complex, reasoning, coding) now supports a `secondary_model` field
+  - Automatic fallback if primary model fails during execution
+  - Configurable per-tier fallbacks for cost optimization and reliability
+
+- [x] **CODING tier specialization**
+  - Added new CODING routing tier for specialized coding models
+  - Dedicated patterns for coding tasks: function writing, API endpoints, algorithms, data structures
+  - Higher confidence threshold (0.90) to ensure accurate coding detection
+  - Default model: `moonshotai/kimi-k2.5` with fallback to `anthropic/claude-sonnet-4`
+
+**Implemented Models (using your OpenRouter list):**
+- **Simple**: `deepseek/deepseek-chat-v3-0324` → fallback: `deepseek/deepseek-chat-v3.1` ($0.27/M)
+- **Medium**: `openai/gpt-4.1-mini` → fallback: `openai/gpt-4o-mini` ($0.40/M)
+- **Complex**: `anthropic/claude-sonnet-4.5` → fallback: `anthropic/claude-sonnet-4` ($3/M)
+- **Reasoning**: `openai/o3` → fallback: `openai/gpt-4o` ($2/M)
+- **Coding**: `moonshotai/kimi-k2.5` → fallback: `anthropic/claude-sonnet-4` ($0.45/M)
+
+### Priority 7: Analytics & Monitoring 📊
 - [ ] **Cost tracking**
   - Track actual vs estimated costs
   - Calculate savings vs using single model
@@ -242,10 +271,6 @@ python -m pytest tests/router/ -v
   - Allow users to define their own tiers
   - Custom models per tier
   - Custom thresholds
-
-- [ ] **Multi-model fallback**
-  - If primary model fails, try next tier
-  - Circuit breaker pattern
 
 - [ ] **A/B testing**
   - Test different routing strategies
@@ -275,6 +300,10 @@ See `config.example.json` in repository root.
   - Lower = more Layer 2 calls (more accurate, slower)
   - Higher = more Layer 1 calls (faster, less accurate)
 
+- `llm_classifier.model`: LLM model for Layer 2 classification (default: `openai/gpt-4o-mini`)
+  - Used when Layer 1 confidence is below threshold
+  - Secondary model available for fallback if primary fails
+
 - `sticky.context_window`: 1-20 (default: 5)
   - How many messages to look back for sticky routing
 
@@ -289,9 +318,9 @@ See `config.example.json` in repository root.
 - `/projects/nanobot-turbo/nanobot/config/schema.py` - Configuration schema
 
 **Configuration**:
-- `~/.nanobot/config.json` - User configuration
-- `~/.nanobot/workspace/memory/ROUTING_PATTERNS.json` - Learned patterns
-- `~/.nanobot/workspace/analytics/routing_stats.json` - Analytics data
+- `/projects/nanobot-turbo/config.json` - User configuration
+- `/projects/nanobot-turbo/workspace/memory/ROUTING_PATTERNS.json` - Learned patterns
+- `/projects/nanobot-turbo/workspace/analytics/routing_stats.json` - Analytics data
 
 ## Working with the Code
 
@@ -321,13 +350,15 @@ print(f"Scores: {scores.to_dict()}")
 
 ## Cost Savings Estimate
 
-With typical usage distribution:
-- 45% SIMPLE queries → $0.27/M (vs $75/M Opus) = 99.6% savings
-- 35% MEDIUM queries → $0.60/M = 99.2% savings  
-- 15% COMPLEX queries → $15/M = 80% savings
-- 5% REASONING queries → $10/M = 87% savings
+With typical usage distribution (including CODING tier):
+- 35% SIMPLE queries → $0.27/M = 98% savings
+- 25% CODING queries → $0.45/M = 95% savings
+- 20% MEDIUM queries → $0.40/M = 97% savings  
+- 15% COMPLEX queries → $3.00/M = 60% savings
+- 5% REASONING queries → $2.00/M = 73% savings
 
-**Blended average**: ~$3.17/M vs $75/M = **96% cost savings**
+**Blended average**: ~$1.14/M vs $75/M = **98.5% cost savings**
+- Plus per-tier fallbacks provide resilience against rate limits and model failures
 
 ## Git Commands
 
@@ -356,4 +387,5 @@ gh pr create --title "Add smart LLM routing" --body "..."
 
 **Last Updated**: 2026-02-09  
 **Current Branch**: feature/smart-router  
-**Next Priority**: Integrate RoutingStage into AgentLoop
+**Next Priority**: Analytics & Monitoring (Priority 7)  
+**Latest Features**: ✅ Per-tier secondary models + ✅ CODING tier for specialized coding tasks

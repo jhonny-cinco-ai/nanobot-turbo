@@ -31,7 +31,7 @@ Characteristics: Requires careful reasoning, chains of logic, >1000 tokens likel
 
 Respond ONLY with a JSON object in this exact format:
 {
-    "tier": "SIMPLE|MEDIUM|COMPLEX|REASONING",
+    "tier": "SIMPLE|MEDIUM|COMPLEX|CODING|REASONING",
     "confidence": 0.0-1.0,
     "reasoning": "Brief explanation of why this tier was chosen",
     "estimated_tokens": 50|200|1000|2000,
@@ -181,7 +181,7 @@ class LLMRouter:
         
         # Normalize tier
         result["tier"] = result["tier"].upper()
-        valid_tiers = ["SIMPLE", "MEDIUM", "COMPLEX", "REASONING"]
+        valid_tiers = ["SIMPLE", "MEDIUM", "COMPLEX", "CODING", "REASONING"]
         if result["tier"] not in valid_tiers:
             raise ValueError(f"Invalid tier: {result['tier']}")
         

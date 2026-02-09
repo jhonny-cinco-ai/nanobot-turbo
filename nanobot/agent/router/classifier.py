@@ -81,6 +81,13 @@ DEFAULT_PATTERNS = [
         examples=["What is photosynthesis?", "How to cook pasta?", "Translate hello"],
         added_at=datetime.now().isoformat(),
     ),
+    RoutingPattern(
+        regex=r"\b(hi|hello|hey|greetings|bye|goodbye|thanks|good morning|good afternoon|good night)\b",
+        tier=RoutingTier.SIMPLE,
+        confidence=0.95,
+        examples=["Hi there", "Hello!", "Goodbye", "Good morning"],
+        added_at=datetime.now().isoformat(),
+    ),
 ]
 
 
