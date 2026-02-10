@@ -210,23 +210,26 @@ def onboard():
             console.print("\n[dim]Setup cancelled. Existing configuration preserved.[/dim]")
             raise typer.Exit()
     
+    # Show spinner while setting up
+    with console.status("[cyan]Setting up workspace...[/cyan]", spinner="dots"):
+        # Create default config
+        config = Config()
+        save_config(config)
+        
+        # Create workspace
+        workspace = get_workspace_path()
+        
+        # Create default bootstrap files
+        _create_workspace_templates(workspace)
+    
     # Create setup table for visual consistency
     setup_table = Table(show_header=False, box=None, padding=(0, 2))
     setup_table.add_column("Status", style="green", width=3)
     setup_table.add_column("Task", style="white")
     setup_table.add_column("Location", style="dim")
     
-    # Create default config
-    config = Config()
-    save_config(config)
     setup_table.add_row("✓", "Configuration file", str(config_path))
-    
-    # Create workspace
-    workspace = get_workspace_path()
     setup_table.add_row("✓", "Workspace directory", str(workspace))
-    
-    # Create default bootstrap files
-    _create_workspace_templates(workspace)
     setup_table.add_row("✓", "Bootstrap templates", f"{workspace}/")
     
     console.print(setup_table)
