@@ -399,6 +399,178 @@ class MemoryStore:
         )
     
     # =========================================================================
+    # Semantic Search
+    # =========================================================================
+    
+    def search_events(
+        self,
+        query_embedding: list[float],
+        session_key: str | None = None,
+        limit: int = 10,
+        threshold: float = 0.5
+    ) -> list[tuple[Event, float]]:
+        """
+        Search events by semantic similarity.
+        
+        Args:
+            query_embedding: The query embedding vector
+            session_key: Optional session to restrict search to
+            limit: Maximum number of results
+            threshold: Minimum similarity score (0-1)
+            
+        Returns:
+            List of (event, similarity_score) tuples, sorted by similarity
+        """
+        from nanobot.memory.embeddings import cosine_similarity
+        
+        conn = self._get_connection()
+        
+        # Get events with embeddings
+        if session_key:
+            rows = conn.execute(
+                """
+                SELECT * FROM events 
+                WHERE session_key = ? AND content_embedding IS NOT NULL
+                ORDER BY timestamp DESC
+                LIMIT 1000
+                """,
+                (session_key,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM events 
+                WHERE content_embedding IS NOT NULL
+                ORDER BY timestamp DESC
+                LIMIT 1000
+                """
+            ).fetchall()
+        
+        # Calculate similarities
+        results = []
+        for row in rows:
+            if row['content_embedding']:
+                embedding = struct.unpack(f'{len(query_embedding)}f', row['content_embedding'])
+                similarity = cosine_similarity(query_embedding, list(embedding))
+                
+                if similarity >= threshold:
+                    event = self._row_to_event(row)
+                    results.append((event, similarity))
+        
+        # Sort by similarity (highest first) and return top N
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:limit]
+    
+    def search_events_by_text(
+        self,
+        query: str,
+        provider: "EmbeddingProvider",
+        session_key: str | None = None,
+        limit: int = 10,
+        threshold: float = 0.5
+    ) -> list[tuple[Event, float]]:
+        """
+        Search events by text query (automatically embeds query).
+        
+        Args:
+            query: Text query
+            provider: Embedding provider to use
+            session_key: Optional session to restrict search to
+            limit: Maximum number of results
+            threshold: Minimum similarity score
+            
+        Returns:
+            List of (event, similarity_score) tuples
+        """
+        query_embedding = provider.embed(query)
+        return self.search_events(query_embedding, session_key, limit, threshold)
+    
+    def get_similar_entities(
+        self,
+        name_embedding: list[float],
+        entity_type: str | None = None,
+        limit: int = 10,
+        threshold: float = 0.7
+    ) -> list[tuple[Entity, float]]:
+        """
+        Find entities with similar names.
+        
+        Args:
+            name_embedding: Embedding to compare against
+            entity_type: Optional entity type filter
+            limit: Maximum number of results
+            threshold: Minimum similarity score
+            
+        Returns:
+            List of (entity, similarity_score) tuples
+        """
+        from nanobot.memory.embeddings import cosine_similarity
+        
+        conn = self._get_connection()
+        
+        # Get entities with embeddings
+        if entity_type:
+            rows = conn.execute(
+                "SELECT * FROM entities WHERE entity_type = ? AND name_embedding IS NOT NULL",
+                (entity_type,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM entities WHERE name_embedding IS NOT NULL"
+            ).fetchall()
+        
+        # Calculate similarities
+        results = []
+        for row in rows:
+            if row['name_embedding']:
+                embedding = struct.unpack(f'{len(name_embedding)}f', row['name_embedding'])
+                similarity = cosine_similarity(name_embedding, list(embedding))
+                
+                if similarity >= threshold:
+                    entity = self._row_to_entity(row)
+                    results.append((entity, similarity))
+        
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:limit]
+    
+    def _row_to_entity(self, row: sqlite3.Row) -> Entity:
+        """Convert a database row to an Entity object."""
+        # Deserialize name embedding
+        name_embedding = None
+        if row['name_embedding']:
+            floats = struct.unpack('384f', row['name_embedding'])
+            name_embedding = list(floats)
+        
+        # Deserialize description embedding
+        desc_embedding = None
+        if row['description_embedding']:
+            floats = struct.unpack('384f', row['description_embedding'])
+            desc_embedding = list(floats)
+        
+        # Deserialize aliases and source event IDs
+        aliases = []
+        if row['aliases']:
+            aliases = json.loads(row['aliases'])
+        
+        source_ids = []
+        if row['source_event_ids']:
+            source_ids = json.loads(row['source_event_ids'])
+        
+        return Entity(
+            id=row['id'],
+            name=row['name'],
+            entity_type=row['entity_type'],
+            aliases=aliases,
+            description=row['description'] or "",
+            name_embedding=name_embedding,
+            description_embedding=desc_embedding,
+            source_event_ids=source_ids,
+            event_count=row['event_count'] or 0,
+            first_seen=datetime.fromtimestamp(row['first_seen']) if row['first_seen'] else None,
+            last_seen=datetime.fromtimestamp(row['last_seen']) if row['last_seen'] else None
+        )
+    
+    # =========================================================================
     # Statistics and Maintenance
     # =========================================================================
     

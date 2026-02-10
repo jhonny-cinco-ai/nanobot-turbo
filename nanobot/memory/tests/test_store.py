@@ -30,6 +30,9 @@ class TestMemoryStore:
         """Test that MemoryStore initializes correctly with WAL mode."""
         store = temp_db
         
+        # Trigger database initialization (lazy connection)
+        store._get_connection()
+        
         # Check database file was created
         assert store.db_path.exists()
         

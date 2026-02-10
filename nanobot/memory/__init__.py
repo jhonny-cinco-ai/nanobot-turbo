@@ -14,6 +14,12 @@ from nanobot.memory.models import (
     Learning,
 )
 from nanobot.memory.store import MemoryStore
+from nanobot.memory.embeddings import (
+    EmbeddingProvider,
+    pack_embedding,
+    unpack_embedding,
+    cosine_similarity,
+)
 
 __all__ = [
     "Event",
@@ -24,4 +30,8 @@ __all__ = [
     "SummaryNode",
     "Learning",
     "MemoryStore",
+    "EmbeddingProvider",
+    "pack_embedding",
+    "unpack_embedding",
+    "cosine_similarity",
 ]
