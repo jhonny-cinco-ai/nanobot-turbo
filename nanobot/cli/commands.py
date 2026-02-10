@@ -241,8 +241,8 @@ def onboard():
     
     # Pre-load configuration modules while user is reading
     # This prevents delay when they confirm configuration
-    console.print("\n[cyan]Preparing configuration interface...[/cyan]")
-    from nanobot.cli.configure import configure_cli
+    with console.status("[cyan]Preparing configuration interface...[/cyan]", spinner="dots"):
+        from nanobot.cli.configure import configure_cli
     console.print("[green]✓[/green] Ready")
     
     # Offer to run configuration immediately
