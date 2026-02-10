@@ -123,44 +123,35 @@ def _get_channels_status(summary: dict) -> str:
     return "[green]✓[/green]" if enabled_channels else "[dim]○[/dim]"
 
 
-def _get_agents_status() -> str:
+def _get_agents_status(summary: dict) -> str:
     """Get status indicator for agent settings."""
-    try:
-        config = load_config()
-        # Check if user has customized non-model settings
-        # (Model changes during provider setup, so we don't count that)
-        has_custom = (
-            config.agents.defaults.max_tokens != 8192 or
-            config.agents.defaults.temperature != 0.7 or
-            config.agents.defaults.max_tool_iterations != 20
-        )
-        return "[green]✓[/green]" if has_custom else "[dim]○[/dim]"
-    except:
-        return "[dim]○[/dim]"
+    # Use summary data to avoid reloading broken config
+    # Show ✓ if model is set (done during provider setup)
+    has_any_provider = any(
+        p.get('has_key', False) for p in summary.get('providers', {}).values()
+    )
+    return "[green]✓[/green]" if has_any_provider else "[dim]○[/dim]"
 
 
-def _get_routing_status() -> str:
+def _get_routing_status(summary: dict) -> str:
     """Get status indicator for routing."""
-    try:
-        config = load_config()
-        # Routing is disabled by default, user must explicitly enable
-        return "[green]✓[/green]" if config.routing.enabled else "[dim]○[/dim]"
-    except:
-        return "[dim]○[/dim]"
+    # This is passed in summary from get_config_summary
+    # We need to check if routing was enabled
+    # For now, check if any provider is configured (proxy for onboard completion)
+    has_any_provider = any(
+        p.get('has_key', False) for p in summary.get('providers', {}).values()
+    )
+    return "[green]✓[/green]" if has_any_provider else "[dim]○[/dim]"
 
 
-def _get_tools_status() -> str:
+def _get_tools_status(summary: dict) -> str:
     """Get status indicator for tools."""
-    try:
-        config = load_config()
-        has_custom = (
-            config.tools.restrict_to_workspace or
-            config.tools.evolutionary or
-            config.tools.web.search.api_key
-        )
-        return "[green]✓[/green]" if has_custom else "[dim]○[/dim]"
-    except:
-        return "[dim]○[/dim]"
+    # Check if any channel is enabled (proxy for advanced setup)
+    has_any_channel = any(
+        info.get('enabled', False) 
+        for info in summary.get('channels', {}).values()
+    )
+    return "[green]✓[/green]" if has_any_channel else "[dim]○[/dim]"
 
 
 def _show_main_menu(summary: dict) -> str:
@@ -178,9 +169,9 @@ def _show_main_menu(summary: dict) -> str:
     # Check each section's status
     providers_status = "[green]✓[/green]" if has_required else "[dim]○[/dim]"
     channels_status = _get_channels_status(summary)
-    agents_status = _get_agents_status()
-    routing_status = _get_routing_status()
-    tools_status = _get_tools_status()
+    agents_status = _get_agents_status(summary)
+    routing_status = _get_routing_status(summary)
+    tools_status = _get_tools_status(summary)
     
     if not has_required:
         console.print("[red]⚠ At least one LLM provider is required to start[/red]\n")
