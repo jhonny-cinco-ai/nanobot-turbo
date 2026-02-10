@@ -123,6 +123,49 @@ class UpdateConfigTool(Tool):
                         'gemini-1.5-flash',
                     ]
                 },
+                'aihubmix': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://aihubmix.com/'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'gpt-4o',
+                        'claude-3-5-sonnet',
+                        'deepseek-chat',
+                    ]
+                },
+                'dashscope': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://dashscope.console.aliyun.com/'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'qwen-turbo',
+                        'qwen-plus',
+                        'qwen-max',
+                    ]
+                },
+                'zhipu': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'help': 'Get from https://open.bigmodel.cn/'},
+                        'apiBase': {'type': 'url', 'default': None},
+                    },
+                    'models': [
+                        'glm-4',
+                        'glm-4-plus',
+                        'glm-4-long',
+                    ]
+                },
+                'vllm': {
+                    'fields': {
+                        'apiKey': {'type': 'string', 'default': 'dummy', 'help': 'Any non-empty string for local servers'},
+                        'apiBase': {'type': 'url', 'default': 'http://localhost:8000/v1', 'help': 'Your vLLM server URL'},
+                    },
+                    'models': [
+                        'local-model',
+                    ],
+                    'setup_note': 'Requires running vLLM server. See README for setup instructions.',
+                },
             }
         },
         'channels': {
