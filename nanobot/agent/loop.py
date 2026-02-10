@@ -54,6 +54,7 @@ class AgentLoop:
         evolutionary: bool = False,
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
+        memory_config: "MemoryConfig | None" = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -87,6 +88,14 @@ class AgentLoop:
                 workspace=workspace,
             )
             logger.info("Smart routing enabled")
+        
+        # Initialize memory system if enabled
+        self.memory_config = memory_config
+        self.memory_store = None
+        if memory_config and memory_config.enabled:
+            from nanobot.memory.store import MemoryStore
+            self.memory_store = MemoryStore(memory_config, workspace)
+            logger.info("Memory system enabled")
         
         self.subagents = SubagentManager(
             provider=provider,
@@ -282,6 +291,23 @@ class AgentLoop:
         # Sanitize message content before sending to LLM to prevent secret exposure
         sanitized_content = self.sanitizer.sanitize(msg.content)
         
+        # Log event to memory system if enabled
+        if self.memory_store:
+            from datetime import datetime
+            from nanobot.memory.models import Event
+            import uuid
+            
+            event = Event(
+                id=str(uuid.uuid4()),
+                timestamp=datetime.now(),
+                channel=msg.channel,
+                direction="inbound",
+                event_type="message",
+                content=sanitized_content,
+                session_key=msg.session_key,
+            )
+            self.memory_store.save_event(event)
+        
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -380,6 +406,23 @@ class AgentLoop:
         session.add_message("user", sanitized_user_content)
         session.add_message("assistant", sanitized_assistant_content)
         self.sessions.save(session)
+        
+        # Log outbound response to memory system if enabled
+        if self.memory_store:
+            from datetime import datetime
+            from nanobot.memory.models import Event
+            import uuid
+            
+            event = Event(
+                id=str(uuid.uuid4()),
+                timestamp=datetime.now(),
+                channel=msg.channel,
+                direction="outbound",
+                event_type="message",
+                content=sanitized_assistant_content,
+                session_key=msg.session_key,
+            )
+            self.memory_store.save_event(event)
         
         return OutboundMessage(
             channel=msg.channel,
