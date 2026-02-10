@@ -206,40 +206,11 @@ def onboard():
     
     if config_path.exists():
         console.print(f"\n[yellow]⚠️  Configuration already exists at {config_path}[/yellow]")
-        console.print("[dim]This will also reset:[/dim]")
-        console.print("  • Memory database (events, entities, knowledge graph)")
-        console.print("  • Bootstrap templates (AGENTS.md, SOUL.md, USER.md)")
-        console.print("  • Chat session history\n")
+        console.print("\n[dim]Tip: To update settings, run: [cyan]nanobot configure[/cyan][/dim]")
         
-        if not typer.confirm("Overwrite and reset everything?"):
-            console.print("\n[dim]Setup cancelled. Existing configuration preserved.[/dim]")
+        if not typer.confirm("Reset everything and start fresh?"):
+            console.print("\n[dim]Setup cancelled. Run [cyan]nanobot configure[/cyan] to update settings.[/dim]")
             raise typer.Exit()
-        
-        # Backup old files
-        import shutil
-        from datetime import datetime
-        
-        backup_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_dir = config_path.parent / f"backup_{backup_suffix}"
-        
-        with console.status(f"[cyan]Backing up to {backup_dir.name}...[/cyan]", spinner="dots"):
-            backup_dir.mkdir(exist_ok=True)
-            
-            # Backup config
-            if config_path.exists():
-                shutil.copy(config_path, backup_dir / "config.json")
-            
-            # Backup workspace
-            workspace = get_workspace_path()
-            if workspace.exists():
-                shutil.copytree(workspace, backup_dir / "workspace", dirs_exist_ok=True)
-        
-        console.print(f"[green]✓[/green] Backed up to: {backup_dir}")
-        
-        # Clear workspace for fresh start
-        with console.status("[cyan]Clearing old workspace...[/cyan]", spinner="dots"):
-            if workspace.exists():
-                shutil.rmtree(workspace)
     
     # Show spinner while setting up
     with console.status("[cyan]Setting up workspace...[/cyan]", spinner="dots"):
