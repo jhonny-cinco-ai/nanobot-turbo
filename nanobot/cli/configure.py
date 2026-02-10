@@ -271,8 +271,18 @@ def _configure_single_provider(name: str, schema: dict):
             if field_info.get('help'):
                 console.print(f"\n[dim]{field_info['help']}[/dim]")
     
-    # Get API key
+    # Show options
     console.print()
+    console.print("  [1] Enter API key")
+    console.print("  [0] Back")
+    console.print()
+    
+    choice = Prompt.ask("Select", choices=["0", "1"], default="1")
+    
+    if choice == "0":
+        return
+    
+    # Get API key
     api_key = Prompt.ask(
         f"Enter {name} API key",
         password=False  # Show input so user can see what they're typing
@@ -388,7 +398,17 @@ def _configure_single_channel(name: str, schema: dict):
         return
     
     # Enable channel
-    console.print("\nTo enable this channel, I need some information:\n")
+    console.print("\nTo enable this channel, I need some information:")
+    console.print("  [1] Continue with setup")
+    console.print("  [0] Back")
+    console.print()
+    
+    choice = Prompt.ask("Select", choices=["0", "1"], default="1")
+    
+    if choice == "0":
+        return
+    
+    console.print()
     
     # Collect required fields
     if 'fields' in schema:
@@ -577,29 +597,69 @@ def _configure_tools():
         border_style="blue"
     ))
     
-    console.print("\n[dim]Security Settings:[/dim]")
+    # Show menu
+    console.print("\n[dim]What would you like to configure?[/dim]")
+    console.print("  [1] Security Settings (Evolutionary mode)")
+    console.print("  [2] Web Search API Key")
+    console.print("  [0] Back")
+    console.print()
     
-    # Evolutionary mode
-    config = load_config()
-    is_evolutionary = config.tools.evolutionary
+    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="1")
     
-    console.print(f"\nEvolutionary mode: {'[green]Enabled[/green]' if is_evolutionary else '[dim]Disabled[/dim]'}")
-    console.print("[dim]Allows bot to modify its own source code[/dim]")
+    if choice == "0":
+        return
     
-    if Confirm.ask(
-        f"{'Disable' if is_evolutionary else 'Enable'} evolutionary mode?",
-        default=False
-    ):
-        result = asyncio.run(tool.execute(
-            path="tools.evolutionary",
-            value=not is_evolutionary
-        ))
-        console.print(f"[green]{result}[/green]")
+    if choice == "1":
+        console.print("\n[dim]Security Settings:[/dim]")
         
-        if not is_evolutionary:  # Just enabled
-            console.print("\n[yellow]⚠ Security Warning:[/yellow]")
-            console.print("Evolutionary mode allows the bot to modify files outside")
-            console.print("the workspace. Make sure allowedPaths is configured correctly.")
+        # Evolutionary mode
+        config = load_config()
+        is_evolutionary = config.tools.evolutionary
+        
+        console.print(f"\nEvolutionary mode: {'[green]Enabled[/green]' if is_evolutionary else '[dim]Disabled[/dim]'}")
+        console.print("[dim]Allows bot to modify its own source code[/dim]")
+        
+        if Confirm.ask(
+            f"{'Disable' if is_evolutionary else 'Enable'} evolutionary mode?",
+            default=False
+        ):
+            result = asyncio.run(tool.execute(
+                path="tools.evolutionary",
+                value=not is_evolutionary
+            ))
+            console.print(f"[green]{result}[/green]")
+            
+            if not is_evolutionary:  # Just enabled
+                console.print("\n[yellow]⚠ Security Warning:[/yellow]")
+                console.print("Evolutionary mode allows the bot to modify files outside")
+                console.print("the workspace. Make sure allowedPaths is configured correctly.")
+    
+    elif choice == "2":
+        # Web Search API Key
+        console.print("\n[dim]Web Search Configuration:[/dim]")
+        
+        config = load_config()
+        has_key = bool(config.tools.web.search.api_key)
+        
+        console.print(f"\nBrave Search API: {'[green]✓ Configured[/green]' if has_key else '[dim]○ Not configured[/dim]'}")
+        console.print("[dim]Required for web search functionality[/dim]")
+        console.print("[dim]Get API key from: https://api.search.brave.com/app/keys[/dim]")
+        
+        if Confirm.ask("\nConfigure Brave Search API key?", default=not has_key):
+            api_key = Prompt.ask("Enter Brave Search API key", password=True)
+            
+            if api_key:
+                result = asyncio.run(tool.execute(
+                    path="tools.web.search.apiKey",
+                    value=api_key
+                ))
+                if "Error" not in result:
+                    console.print(f"[green]{result}[/green]")
+                    console.print("[dim]Web search is now enabled[/dim]")
+                else:
+                    console.print(f"[red]{result}[/red]")
+            else:
+                console.print("[yellow]⚠ No API key provided, skipping[/yellow]")
 
 
 def _show_detailed_status():
