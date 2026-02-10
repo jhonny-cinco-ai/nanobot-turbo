@@ -632,24 +632,25 @@ def _configure_tools():
     """Configure tool settings."""
     tool = UpdateConfigTool()
     
-    console.print(Panel(
-        "[bold]Tool Settings[/bold]",
-        border_style="blue"
-    ))
-    
-    # Show menu
-    console.print("\n[dim]What would you like to configure?[/dim]")
-    console.print("  [1] Security Settings (Evolutionary mode)")
-    console.print("  [2] Web Search API Key")
-    console.print("  [0] Back")
-    console.print()
-    
-    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="1")
-    
-    if choice == "0":
-        return
-    
-    if choice == "1":
+    while True:
+        console.print(Panel(
+            "[bold]Tool Settings[/bold]",
+            border_style="blue"
+        ))
+        
+        # Show menu
+        console.print("\n[dim]What would you like to configure?[/dim]")
+        console.print("  [1] Security Settings (Evolutionary mode)")
+        console.print("  [2] Web Search API Key")
+        console.print("  [0] Back")
+        console.print()
+        
+        choice = Prompt.ask("Select", choices=["0", "1", "2"], default="1")
+        
+        if choice == "0":
+            return
+        
+        if choice == "1":
         console.print("\n[dim]Security Settings:[/dim]")
         
         # Evolutionary mode
