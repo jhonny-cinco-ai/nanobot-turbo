@@ -215,14 +215,16 @@ def onboard():
     
     console.print(f"\n{__logo__} Basic workspace initialized!")
     
+    # Pre-load configuration modules while user is reading
+    # This prevents delay when they confirm configuration
+    console.print("\n[cyan]Preparing configuration interface...[/cyan]")
+    from nanobot.cli.configure import configure_cli
+    console.print("[green]✓[/green] Ready")
+    
     # Offer to run configuration immediately
     console.print("\n[green]Now let's configure your API keys to get started.[/green]")
     if typer.confirm("Ready to run the configuration wizard?"):
-        import time
-        with console.status("[cyan]Loading configuration interface...[/cyan]", spinner="dots"):
-            time.sleep(0.1)  # Brief pause to show spinner
-            from nanobot.cli.configure import configure_cli
-            configure_cli()
+        configure_cli()
     else:
         console.print("\n[yellow]⚠️ nanobot won't work without API keys.[/yellow]")
         console.print("When you're ready, run: [cyan]nanobot configure[/cyan]")
@@ -231,11 +233,9 @@ def onboard():
 @app.command()
 def configure():
     """Interactive configuration wizard."""
-    import time
     with console.status("[cyan]Loading configuration interface...[/cyan]", spinner="dots"):
-        time.sleep(0.1)  # Brief pause to show spinner
         from nanobot.cli.configure import configure_cli
-        configure_cli()
+    configure_cli()
 
 
 
