@@ -761,24 +761,16 @@ After full implementation:
 
 ---
 
-## Detailed Design: Background Task Infrastructure
+## Detailed Design: Background Processing
 
-The memory system requires several background tasks that must NOT interfere with interactive chat:
-- Entity extraction from pending events (every 60s)
-- Summary node refresh when staleness threshold reached
-- Tentative merge confirmation
-- Learning decay and garbage collection
-
-This design provides a lightweight task queue + worker pool that integrates with the existing asyncio event loop in `AgentLoop`.
+The memory system requires background processing for extraction and maintenance without blocking interactive chat. For a single-user deployment, we use a minimal async loop rather than complex worker pools.
 
 ### Design Goals
 
-1. **Non-blocking** (chat never waits for background tasks)
-2. **Activity-aware** (back off during active conversations)
-3. **Priority-based** (urgent tasks like extraction > housekeeping)
-4. **Graceful degradation** (task failures don't crash the agent)
-5. **Observable** (metrics + logging for monitoring)
-6. **Configurable** (task intervals, worker count, timeouts)
+1. **Non-blocking** - Chat never waits for background tasks
+2. **Activity-aware** - Pause processing when user is active
+3. **Lightweight** - Minimal code, minimal resources
+4. **Reliable** - Failures are logged but don't crash the agent
 
 ### Architecture
 
@@ -786,34 +778,16 @@ This design provides a lightweight task queue + worker pool that integrates with
 ┌─────────────────────────────────────────────────────────┐
 │                     AgentLoop                            │
 │  - Main message processing loop                          │
-│  - Tracks user activity (last_message_time)              │
-│  - Spawns BackgroundTaskManager on startup               │
+│  - Tracks user activity                                  │
+│  - Runs BackgroundProcessor                              │
 └─────────────────┬───────────────────────────────────────┘
                   │
                   v
 ┌─────────────────────────────────────────────────────────┐
-│              BackgroundTaskManager                       │
-│  - Registers task definitions                            │
-│  - Spawns worker pool (configurable size)                │
-│  - Schedules periodic tasks                              │
-│  - Exposes submit_task(task) API                         │
-└─────────────────┬───────────────────────────────────────┘
-                  │
-                  v
-┌─────────────────────────────────────────────────────────┐
-│                   TaskQueue                              │
-│  - Priority queue (high → medium → low)                  │
-│  - Backpressure: max 1000 pending tasks                  │
-│  - Deduplication: same task type + args                  │
-└─────────────────┬───────────────────────────────────────┘
-                  │
-                  v
-┌─────────────────────────────────────────────────────────┐
-│                  WorkerPool                              │
-│  - N async workers (default: 2)                          │
-│  - Each worker: get_task() → execute() → mark_done()     │
-│  - Exponential backoff on task failure                   │
-│  - Timeout protection (max 300s per task)                │
+│              BackgroundProcessor                         │
+│  - Single async task loop                                │
+│  - Runs every 60 seconds when user is inactive           │
+│  - Processes: extraction → summaries → learning decay    │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -825,457 +799,127 @@ Tracks user chat activity to determine when it's safe to run background tasks.
 
 ```python
 from datetime import datetime, timedelta
-
-class ActivityTracker:
-    """
-    Tracks user activity to implement activity-aware task scheduling.
-    """
-    def __init__(self, quiet_threshold_seconds: int = 30):
-        self.last_message_time: datetime | None = None
-        self.quiet_threshold = timedelta(seconds=quiet_threshold_seconds)
-    
-    def mark_activity(self):
-        """Called by AgentLoop when user sends a message."""
-        self.last_message_time = datetime.now()
-    
-    def is_user_active(self) -> bool:
-        """Returns True if user has been active in the last N seconds."""
-        if self.last_message_time is None:
-            return False
-        return datetime.now() - self.last_message_time < self.quiet_threshold
-    
-    def seconds_since_last_activity(self) -> float:
-        """Returns seconds since last user message."""
-        if self.last_message_time is None:
-            return float('inf')
-        return (datetime.now() - self.last_message_time).total_seconds()
-```
-
-Integration with `AgentLoop`:
-```python
-# nanobot/agent/loop.py
-
-class AgentLoop:
-    def __init__(self, ...):
-        # Existing fields...
-        self.activity_tracker = ActivityTracker(quiet_threshold_seconds=30)
-        self.task_manager = BackgroundTaskManager(
-            activity_tracker=self.activity_tracker,
-            config=self.config.memory.tasks
-        )
-    
-    async def process_message(self, message: Message):
-        # Mark user activity
-        self.activity_tracker.mark_activity()
-        
-        # Existing message processing...
-        # ...
-```
-
-#### 2. Task Definition
-
-```python
-from enum import Enum
-from typing import Callable, Any
-from dataclasses import dataclass, field
-
-class TaskPriority(Enum):
-    HIGH = 1      # Extraction (user-facing, affects next query)
-    MEDIUM = 2    # Summary refresh (improves context quality)
-    LOW = 3       # Garbage collection, metrics, etc.
+from dataclasses import dataclass
 
 @dataclass
-class Task:
-    """A unit of background work."""
-    task_type: str                     # "extraction", "summary_refresh", etc.
-    priority: TaskPriority
-    func: Callable[..., Any]           # Async function to execute
-    args: tuple = field(default_factory=tuple)
-    kwargs: dict = field(default_factory=dict)
+class ActivityTracker:
+    """Tracks user activity for activity-aware task scheduling."""
+    quiet_threshold_seconds: int = 30
+    last_activity: datetime = None
     
-    # Scheduling
-    interval_seconds: int | None = None  # For periodic tasks
-    next_run: datetime | None = None
+    def mark_activity(self):
+        """Call when user sends a message."""
+        self.last_activity = datetime.now()
     
-    # Execution tracking
-    task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: datetime = field(default_factory=datetime.now)
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    failed_at: datetime | None = None
-    retry_count: int = 0
-    max_retries: int = 3
-    
-    # Activity awareness
-    requires_quiet: bool = True        # If True, skip when user is active
-    
-    # Timeout
-    timeout_seconds: int = 300
-
-    def should_run(self, activity_tracker: ActivityTracker) -> bool:
-        """Check if task should run now."""
-        if self.requires_quiet and activity_tracker.is_user_active():
+    def is_user_active(self) -> bool:
+        """True if user was active in the last N seconds."""
+        if not self.last_activity:
             return False
-        
-        if self.next_run and datetime.now() < self.next_run:
-            return False
-        
-        return True
-    
-    def __hash__(self):
-        # For deduplication
-        return hash((self.task_type, str(self.args), str(self.kwargs)))
+        return (datetime.now() - self.last_activity).seconds < self.quiet_threshold_seconds
 ```
 
-#### 3. TaskQueue
+#### 2. BackgroundProcessor
 
-```python
-import asyncio
-from queue import PriorityQueue
-from typing import Optional
-
-class TaskQueue:
-    """
-    Priority queue for background tasks with deduplication.
-    """
-    def __init__(self, max_size: int = 1000):
-        self.queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=max_size)
-        self.pending_tasks: set[int] = set()  # For deduplication
-        self._lock = asyncio.Lock()
-    
-    async def put(self, task: Task):
-        """Add a task to the queue (deduplicated)."""
-        async with self._lock:
-            task_hash = hash(task)
-            if task_hash in self.pending_tasks:
-                return  # Already queued
-            
-            priority = task.priority.value
-            await self.queue.put((priority, task))
-            self.pending_tasks.add(task_hash)
-    
-    async def get(self) -> Task:
-        """Get the highest-priority task."""
-        priority, task = await self.queue.get()
-        async with self._lock:
-            self.pending_tasks.discard(hash(task))
-        return task
-    
-    def qsize(self) -> int:
-        return self.queue.qsize()
-    
-    def is_full(self) -> bool:
-        return self.queue.full()
-```
-
-#### 4. WorkerPool
+Minimal background task runner for single-user deployment.
 
 ```python
 import asyncio
 from loguru import logger
-
-class WorkerPool:
-    """
-    Pool of async workers that execute tasks from the queue.
-    """
-    def __init__(
-        self,
-        queue: TaskQueue,
-        activity_tracker: ActivityTracker,
-        num_workers: int = 2,
-        metrics: 'TaskMetrics' | None = None
-    ):
-        self.queue = queue
-        self.activity_tracker = activity_tracker
-        self.num_workers = num_workers
-        self.metrics = metrics or TaskMetrics()
-        self.workers: list[asyncio.Task] = []
-        self.running = False
-    
-    async def start(self):
-        """Start all workers."""
-        self.running = True
-        for i in range(self.num_workers):
-            worker = asyncio.create_task(self._worker_loop(worker_id=i))
-            self.workers.append(worker)
-        logger.info(f"Started {self.num_workers} background workers")
-    
-    async def stop(self):
-        """Stop all workers gracefully."""
-        self.running = False
-        for worker in self.workers:
-            worker.cancel()
-        await asyncio.gather(*self.workers, return_exceptions=True)
-        logger.info("Stopped background workers")
-    
-    async def _worker_loop(self, worker_id: int):
-        """Main worker loop: get task → execute → repeat."""
-        logger.debug(f"Worker {worker_id} started")
-        
-        while self.running:
-            try:
-                # Get next task
-                task = await self.queue.get()
-                
-                # Check if task should run now
-                if not task.should_run(self.activity_tracker):
-                    # Re-queue for later
-                    task.next_run = datetime.now() + timedelta(seconds=30)
-                    await self.queue.put(task)
-                    continue
-                
-                # Execute task
-                await self._execute_task(task, worker_id)
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Worker {worker_id} error: {e}")
-        
-        logger.debug(f"Worker {worker_id} stopped")
-    
-    async def _execute_task(self, task: Task, worker_id: int):
-        """Execute a single task with timeout and retry logic."""
-        task.started_at = datetime.now()
-        self.metrics.task_started(task)
-        
-        logger.debug(f"Worker {worker_id} executing {task.task_type} (priority={task.priority.name})")
-        
-        try:
-            # Execute with timeout
-            await asyncio.wait_for(
-                task.func(*task.args, **task.kwargs),
-                timeout=task.timeout_seconds
-            )
-            
-            task.completed_at = datetime.now()
-            duration = (task.completed_at - task.started_at).total_seconds()
-            self.metrics.task_completed(task, duration)
-            
-            logger.debug(f"Task {task.task_type} completed in {duration:.2f}s")
-            
-        except asyncio.TimeoutError:
-            logger.warning(f"Task {task.task_type} timed out after {task.timeout_seconds}s")
-            await self._handle_task_failure(task, "timeout")
-            
-        except Exception as e:
-            logger.error(f"Task {task.task_type} failed: {e}")
-            await self._handle_task_failure(task, str(e))
-    
-    async def _handle_task_failure(self, task: Task, error: str):
-        """Handle task failure with exponential backoff retry."""
-        task.failed_at = datetime.now()
-        task.retry_count += 1
-        self.metrics.task_failed(task, error)
-        
-        if task.retry_count < task.max_retries:
-            # Exponential backoff: 2^retry seconds
-            backoff_seconds = 2 ** task.retry_count
-            task.next_run = datetime.now() + timedelta(seconds=backoff_seconds)
-            await self.queue.put(task)
-            logger.info(f"Task {task.task_type} will retry in {backoff_seconds}s (attempt {task.retry_count + 1}/{task.max_retries})")
-        else:
-            logger.error(f"Task {task.task_type} failed permanently after {task.max_retries} retries")
-```
-
-#### 5. BackgroundTaskManager
-
-```python
-class BackgroundTaskManager:
-    """
-    Manages background tasks for the memory system.
-    """
-    def __init__(
-        self,
-        activity_tracker: ActivityTracker,
-        config: 'TaskConfig',
-        memory_store: 'MemoryStore'
-    ):
-        self.activity_tracker = activity_tracker
-        self.config = config
-        self.memory_store = memory_store
-        
-        self.queue = TaskQueue(max_size=1000)
-        self.worker_pool = WorkerPool(
-            queue=self.queue,
-            activity_tracker=activity_tracker,
-            num_workers=config.num_workers
-        )
-        
-        self.periodic_tasks: list[Task] = []
-        self.scheduler_task: asyncio.Task | None = None
-    
-    async def start(self):
-        """Start the task manager and worker pool."""
-        await self.worker_pool.start()
-        
-        # Register periodic tasks
-        self._register_periodic_tasks()
-        
-        # Start scheduler
-        self.scheduler_task = asyncio.create_task(self._scheduler_loop())
-        
-        logger.info("Background task manager started")
-    
-    async def stop(self):
-        """Stop the task manager gracefully."""
-        if self.scheduler_task:
-            self.scheduler_task.cancel()
-        await self.worker_pool.stop()
-        logger.info("Background task manager stopped")
-    
-    def _register_periodic_tasks(self):
-        """Register all periodic background tasks."""
-        from nanobot.memory.extraction import run_extraction_batch
-        from nanobot.memory.summaries import refresh_stale_summaries
-        from nanobot.memory.learning import decay_learnings
-        
-        # Task 1: Extract entities from pending events (every 60s)
-        self.periodic_tasks.append(Task(
-            task_type="extraction",
-            priority=TaskPriority.HIGH,
-            func=run_extraction_batch,
-            args=(self.memory_store,),
-            interval_seconds=self.config.extraction_interval,
-            requires_quiet=True,
-            timeout_seconds=120
-        ))
-        
-        # Task 2: Refresh stale summary nodes (every 5 minutes)
-        self.periodic_tasks.append(Task(
-            task_type="summary_refresh",
-            priority=TaskPriority.MEDIUM,
-            func=refresh_stale_summaries,
-            args=(self.memory_store,),
-            interval_seconds=self.config.summary_refresh_interval,
-            requires_quiet=True,
-            timeout_seconds=300
-        ))
-        
-        # Task 3: Apply learning decay (every 1 hour)
-        self.periodic_tasks.append(Task(
-            task_type="learning_decay",
-            priority=TaskPriority.LOW,
-            func=decay_learnings,
-            args=(self.memory_store,),
-            interval_seconds=self.config.learning_decay_interval,
-            requires_quiet=False,  # Doesn't need quiet
-            timeout_seconds=60
-        ))
-    
-    async def _scheduler_loop(self):
-        """Periodic task scheduler."""
-        while True:
-            try:
-                await asyncio.sleep(10)  # Check every 10 seconds
-                
-                for task in self.periodic_tasks:
-                    if task.next_run is None or datetime.now() >= task.next_run:
-                        # Schedule next run
-                        task.next_run = datetime.now() + timedelta(seconds=task.interval_seconds)
-                        
-                        # Submit to queue
-                        await self.queue.put(task)
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Scheduler error: {e}")
-    
-    async def submit_task(self, task: Task):
-        """Submit a one-off task (non-periodic)."""
-        await self.queue.put(task)
-```
-
-#### 6. Metrics and Observability
-
-```python
-from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Optional, Callable
 
 @dataclass
-class TaskMetrics:
-    """Metrics for background task execution."""
-    total_started: int = 0
-    total_completed: int = 0
-    total_failed: int = 0
+class BackgroundProcessor:
+    """Lightweight background processor for memory maintenance tasks."""
+    memory_store: 'MemoryStore'
+    activity_tracker: ActivityTracker
+    interval_seconds: int = 60
     
-    by_type: dict[str, dict] = field(default_factory=lambda: defaultdict(lambda: {
-        "started": 0,
-        "completed": 0,
-        "failed": 0,
-        "total_duration": 0.0,
-        "avg_duration": 0.0,
-        "last_run": None,
-        "last_error": None
-    }))
+    def __post_init__(self):
+        self.running = False
+        self._task: Optional[asyncio.Task] = None
     
-    def task_started(self, task: Task):
-        self.total_started += 1
-        self.by_type[task.task_type]["started"] += 1
+    async def start(self):
+        """Start the background loop."""
+        self.running = True
+        self._task = asyncio.create_task(self._loop())
+        logger.info("Background processor started")
     
-    def task_completed(self, task: Task, duration: float):
-        self.total_completed += 1
-        stats = self.by_type[task.task_type]
-        stats["completed"] += 1
-        stats["total_duration"] += duration
-        stats["avg_duration"] = stats["total_duration"] / stats["completed"]
-        stats["last_run"] = datetime.now()
+    async def stop(self):
+        """Stop gracefully."""
+        self.running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Background processor stopped")
     
-    def task_failed(self, task: Task, error: str):
-        self.total_failed += 1
-        stats = self.by_type[task.task_type]
-        stats["failed"] += 1
-        stats["last_error"] = error
+    async def _loop(self):
+        """Main loop: sleep, check activity, process."""
+        while self.running:
+            await asyncio.sleep(self.interval_seconds)
+            
+            if self.activity_tracker.is_user_active():
+                continue  # User chatting, skip this cycle
+            
+            try:
+                await self._process_cycle()
+            except Exception as e:
+                logger.error(f"Background processing error: {e}")
+                # Log and continue - will retry next cycle
     
-    def summary(self) -> dict:
-        """Return metrics summary."""
-        return {
-            "total": {
-                "started": self.total_started,
-                "completed": self.total_completed,
-                "failed": self.total_failed,
-                "success_rate": self.total_completed / max(self.total_started, 1)
-            },
-            "by_type": dict(self.by_type)
-        }
+    async def _process_cycle(self):
+        """Process one cycle of background tasks."""
+        # 1. Extract entities from pending events
+        pending = await self.memory_store.get_pending_events(limit=20)
+        if pending:
+            from nanobot.memory.extraction import extract_entities
+            for event in pending:
+                entities = await extract_entities(event)
+                await self.memory_store.save_entities(entities)
+                await self.memory_store.mark_event_extracted(event.id)
+            logger.info(f"Extracted entities from {len(pending)} events")
+        
+        # 2. Refresh stale summaries (every 5th cycle = every 5 min)
+        if asyncio.get_event_loop().time() % 300 < 60:  # Approximate 5 min
+            from nanobot.memory.summaries import refresh_stale_summaries
+            refreshed = await refresh_stale_summaries(self.memory_store)
+            if refreshed:
+                logger.info(f"Refreshed {refreshed} summary nodes")
+        
+        # 3. Apply learning decay (every hour)
+        if asyncio.get_event_loop().time() % 3600 < 60:  # Approximate 1 hour
+            from nanobot.memory.learning import decay_learnings
+            decayed = await decay_learnings(self.memory_store)
+            if decayed:
+                logger.info(f"Applied decay to {decayed} learnings")
 ```
 
-### Configuration Schema
+### Configuration
+
+Add to MemoryConfig:
 
 ```python
-class TaskConfig(BaseModel):
-    """Background task configuration."""
-    
-    # Worker pool
-    num_workers: int = 2
-    max_queue_size: int = 1000
-    
-    # Activity awareness
-    quiet_threshold_seconds: int = 30  # User inactive for 30s = safe to run tasks
-    
-    # Task intervals (seconds)
-    extraction_interval: int = 60
-    summary_refresh_interval: int = 300  # 5 minutes
-    learning_decay_interval: int = 3600  # 1 hour
-    
-    # Timeouts
-    extraction_timeout: int = 120
-    summary_refresh_timeout: int = 300
-    learning_decay_timeout: int = 60
-    
-    # Retries
-    max_retries: int = 3
+class BackgroundConfig(BaseModel):
+    """Background processing configuration."""
+    enabled: bool = True
+    interval_seconds: int = 60          # Check every 60s
+    quiet_threshold_seconds: int = 30   # User inactive for 30s = safe to run
+
+class MemoryConfig(BaseModel):
+    # ... existing fields ...
+    background: BackgroundConfig = Field(default_factory=BackgroundConfig)
 ```
 
 Example config:
 ```json
 {
   "memory": {
-    "tasks": {
-      "num_workers": 2,
-      "extraction_interval": 60,
-      "summary_refresh_interval": 300,
+    "background": {
+      "enabled": true,
+      "interval_seconds": 60,
       "quiet_threshold_seconds": 30
     }
   }
@@ -1288,260 +932,83 @@ Example config:
 # nanobot/agent/loop.py
 
 class AgentLoop:
-    def __init__(self, config: Config, message_bus: MessageBus):
+    def __init__(self, ..., memory_config: Optional[MemoryConfig] = None):
         # Existing init...
         
-        # Memory system
-        if config.memory.enabled:
-            self.memory_store = MemoryStore(config.memory)
+        # Memory system (optional)
+        self.memory_store = None
+        self.background_processor = None
+        
+        if memory_config and memory_config.enabled:
+            from nanobot.memory.store import MemoryStore
+            from nanobot.memory.background import ActivityTracker, BackgroundProcessor
+            
+            self.memory_store = MemoryStore(memory_config)
             self.activity_tracker = ActivityTracker(
-                quiet_threshold_seconds=config.memory.tasks.quiet_threshold_seconds
+                quiet_threshold_seconds=memory_config.background.quiet_threshold_seconds
             )
-            self.task_manager = BackgroundTaskManager(
+            self.background_processor = BackgroundProcessor(
+                memory_store=self.memory_store,
                 activity_tracker=self.activity_tracker,
-                config=config.memory.tasks,
-                memory_store=self.memory_store
+                interval_seconds=memory_config.background.interval_seconds
             )
     
     async def start(self):
-        """Start the agent loop and background tasks."""
+        """Start the agent loop and background processing."""
         # Existing startup...
         
-        if self.config.memory.enabled:
-            await self.task_manager.start()
+        if self.background_processor:
+            await self.background_processor.start()
         
         logger.info("Agent loop started")
     
     async def stop(self):
         """Stop the agent loop gracefully."""
-        if self.config.memory.enabled:
-            await self.task_manager.stop()
+        if self.background_processor:
+            await self.background_processor.stop()
         
         # Existing shutdown...
-        
         logger.info("Agent loop stopped")
     
-    async def process_message(self, message: Message):
+    async def process_message(self, message: InboundMessage):
         """Process a user message."""
         # Mark user activity
-        if self.config.memory.enabled:
+        if self.activity_tracker:
             self.activity_tracker.mark_activity()
         
+        # Log event to memory if enabled
+        if self.memory_store:
+            await self.memory_store.log_event(
+                channel=message.channel,
+                direction="inbound",
+                content=message.content
+            )
+        
         # Existing message processing...
-        # ...
 ```
 
-### CLI Commands
+### Why This Design?
 
-```bash
-# Show background task status
-$ nanobot memory tasks
-Background Tasks Status
-───────────────────────────────────────
-Workers:              2 active
-Queue size:           5 pending
-User activity:        Active (12s ago)
+**Compared to complex WorkerPool/TaskQueue approach:**
 
-Periodic Tasks:
-  extraction          Next run: 45s  Last: 2m ago  Avg: 8.2s
-  summary_refresh     Next run: 3m   Last: 7m ago  Avg: 23.1s
-  learning_decay      Next run: 42m  Last: 1h ago  Avg: 2.3s
+| Aspect | Complex Design | This Design |
+|--------|---------------|-------------|
+| **Lines of code** | ~600 | ~80 |
+| **Workers** | 2+ concurrent | 1 (sequential) |
+| **Queue management** | Priority queue + dedup | None needed |
+| **Memory overhead** | ~5-10MB | ~1MB |
+| **Suitable for** | Multi-user, high throughput | Single user, casual use |
+| **Debuggability** | Hard (concurrency) | Easy (sequential) |
 
-Metrics (last 24h):
-  Total started:      1,234
-  Total completed:    1,220 (98.9%)
-  Total failed:       14 (1.1%)
+**For a single-user personal assistant:**
+- User generates ~1 message per minute at most
+- Background tasks run every 60s, process ~20 events
+- One sequential worker is more than enough
+- Simpler code = fewer bugs, easier maintenance
 
-# Manually trigger a task
-$ nanobot memory extract-now
-Submitted extraction task (will run when user is quiet)
+### Future Enhancement
 
-# Show detailed metrics
-$ nanobot memory task-metrics
-Task Metrics
-───────────────────────────────────────
-extraction:
-  Runs:              342
-  Avg duration:      8.2s
-  Success rate:      99.7%
-  Last run:          2m ago
-  Last error:        None
-
-summary_refresh:
-  Runs:              48
-  Avg duration:      23.1s
-  Success rate:      95.8%
-  Last run:          7m ago
-  Last error:        "LLM timeout" (1h ago)
-```
-
-### Error Handling
-
-```python
-class TaskError(Exception):
-    """Base exception for task errors."""
-    pass
-
-class TaskTimeoutError(TaskError):
-    """Task exceeded timeout."""
-    pass
-
-class TaskRetryableError(TaskError):
-    """Task failed but can be retried."""
-    pass
-
-class TaskPermanentError(TaskError):
-    """Task failed permanently, don't retry."""
-    pass
-```
-
-Usage in tasks:
-```python
-async def run_extraction_batch(memory_store: MemoryStore):
-    """Extract entities from pending events."""
-    try:
-        events = memory_store.get_pending_events(limit=20)
-        
-        for event in events:
-            try:
-                await extract_entities_from_event(event)
-            except ExtractionError as e:
-                # Individual event failure, continue batch
-                logger.warning(f"Failed to extract from event {event.id}: {e}")
-                continue
-        
-        logger.info(f"Extracted entities from {len(events)} events")
-        
-    except DatabaseError as e:
-        # Transient DB error, retry
-        raise TaskRetryableError(f"Database error: {e}")
-    
-    except Exception as e:
-        # Unknown error, log and fail permanently
-        logger.exception(f"Extraction batch failed: {e}")
-        raise TaskPermanentError(f"Unexpected error: {e}")
-```
-
-### Testing Strategy
-
-```python
-# tests/memory/test_background_tasks.py
-
-@pytest.mark.asyncio
-async def test_activity_aware_scheduling():
-    """Tasks should not run when user is active."""
-    tracker = ActivityTracker(quiet_threshold_seconds=30)
-    queue = TaskQueue()
-    
-    # User is active
-    tracker.mark_activity()
-    
-    task = Task(
-        task_type="test",
-        priority=TaskPriority.HIGH,
-        func=async_noop,
-        requires_quiet=True
-    )
-    
-    # Should not run
-    assert not task.should_run(tracker)
-    
-    # Wait for quiet period
-    await asyncio.sleep(31)
-    
-    # Should run now
-    assert task.should_run(tracker)
-
-@pytest.mark.asyncio
-async def test_task_retry_with_backoff():
-    """Failed tasks should retry with exponential backoff."""
-    tracker = ActivityTracker()
-    queue = TaskQueue()
-    worker_pool = WorkerPool(queue, tracker, num_workers=1)
-    
-    attempts = []
-    
-    async def failing_task():
-        attempts.append(datetime.now())
-        if len(attempts) < 3:
-            raise TaskRetryableError("Temporary failure")
-    
-    task = Task(
-        task_type="test",
-        priority=TaskPriority.HIGH,
-        func=failing_task,
-        max_retries=3
-    )
-    
-    await queue.put(task)
-    await worker_pool.start()
-    
-    # Wait for retries
-    await asyncio.sleep(10)
-    
-    # Should have 3 attempts with increasing backoff
-    assert len(attempts) == 3
-    assert (attempts[1] - attempts[0]).total_seconds() >= 2  # 2^1 backoff
-    assert (attempts[2] - attempts[1]).total_seconds() >= 4  # 2^2 backoff
-    
-    await worker_pool.stop()
-
-@pytest.mark.asyncio
-async def test_task_timeout():
-    """Tasks should be killed if they exceed timeout."""
-    tracker = ActivityTracker()
-    queue = TaskQueue()
-    worker_pool = WorkerPool(queue, tracker, num_workers=1)
-    
-    async def slow_task():
-        await asyncio.sleep(100)  # Never completes
-    
-    task = Task(
-        task_type="test",
-        priority=TaskPriority.HIGH,
-        func=slow_task,
-        timeout_seconds=1
-    )
-    
-    await queue.put(task)
-    await worker_pool.start()
-    
-    # Wait for timeout
-    await asyncio.sleep(2)
-    
-    # Task should have failed due to timeout
-    assert worker_pool.metrics.by_type["test"]["failed"] == 1
-    
-    await worker_pool.stop()
-```
-
-### Performance Targets
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Worker startup | <100ms | Should not delay agent startup |
-| Task submission | <1ms | Non-blocking queue put |
-| Activity check | <0.1ms | Simple timestamp comparison |
-| Queue overhead | <1% CPU | Minimal background CPU usage |
-| Memory overhead | <10MB | Worker pool + queue state |
-
-### Resource Requirements
-
-**Memory**:
-- WorkerPool: ~2MB (worker tasks + metrics)
-- TaskQueue: ~5MB (1000 tasks × ~5KB each)
-- Total: ~7-10MB
-
-**CPU**:
-- Idle: <1% (scheduler checking every 10s)
-- Active: 5-20% (during task execution)
-
-**Threads**:
-- All async (no additional threads)
-- Runs within existing asyncio event loop
-
----
-
+If you later need multi-user support or higher throughput, you can upgrade to the WorkerPool/TaskQueue architecture without changing the public API. The ActivityTracker and BackgroundProcessor interface remain the same.
 ## References
 
 - [babyagi3 memory system](https://github.com/yoheinakajima/babyagi3/tree/main/memory) - Inspiration for 3-layer architecture
