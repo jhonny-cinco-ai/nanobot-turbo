@@ -262,7 +262,7 @@ def _run_onboard_wizard():
         "1": ("openrouter", "OpenRouter - Access multiple AI models (recommended)"),
         "2": ("anthropic", "Anthropic - Claude models"),
         "3": ("openai", "OpenAI - GPT models"),
-        "4": ("groq", "Groq - Fast inference"),
+        "4": ("groq", "Groq - Fast inference + Voice transcription (Whisper)"),
         "5": ("deepseek", "DeepSeek - Chinese models"),
     }
     

@@ -433,6 +433,49 @@ def _configure_single_channel(name: str, schema: dict):
         if "Error" not in result:
             console.print(f"[green]✓ {name.title()} channel enabled![/green]")
         console.print(f"[dim]Start the gateway to activate: nanobot gateway[/dim]")
+        
+        # Check if voice transcription should be enabled (for Telegram/WhatsApp)
+        if name in ['telegram', 'whatsapp']:
+            _check_and_offer_groq_setup()
+
+
+def _check_and_offer_groq_setup():
+    """Check if Groq is configured and offer to set it up for voice transcription."""
+    tool = UpdateConfigTool()
+    summary = tool.get_config_summary()
+    
+    # Check if Groq is already configured
+    groq_configured = summary['providers'].get('groq', {}).get('has_key', False)
+    
+    if groq_configured:
+        console.print("\n[dim]✓ Voice transcription ready (Groq configured)[/dim]")
+        return
+    
+    # Offer to set up Groq for voice transcription
+    console.print("\n[bold cyan]🎤 Voice Message Support[/bold cyan]")
+    console.print("""
+[dim]Telegram/WhatsApp users can send voice messages.
+To transcribe them, you need Groq's Whisper API (free tier available).[/dim]
+    """)
+    
+    if Confirm.ask("Enable voice transcription?", default=True):
+        console.print("\n[dim]Get your API key from: https://console.groq.com/keys[/dim]")
+        api_key = Prompt.ask("Enter Groq API key", password=False)
+        
+        if api_key:
+            with console.status("[cyan]Saving Groq configuration...[/cyan]", spinner="dots"):
+                result = asyncio.run(tool.execute(
+                    path="providers.groq.apiKey",
+                    value=api_key
+                ))
+            if "Error" not in result:
+                console.print("[green]✓ Voice transcription enabled![/green]")
+                console.print("[dim]Your bot will now transcribe voice messages.[/dim]")
+            else:
+                console.print(f"[red]{result}[/red]")
+        else:
+            console.print("[yellow]⚠ No API key provided. Voice messages won't be transcribed.[/yellow]")
+            console.print("[dim]You can configure this later with: nanobot configure[/dim]")
 
 
 def _configure_agents():
