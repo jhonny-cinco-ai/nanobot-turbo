@@ -249,7 +249,9 @@ def _run_onboard_wizard():
     from rich.prompt import Prompt, Confirm
     from nanobot.agent.tools.update_config import UpdateConfigTool
     
-    tool = UpdateConfigTool()
+    # Show spinner while initializing
+    with console.status("[cyan]Loading configuration tools...[/cyan]", spinner="dots"):
+        tool = UpdateConfigTool()
     
     console.print("\n[bold cyan]Let's get you set up![/bold cyan]")
     console.print("[dim]I'll guide you through the essential configuration.[/dim]\n")
