@@ -113,6 +113,52 @@ def _show_status(summary: dict):
     console.print()
 
 
+def _get_channels_status(summary: dict) -> str:
+    """Get status indicator for channels."""
+    enabled_channels = [
+        name for name, info in summary.get('channels', {}).items()
+        if info.get('enabled', False)
+    ]
+    return "[green]✓[/green]" if enabled_channels else "[dim]○[/dim]"
+
+
+def _get_agents_status() -> str:
+    """Get status indicator for agent settings."""
+    try:
+        config = load_config()
+        has_custom = (
+            config.agents.defaults.model != "anthropic/claude-opus-4-5" or
+            config.agents.defaults.workspace != "~/.nanobot/workspace" or
+            config.agents.defaults.temperature != 0.7
+        )
+        return "[green]✓[/green]" if has_custom else "[dim]○[/dim]"
+    except:
+        return "[dim]○[/dim]"
+
+
+def _get_routing_status() -> str:
+    """Get status indicator for routing."""
+    try:
+        config = load_config()
+        return "[green]✓[/green]" if config.routing.enabled else "[dim]○[/dim]"
+    except:
+        return "[dim]○[/dim]"
+
+
+def _get_tools_status() -> str:
+    """Get status indicator for tools."""
+    try:
+        config = load_config()
+        has_custom = (
+            config.tools.restrict_to_workspace or
+            config.tools.evolutionary or
+            config.tools.web.search.api_key
+        )
+        return "[green]✓[/green]" if has_custom else "[dim]○[/dim]"
+    except:
+        return "[dim]○[/dim]"
+
+
 def _show_main_menu(summary: dict) -> str:
     """Show main menu and get user choice."""
     has_required = summary['has_required_config']
@@ -125,17 +171,24 @@ def _show_main_menu(summary: dict) -> str:
     
     options = []
     
+    # Check each section's status
+    providers_status = "[green]✓[/green]" if has_required else "[dim]○[/dim]"
+    channels_status = _get_channels_status(summary)
+    agents_status = _get_agents_status()
+    routing_status = _get_routing_status()
+    tools_status = _get_tools_status()
+    
     if not has_required:
         console.print("[red]⚠ At least one LLM provider is required to start[/red]\n")
-        options.append(("1", "providers", "🤖 Model Providers [red](Required)[/red]"))
+        options.append(("1", "providers", f"🤖 Model Providers {providers_status} [red](Required)[/red]"))
     else:
-        options.append(("1", "providers", "🤖 Model Providers"))
+        options.append(("1", "providers", f"🤖 Model Providers {providers_status}"))
     
     options.extend([
-        ("2", "channels", "💬 Chat Channels"),
-        ("3", "agents", "⚙️ Agent Settings"),
-        ("4", "routing", "🧠 Smart Routing"),
-        ("5", "tools", "🛠️ Tool Settings"),
+        ("2", "channels", f"💬 Chat Channels {channels_status}"),
+        ("3", "agents", f"⚙️ Agent Settings {agents_status}"),
+        ("4", "routing", f"🧠 Smart Routing {routing_status}"),
+        ("5", "tools", f"🛠️ Tool Settings {tools_status}"),
         ("6", "status", "📊 View Full Status"),
         ("7", "exit", "✓ Done" if has_required else "⏭ Skip for now"),
     ])
