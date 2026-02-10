@@ -232,6 +232,18 @@ def onboard():
     setup_table.add_row("✓", "Workspace directory", str(workspace))
     setup_table.add_row("✓", "Bootstrap templates", f"{workspace}/")
     
+    # Initialize memory database
+    with console.status("[cyan]Initializing memory database...[/cyan]", spinner="dots"):
+        from nanobot.config.schema import MemoryConfig
+        from nanobot.memory.store import MemoryStore
+        
+        memory_config = MemoryConfig(enabled=True)
+        memory_store = MemoryStore(memory_config, workspace)
+        stats = memory_store.get_stats()
+        memory_store.close()
+    
+    setup_table.add_row("✓", "Memory database", f"{workspace}/memory/memory.db")
+    
     console.print(setup_table)
     
     console.print(Panel.fit(
