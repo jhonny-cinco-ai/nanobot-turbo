@@ -194,26 +194,47 @@ def onboard():
     from nanobot.config.schema import Config
     from nanobot.utils.helpers import get_workspace_path
     
+    # Show welcome panel (consistent with configure style)
+    console.print(Panel.fit(
+        f"[bold blue]{__logo__} nanobot Setup[/bold blue]\n\n"
+        "Initialize your nanobot workspace and configuration.",
+        title="Welcome",
+        border_style="blue"
+    ))
+    
     config_path = get_config_path()
     
     if config_path.exists():
-        console.print(f"[yellow]Config already exists at {config_path}[/yellow]")
-        if not typer.confirm("Overwrite?"):
+        console.print(f"\n[yellow]⚠️  Config already exists at {config_path}[/yellow]")
+        if not typer.confirm("Overwrite existing configuration?"):
+            console.print("\n[dim]Setup cancelled. Existing configuration preserved.[/dim]")
             raise typer.Exit()
+    
+    # Create setup table for visual consistency
+    setup_table = Table(show_header=False, box=None, padding=(0, 2))
+    setup_table.add_column("Status", style="green", width=3)
+    setup_table.add_column("Task", style="white")
+    setup_table.add_column("Location", style="dim")
     
     # Create default config
     config = Config()
     save_config(config)
-    console.print(f"[green]✓[/green] Created config at {config_path}")
+    setup_table.add_row("✓", "Configuration file", str(config_path))
     
     # Create workspace
     workspace = get_workspace_path()
-    console.print(f"[green]✓[/green] Created workspace at {workspace}")
+    setup_table.add_row("✓", "Workspace directory", str(workspace))
     
     # Create default bootstrap files
     _create_workspace_templates(workspace)
+    setup_table.add_row("✓", "Bootstrap templates", f"{workspace}/")
     
-    console.print(f"\n{__logo__} Basic workspace initialized!")
+    console.print(setup_table)
+    
+    console.print(Panel.fit(
+        "[bold green]✓ Workspace initialized successfully![/bold green]",
+        border_style="green"
+    ))
     
     # Pre-load configuration modules while user is reading
     # This prevents delay when they confirm configuration
@@ -222,12 +243,14 @@ def onboard():
     console.print("[green]✓[/green] Ready")
     
     # Offer to run configuration immediately
-    console.print("\n[green]Now let's configure your API keys to get started.[/green]")
-    if typer.confirm("Ready to run the configuration wizard?"):
+    console.print("\n[bold]Next Step: API Configuration[/bold]")
+    console.print("[dim]Your workspace is ready. Now let's set up API keys to start chatting.[/dim]\n")
+    
+    if typer.confirm("[bold]Ready to run the configuration wizard?[/bold]"):
         configure_cli()
     else:
-        console.print("\n[yellow]⚠️ nanobot won't work without API keys.[/yellow]")
-        console.print("When you're ready, run: [cyan]nanobot configure[/cyan]")
+        console.print("\n[yellow]⚠️  nanobot won't work without API keys.[/yellow]")
+        console.print("[dim]When you're ready, run: [/dim][cyan]nanobot configure[/cyan]")
 
 
 @app.command()
