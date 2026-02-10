@@ -374,9 +374,8 @@ Examples:
             
             # Check for secrets in the value
             if isinstance(validated_value, str) and self.sanitizer.has_secrets(validated_value):
-                secret_types = self.sanitizer.get_secret_types(validated_value)
-                logger.warning(f"Configuration update contains secrets: {', '.join(secret_types)}")
-                logger.warning("Secrets will be stored securely")
+                # Secrets detected - log at debug level only
+                logger.debug("Configuration update contains secrets (stored securely)")
             
             # Backup existing config
             self._backup_config()
@@ -390,11 +389,8 @@ Examples:
             # Save the config
             save_config(config)
             
-            # Log success (with sanitized value if it contains secrets)
-            display_value = self.sanitizer.sanitize(str(validated_value)) if isinstance(validated_value, str) else str(validated_value)
-            if len(display_value) > 50:
-                display_value = display_value[:50] + "..."
-            logger.info(f"Configuration updated: {path} = {display_value}")
+            # Log success at debug level only (avoid cluttering CLI output)
+            logger.debug(f"Configuration updated: {path}")
             
             return f"✓ Updated {path} successfully"
             
