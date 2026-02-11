@@ -332,8 +332,8 @@ Examples:
                     "description": "Configuration path using dot notation (e.g., 'providers.openrouter.apiKey')"
                 },
                 "value": {
-                    "type": ["string", "boolean", "integer", "array"],
-                    "description": "New value to set"
+                    "type": "object",
+                    "description": "New value to set (string, boolean, number, or array)"
                 },
                 "operation": {
                     "type": "string",

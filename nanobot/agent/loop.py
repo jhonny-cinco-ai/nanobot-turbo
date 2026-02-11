@@ -149,7 +149,6 @@ class AgentLoop:
                 working_dir=str(self.workspace),
                 timeout=self.exec_config.timeout,
                 allowed_paths=self.allowed_paths,
-                protected_paths=self.protected_paths,
             ))
         else:
             # Standard mode: use restrict_to_workspace behavior
