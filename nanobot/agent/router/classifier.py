@@ -57,6 +57,15 @@ class ClassificationContext:
 
 # COMPREHENSIVE PATTERN LIBRARY - 80+ patterns across 25 categories
 DEFAULT_PATTERNS = [
+    # ========== QUICK CHECKS & TESTS (TIER: SIMPLE - High Priority) ==========
+    RoutingPattern(
+        regex=r"^(test message|test|testing|ping|hello test|test 123|are you there|can you hear me|checking if|just testing|quick test|connection test)$",
+        tier=RoutingTier.SIMPLE,
+        confidence=0.95,
+        examples=["Test message", "Testing", "Hello test", "Test 123", "Can you hear me?", "Just testing"],
+        added_at=datetime.now().isoformat(),
+    ),
+    
     # ========== MATHEMATICAL & REASONING (TIER: REASONING) ==========
     RoutingPattern(
         regex=r"\b(prove|theorem|lemma|corollary|derivation|formal proof|demonstrate|logical consequence|inductive|deductive|syllogism|axiom|postulate)\b",
@@ -144,12 +153,20 @@ DEFAULT_PATTERNS = [
         examples=["SQL query", "database migration", "MongoDB aggregation"],
         added_at=datetime.now().isoformat(),
     ),
-    # Testing
+    # Testing - requires context to avoid catching simple phrases like "test message"
     RoutingPattern(
-        regex=r"\b(test|jest|pytest|mocha|cypress|playwright|selenium|mock|stub|assert|coverage|benchmark|performance test|lint|eslint|prettier|format)\b",
+        regex=r"\b(jest|pytest|mocha|cypress|playwright|selenium|unittest|vitest|ava|tap)\b|\b(write|create|run|execute|debug|fix).*\b(test|tests|testing)\b|\b(test|tests|testing).*(code|function|class|method|api|endpoint)\b",
         tier=RoutingTier.CODING,
-        confidence=0.85,
-        examples=["write tests", "check coverage", "lint code", "format with prettier"],
+        confidence=0.87,
+        examples=["write tests", "run jest", "debug test failure", "fix the test", "create test for API"],
+        added_at=datetime.now().isoformat(),
+    ),
+    # Code quality (linting, formatting) - separate from testing
+    RoutingPattern(
+        regex=r"\b(lint|eslint|prettier|format|black|flake8|mypy|type check)\b",
+        tier=RoutingTier.CODING,
+        confidence=0.84,
+        examples=["lint code", "format with prettier", "check types"],
         added_at=datetime.now().isoformat(),
     ),
     # Network & connectivity
@@ -307,7 +324,7 @@ DEFAULT_PATTERNS = [
     RoutingPattern(
         regex=r"\b(schedule|calendar|reminder|alarm|timer|countdown|timezone|convert time|what time|when is|how long|deadline|due date)\b",
         tier=RoutingTier.SIMPLE,
-        confidence=0.80,
+        confidence=0.85,
         examples=["Set a reminder", "Convert timezone", "What time is it?"],
         added_at=datetime.now().isoformat(),
     ),
@@ -317,6 +334,16 @@ DEFAULT_PATTERNS = [
         tier=RoutingTier.SIMPLE,
         confidence=0.85,
         examples=["What's the weather", "Find nearby restaurants"],
+        added_at=datetime.now().isoformat(),
+    ),
+    
+    # ========== CATCH-ALL FOR SHORT/GENERIC QUERIES ==========
+    # Must be LAST - catches simple short phrases that don't match other patterns
+    RoutingPattern(
+        regex=r"^(hello|hi|hey|help|what|how|ok|yes|no|thanks|please|goodbye|bye|stop|start|go|run)[\.\?!\s]*$",
+        tier=RoutingTier.SIMPLE,
+        confidence=0.90,
+        examples=["hello", "help", "what", "ok", "thanks", "bye"],
         added_at=datetime.now().isoformat(),
     ),
 ]
@@ -367,17 +394,21 @@ class ClientSideClassifier:
         
         # Calculate weighted confidence
         weighted_sum = scores.calculate_weighted_sum(self.weights)
-        confidence = self._sigmoid(weighted_sum)
+        calculated_confidence = self._sigmoid(weighted_sum)
         
         # Determine tier based on confidence, patterns, and context
-        tier = self._determine_tier(confidence, content, context, scores)
+        tier, pattern_confidence = self._determine_tier(calculated_confidence, content, context, scores)
+        
+        # Use the higher of pattern confidence or calculated confidence
+        # This ensures high-confidence pattern matches are trusted
+        final_confidence = max(calculated_confidence, pattern_confidence)
         
         decision = RoutingDecision(
             tier=tier,
             model="",
-            confidence=confidence,
+            confidence=final_confidence,
             layer="client",
-            reasoning=f"Client-side classification: {tier.value} (confidence={confidence:.2f}, action={context.action_type})",
+            reasoning=f"Client-side classification: {tier.value} (confidence={final_confidence:.2f}, action={context.action_type})",
             estimated_tokens=self._estimate_tokens(content, tier),
             needs_tools=self._needs_tools(content, tier),
             metadata={
@@ -682,8 +713,13 @@ class ClientSideClassifier:
         return 1.0 / (1.0 + math.exp(-x * 2))
     
     def _determine_tier(self, confidence: float, content: str, 
-                       context: ClassificationContext, scores: ClassificationScores) -> RoutingTier:
-        """Determine tier with intelligent handling of negations and actions."""
+                       context: ClassificationContext, scores: ClassificationScores) -> tuple[RoutingTier, float]:
+        """Determine tier with intelligent handling of negations and actions.
+        
+        Returns:
+            Tuple of (tier, pattern_confidence) where pattern_confidence is the 
+            confidence from pattern matching (0.0 if no pattern matched)
+        """
         content_lower = content.lower()
         
         # Check for explicit pattern matches first (these are strong signals)
@@ -696,44 +732,54 @@ class ClientSideClassifier:
                         if context.action_type == "explain":
                             # User wants coding expertise but explanation, not implementation
                             # Use CODING-capable model but simpler task
-                            return RoutingTier.MEDIUM
+                            return RoutingTier.MEDIUM, pattern.confidence
                         elif context.negations and len(context.negations) > 0:
                             # Check if negation is about writing/creating
                             for neg in context.negations:
                                 if any(word in neg['scope_text'] for word in ['write', 'create', 'build', 'make']):
-                                    return RoutingTier.MEDIUM
-                    return pattern.tier
+                                    return RoutingTier.MEDIUM, pattern.confidence
+                    return pattern.tier, pattern.confidence
                 elif pattern.confidence >= 0.85:
                     # High confidence pattern - strongly consider it
-                    return pattern.tier
+                    return pattern.tier, pattern.confidence
         
         # Special rule: 2+ reasoning markers with high confidence
         reasoning_count = sum(1 for word in ["prove", "theorem", "step by step", "formal proof"] 
                              if word in content_lower)
         if reasoning_count >= 2 and confidence >= 0.90:
-            return RoutingTier.REASONING
+            return RoutingTier.REASONING, 0.90
         
         # Check action type for intelligent tier selection
         if context.action_type == "explain" and scores.code_presence > 0.5:
             # Explaining code is simpler than writing it
             if confidence >= self.thresholds["medium"]:
-                return RoutingTier.MEDIUM
+                return RoutingTier.MEDIUM, 0.0
         
-        # Check thresholds
+        # Check thresholds - prefer SIMPLE for ambiguous/lower confidence cases
+        # This makes the router conservative and cost-effective
         if confidence >= self.thresholds["reasoning"]:
-            return RoutingTier.REASONING
+            return RoutingTier.REASONING, 0.0
         elif confidence >= self.thresholds["complex"]:
-            return RoutingTier.COMPLEX
+            return RoutingTier.COMPLEX, 0.0
         elif confidence >= self.thresholds["coding"]:
             # Check if truly coding or just mentioning code
             if scores.code_presence > 0.6 and context.action_type in ["write", "create", "fix"]:
-                return RoutingTier.CODING
+                return RoutingTier.CODING, 0.0
             else:
-                return RoutingTier.MEDIUM
-        elif confidence >= self.thresholds["medium"]:
-            return RoutingTier.MEDIUM
+                return RoutingTier.MEDIUM, 0.0
+        elif confidence >= 0.55:  # Moderate-high confidence for medium
+            return RoutingTier.MEDIUM, 0.0
+        elif confidence >= 0.35:  # Moderate confidence - check indicators
+            # Use MEDIUM if there are clear indicators of complexity
+            if (scores.technical_terms > 0.4 or 
+                scores.multi_step_patterns > 0.4 or 
+                scores.imperative_verbs > 0.6 or
+                scores.code_presence > 0.4):
+                return RoutingTier.MEDIUM, 0.0
+            return RoutingTier.SIMPLE, 0.0
         else:
-            return RoutingTier.SIMPLE
+            # Low confidence - always simple
+            return RoutingTier.SIMPLE, 0.0
     
     def _estimate_tokens(self, content: str, tier: RoutingTier) -> int:
         """Estimate tokens needed based on content and tier."""
