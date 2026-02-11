@@ -175,8 +175,8 @@ class BackgroundProcessor:
             return 0
         
         # Get extraction config from memory store config
-        # Use default config if not available
-        config = ExtractionConfig(provider="spacy")  # Fallback to spaCy for now
+        # Use default config (gliner2) if not available
+        config = ExtractionConfig(provider="gliner2")  # Use GLiNER2 as primary extractor
         
         count = 0
         for event in pending:
