@@ -273,16 +273,16 @@ def onboard():
             progress.update(task1, completed=0, description=f"[yellow]⚠️  {e}[/yellow]")
             console.print(f"[yellow]Warning: Could not download embedding model: {e}[/yellow]")
         
-        # Download extraction model
-        task2 = progress.add_task("📦 Extraction model (80MB)...", total=80_000_000)
-        try:
-            from gliner2 import GLiNER2Extractor
-            # This triggers download
-            _ = GLiNER2Extractor("fastino/gliner2-base-v1")
-            progress.update(task2, completed=80_000_000)
-        except Exception as e:
-            progress.update(task2, completed=0, description=f"[yellow]⚠️  {e}[/yellow]")
-            console.print(f"[yellow]Warning: Could not download extraction model: {e}[/yellow]")
+            # Download extraction model
+            task2 = progress.add_task("📦 Extraction model (80MB)...", total=80_000_000)
+            try:
+                from gliner2 import GLiNER2
+                # This triggers download
+                _ = GLiNER2("fastino/gliner2-base-v1")
+                progress.update(task2, completed=80_000_000)
+            except Exception as e:
+                progress.update(task2, completed=0, description=f"[yellow]⚠️  {e}[/yellow]")
+                console.print(f"[yellow]Warning: Could not download extraction model: {e}[/yellow]")
     
     setup_table.add_row("✓", "Memory models", "Ready")
     

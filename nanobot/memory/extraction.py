@@ -46,7 +46,7 @@ class Gliner2Extractor:
         """Lazy load the GLiNER2 model."""
         if self._extractor is None:
             try:
-                from gliner2 import GLiNER2Extractor as GLiNER2
+                from gliner2 import GLiNER2
                 
                 logger.info(f"Loading GLiNER2 model: {self.config.gliner2_model}")
                 self._extractor = GLiNER2(model_name=self.config.gliner2_model)
