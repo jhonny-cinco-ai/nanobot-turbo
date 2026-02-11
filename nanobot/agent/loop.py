@@ -91,14 +91,20 @@ class AgentLoop:
             logger.info("Smart routing enabled")
         
         # Initialize memory system if enabled
-        self.memory_config = memory_config
         self.memory_store = None
         self.activity_tracker = None
         self.background_processor = None
+        self.memory_retrieval = None
+        self.context_assembler = None
+        self.summary_manager = None
         
         if memory_config and memory_config.enabled:
             from nanobot.memory.store import MemoryStore
             from nanobot.memory.background import ActivityTracker, BackgroundProcessor
+            from nanobot.memory.summaries import SummaryTreeManager, create_summary_manager
+            from nanobot.memory.context import ContextAssembler, create_context_assembler
+            from nanobot.memory.retrieval import MemoryRetrieval, create_retrieval
+            from nanobot.memory.embeddings import EmbeddingProvider
             
             self.memory_store = MemoryStore(memory_config, workspace)
             
@@ -114,7 +120,30 @@ class AgentLoop:
                 interval_seconds=memory_config.background.interval_seconds,
             )
             
-            logger.info("Memory system enabled with background processing")
+            # Initialize summary manager
+            self.summary_manager = create_summary_manager(
+                self.memory_store,
+                staleness_threshold=memory_config.summary.staleness_threshold,
+                max_refresh_batch=memory_config.summary.max_refresh_batch,
+            )
+            
+            # Initialize context assembler
+            self.context_assembler = create_context_assembler(
+                self.memory_store,
+                self.summary_manager,
+            )
+            
+            # Initialize memory retrieval with embeddings
+            embedding_provider = None
+            if memory_config.embedding.provider == "local":
+                embedding_provider = EmbeddingProvider(memory_config.embedding)
+            
+            self.memory_retrieval = create_retrieval(
+                self.memory_store,
+                embedding_provider=embedding_provider,
+            )
+            
+            logger.info("Memory system enabled with background processing, context assembly, and retrieval")
         
         self.subagents = SubagentManager(
             provider=provider,
@@ -184,6 +213,14 @@ class AgentLoop:
         
         # Config update tool
         self.tools.register(UpdateConfigTool())
+        
+        # Memory tools (if memory system is enabled)
+        if self.memory_store and self.memory_retrieval:
+            from nanobot.agent.tools.memory import create_memory_tools
+            memory_tools = create_memory_tools(self.memory_store, self.memory_retrieval)
+            for tool in memory_tools:
+                self.tools.register(tool)
+            logger.info(f"Registered {len(memory_tools)} memory tools")
     
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
@@ -339,6 +376,29 @@ class AgentLoop:
             )
             self.memory_store.save_event(event)
         
+        # Build memory context if memory system is enabled
+        memory_context = ""
+        if self.context_assembler and self.memory_retrieval:
+            try:
+                # Find relevant entities from recent conversation
+                relevant_entities = self.context_assembler.get_relevant_entities(
+                    query=sanitized_content,
+                    channel=msg.channel,
+                    limit=5,
+                )
+                entity_ids = [e.id for e in relevant_entities]
+                
+                # Assemble memory context
+                memory_context = self.context_assembler.assemble_context(
+                    channel=msg.channel,
+                    entity_ids=entity_ids,
+                    include_preferences=True,
+                )
+                
+                logger.debug(f"Assembled memory context ({len(memory_context)} chars)")
+            except Exception as e:
+                logger.error(f"Failed to assemble memory context: {e}")
+        
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -346,6 +406,7 @@ class AgentLoop:
             media=msg.media if msg.media else None,
             channel=msg.channel,
             chat_id=msg.chat_id,
+            memory_context=memory_context if memory_context else None,
         )
         
         # Select model using smart routing

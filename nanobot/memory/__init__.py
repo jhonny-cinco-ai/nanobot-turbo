@@ -37,6 +37,15 @@ from nanobot.memory.summaries import (
     SummaryTreeManager,
     create_summary_manager,
 )
+from nanobot.memory.context import (
+    ContextAssembler,
+    ContextBudget,
+    create_context_assembler,
+)
+from nanobot.memory.retrieval import (
+    MemoryRetrieval,
+    create_retrieval,
+)
 
 __all__ = [
     "Event",
@@ -60,4 +69,9 @@ __all__ = [
     "create_entity_resolver",
     "SummaryTreeManager",
     "create_summary_manager",
+    "ContextAssembler",
+    "ContextBudget",
+    "create_context_assembler",
+    "MemoryRetrieval",
+    "create_retrieval",
 ]
