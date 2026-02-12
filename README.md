@@ -146,7 +146,7 @@ nanobot session reset        # Reset all sessions
 }
 ```
 
-See [MEMORY_IMPLEMENTATION_STATUS.md](MEMORY_IMPLEMENTATION_STATUS.md) for complete technical details.
+See [MEMORY_IMPLEMENTATION_STATUS.md](docs/MEMORY_IMPLEMENTATION_STATUS.md) for complete technical details.
 
 ## 🔒 Security
 
@@ -932,7 +932,7 @@ With typical usage (45% simple, 35% medium, 15% complex, 5% reasoning):
 - **With routing**: $3.17/M tokens (blended average)
 - **Savings**: **96%** 🎉
 
-See [ROUTING.md](ROUTING.md) for detailed configuration and customization.
+See [ROUTING.md](docs/ROUTING.md) for detailed configuration and customization.
 
 </details>
 
