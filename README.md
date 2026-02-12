@@ -1151,16 +1151,20 @@ nanobot/
 ├── agent/          # 🧠 Core agent logic
 │   ├── loop.py     #    Agent loop (LLM ↔ tool execution)
 │   ├── context.py  #    Prompt builder
-│   ├── memory.py   #    Persistent memory
-│   ├── skills.py   #    Skills loader
+│   ├── skills.py   #    Skills loader with security verification
 │   ├── subagent.py #    Background task execution
-│   └── tools/      #    Built-in tools (incl. spawn)
+│   ├── router/     #    Smart routing (tiers, calibration)
+│   └── tools/      #    Built-in tools (incl. spawn, security)
 ├── memory/         # 🧠 Memory system (SQLite, embeddings, knowledge graph)
-│   ├── store.py    #    SQLite storage layer
+│   ├── store.py    #    TurboMemoryStore - SQLite storage layer
 │   ├── embeddings.py #  BGE semantic embeddings
 │   ├── models.py   #    Data models (Event, Entity, Edge, Fact...)
+│   ├── retrieval.py #   Memory search and retrieval
 │   ├── session_compactor.py # Context compaction
 │   └── token_counter.py     # Accurate token counting
+├── security/       # 🔒 Security scanner and skill verification
+│   ├── skill_scanner.py   # Skill security analysis
+│   └── __init__.py        # Security module exports
 ├── skills/         # 🎯 Bundled skills (github, weather, tmux...)
 ├── channels/       # 📱 Chat channel integrations
 ├── bus/            # 🚌 Message routing
@@ -1170,6 +1174,11 @@ nanobot/
 ├── session/        # 💬 Conversation sessions
 ├── config/         # ⚙️ Configuration
 └── cli/            # 🖥️ Commands
+
+Project Root:
+├── docs/           # 📚 Development documentation
+├── tests/          # 🧪 Test suite
+└── bridge/         # 🌉 WhatsApp Web bridge (Node.js)
 ```
 
 ## 🤝 Contribute & Roadmap
