@@ -1,9 +1,19 @@
-# Raw Work Logs Implementation - Multi-Agent Workspace Edition
+# Work Logs - Multi-Agent Workspace Edition
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Last Updated:** February 12, 2026  
-**Status:** Draft - Integrated with Multi-Agent Architecture  
+**Status:** Active Development - Single-Bot Foundation Complete, Multi-Agent Extensions Needed  
 **Author:** AI Implementation Team
+
+---
+
+## Status Overview
+
+### ✅ Single-Bot Foundation: COMPLETE
+The single-bot work logs implementation is **production ready**. See [WORK_LOGS_SINGLE_BOT.md](../WORK_LOGS_SINGLE_BOT.md) for details.
+
+### 🔄 Multi-Agent Extensions: IN PROGRESS
+This document outlines the extensions needed for full multi-agent support.
 
 ---
 
@@ -64,14 +74,54 @@ Based on [VoxYZ research](https://www.voxyz.space/insights/agent-work-logs-beat-
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1-2)
+### ✅ Phase 1: Foundation (COMPLETE - Single Bot)
 **Goal:** Add work logging infrastructure
+**Status:** ✅ **IMPLEMENTED** - See [WORK_LOGS_SINGLE_BOT.md](../WORK_LOGS_SINGLE_BOT.md)
 
-#### 1.1 WorkLog Data Model - Multi-Agent Workspace Integration
+**What Was Completed:**
+- ✅ Basic WorkLogEntry with tool execution tracking
+- ✅ WorkLog dataclass with session management
+- ✅ LogLevel enum (INFO, THINKING, DECISION, CORRECTION, UNCERTAINTY, WARNING, ERROR, TOOL)
+- ✅ SQLite storage infrastructure
+- ✅ WorkLogManager with CRUD operations
+- ✅ CLI commands (explain, how)
+- ✅ 33 comprehensive tests
 
-**Updated for Workspace Architecture:**
+#### 1.2 Multi-Agent Extensions Needed 🔄
 
-Work logs are now **workspace-centric** rather than session-centric. This aligns with the multi-agent orchestration model where bots collaborate in contextual workspaces (like Discord channels).
+**Status:** 🔄 **PENDING** - Add multi-agent fields to existing data model
+
+The current single-bot implementation needs these multi-agent fields added:
+
+**New Log Levels:**
+- [ ] `HANDOFF` - Bot-to-bot work transfer
+- [ ] `COORDINATION` - Coordinator mode decisions
+
+**New Workspace Context Fields:**
+- [ ] `workspace_id: str` - "#general", "#project-refactor"
+- [ ] `workspace_type: WorkspaceType` - OPEN, PROJECT, DIRECT, COORDINATION
+- [ ] `participants: list[str]` - Bots present in this workspace
+
+**New Bot Identity Fields:**
+- [ ] `bot_name: str` - Which bot created entry ("nanobot", "researcher")
+- [ ] `bot_role: str` - "coordinator", "specialist", "user-proxy"
+- [ ] `triggered_by: str` - "user", "nanobot", "@researcher"
+
+**New Communication Fields:**
+- [ ] `mentions: list[str]` - ["@researcher", "@coder"]
+- [ ] `response_to: Optional[int]` - Step this responds to
+- [ ] `coordinator_mode: bool` - Was nanobot coordinating?
+- [ ] `escalation: bool` - Did this trigger user escalation?
+
+**New Learning Exchange Fields:**
+- [ ] `shareable_insight: bool` - Can share with other bots?
+- [ ] `insight_category: Optional[str]` - "user_preference", "tool_pattern"
+
+**New Methods:**
+- [ ] `is_bot_conversation()` - Check if bot-to-bot communication
+
+**Migration Strategy:**
+Add optional fields to existing WorkLogEntry with sensible defaults for backward compatibility.
 
 ```python
 # nanobot/agent/work_log.py
@@ -800,10 +850,85 @@ log.end_workspace_session("Progress report generated. Awaiting user decision.")
 
 ---
 
-### Phase 2: Core Logging (Week 2-3)
+### ✅ Phase 2: Core Logging (COMPLETE - Single Bot)
 **Goal:** Add logging to all major decision points
+**Status:** ✅ **IMPLEMENTED** - See [WORK_LOGS_SINGLE_BOT.md](../WORK_LOGS_SINGLE_BOT.md)
 
-#### 2.1 Agent Loop Logging
+**What Was Completed:**
+- ✅ AgentLoop session lifecycle integration
+- ✅ Routing decision logging with confidence scores
+- ✅ Tool execution logging with timing
+- ✅ Memory retrieval logging
+- ✅ Error logging throughout pipeline
+- ✅ Response generation logging
+
+#### 2.2 Multi-Agent Logging Extensions Needed 🔄
+
+**Status:** 🔄 **PENDING** - Add multi-agent specific logging
+
+**New Logging Categories:**
+
+**Workspace Lifecycle Logging:**
+```python
+# Log workspace creation
+work_log.log(
+    level=LogLevel.INFO,
+    category="workspace",
+    message="Created workspace #project-alpha",
+    workspace_id="#project-alpha",
+    workspace_type=WorkspaceType.PROJECT,
+    participants=["nanobot", "researcher", "coder"]
+)
+```
+
+**Bot-to-Bot Communication Logging:**
+```python
+# Log when nanobot delegates to researcher
+work_log.add_bot_message(
+    bot_name="nanobot",
+    message="@researcher Please analyze competitors",
+    mentions=["@researcher"],
+    coordinator_mode=True
+)
+
+# Log researcher response
+work_log.add_bot_message(
+    bot_name="researcher",
+    message="Found 3 competitor sites",
+    response_to=previous_step
+)
+```
+
+**Coordinator Mode Logging:**
+```python
+# Log autonomous coordinator decisions
+work_log.log(
+    level=LogLevel.COORDINATION,
+    category="coordination",
+    message="Auto-approved task delegation",
+    coordinator_mode=True,
+    escalation=False
+)
+
+# Log escalations
+work_log.add_escalation(
+    reason="Tech stack decision needs user input",
+    bot_name="nanobot"
+)
+```
+
+**Bot Identity Tracking:**
+```python
+# Every entry should include bot identity
+work_log.log(
+    level=LogLevel.DECISION,
+    category="routing",
+    message="Classified as complex task",
+    bot_name="researcher",  # Which bot made this decision
+    bot_role="specialist",
+    triggered_by="@nanobot"  # Who triggered this action
+)
+```
 ```python
 # In nanobot/agent/loop.py
 
@@ -1771,56 +1896,116 @@ async def test_agent_loop_logging():
 
 ---
 
-## Rollout Plan - Workspace-Aware Implementation
+## Rollout Plan - Multi-Agent Extensions
 
-### Phase 1: Workspace Infrastructure (Week 1-2)
-**Goal:** Build workspace-centric work log system
+### ✅ Phase 1: Foundation (COMPLETE - See Single-Bot)
+**Goal:** Build basic work log system
+**Status:** ✅ **COMPLETE** - All single-bot features implemented
 
-- [ ] Create `WorkLog` and `WorkLogEntry` data classes with workspace fields
-- [ ] Implement `WorkspaceWorkLogManager` (replaces WorkLogManager)
-- [ ] Add workspace-aware configuration to `config/schema.py`
-- [ ] Create workspace-specific storage schema (SQLite)
-- [ ] Unit tests for workspace work log classes
-- [ ] Test workspace isolation (logs don't leak between workspaces)
+**Already Done:**
+- ✅ WorkLog and WorkLogEntry data classes
+- ✅ WorkLogManager with SQLite storage
+- ✅ Configuration (WorkLogsConfig)
+- ✅ 33 comprehensive tests
+- See [WORK_LOGS_SINGLE_BOT.md](../WORK_LOGS_SINGLE_BOT.md)
 
-### Phase 2: Multi-Agent Integration (Week 3-4)
+### 🔄 Phase 1A: Multi-Agent Data Model Extensions
+**Goal:** Add multi-agent fields to existing data model
+**Status:** 🔄 **PENDING**
+
+**Tasks:**
+- [ ] Add HANDOFF, COORDINATION to LogLevel enum
+- [ ] Add workspace_id, workspace_type, participants fields
+- [ ] Add bot_name, bot_role, triggered_by fields
+- [ ] Add mentions, response_to fields
+- [ ] Add coordinator_mode, escalation flags
+- [ ] Add shareable_insight, insight_category fields
+- [ ] Add is_bot_conversation() method
+- [ ] Update database schema (migration)
+- [ ] Update tests for new fields
+
+**Estimated Effort:** 2-3 hours
+
+### 🔄 Phase 2: Multi-Agent Integration
 **Goal:** Integrate with multi-agent orchestration
+**Status:** 🔄 **PENDING**
 
-- [ ] Hook into `Workspace` lifecycle (start/end sessions)
-- [ ] Add bot-to-bot conversation logging (`add_bot_message()`)
+**Prerequisites:** Workspace data model must exist
+
+**Tasks:**
+- [ ] Hook into Workspace lifecycle (requires Workspace model)
+- [ ] Add bot-to-bot conversation logging
 - [ ] Implement coordinator mode tracking
 - [ ] Add escalation logging for autonomous decisions
 - [ ] Test workspace types: open, project, direct, coordination
 - [ ] Integration tests with multiple bots
 
-### Phase 3: Learning Exchange Pipeline (Week 5)
-**Goal:** Connect work logs to Learning Exchange
+**Estimated Effort:** 4-6 hours
 
+### 🔄 Phase 3: Learning Exchange Pipeline
+**Goal:** Connect work logs to Learning Exchange
+**Status:** 🔄 **PENDING**
+
+**Prerequisites:** Learning Exchange system must exist
+
+**Tasks:**
 - [ ] Implement `_queue_for_learning_exchange()`
 - [ ] Add insight categorization (user_preference, tool_pattern, etc.)
 - [ ] Test auto-sharing of high-confidence insights
 - [ ] Verify workspace-scoped learning (general vs specific)
 - [ ] Add manual approval workflow for sensitive insights
 
-### Phase 4: CLI & API (Week 6)
-**Goal:** User-facing workspace commands
+**Estimated Effort:** 3-4 hours
 
+### 🔄 Phase 4: Enhanced CLI Commands
+**Goal:** Multi-agent aware CLI commands
+**Status:** 🔄 **PENDING**
+
+**Already Done (Single-Bot):**
+- ✅ `explain` command
+- ✅ `how` command
+- ✅ Interactive shortcuts
+
+**New Multi-Agent Features:**
 - [ ] Add `explain -w #workspace` command
 - [ ] Add `workspace-logs` command
 - [ ] Implement bot filtering (`-b @researcher`)
 - [ ] Add coordination mode view (`--mode coordination`)
 - [ ] Add work log query tools to agent (meta-cognition)
-- [ ] Documentation updates
 
-### Phase 5: UI & Polish (Week 7)
+**Estimated Effort:** 2-3 hours
+
+### ✅ Phase 5: Testing & Polish (COMPLETE - Single Bot)
 **Goal:** Production-ready work logs
+**Status:** ✅ **COMPLETE** - All single-bot testing done
 
-- [ ] Implement progressive disclosure UI
-- [ ] Add `--verbose` flag to agent
-- [ ] Performance optimization (async, sampling, retention)
-- [ ] Privacy review (PII masking, workspace isolation)
-- [ ] Test all workspace types thoroughly
-- [ ] Final testing & release
+**Already Done:**
+- ✅ 33 comprehensive tests
+- ✅ PII masking
+- ✅ Performance optimization
+- ✅ Production deployment
+
+**New Multi-Agent Testing Needed:**
+- [ ] Test workspace isolation
+- [ ] Test bot-to-bot logging
+- [ ] Test coordinator mode
+- [ ] Test Learning Exchange integration
+
+**Estimated Effort:** 3-4 hours
+
+### Summary
+
+**Total Multi-Agent Effort:** ~14-20 hours
+- Phase 1A: 2-3 hours (data model)
+- Phase 2: 4-6 hours (integration)
+- Phase 3: 3-4 hours (Learning Exchange)
+- Phase 4: 2-3 hours (CLI enhancements)
+- Phase 5: 3-4 hours (multi-agent testing)
+
+**Dependencies:**
+- ✅ Work logs foundation (COMPLETE)
+- 🔄 Workspace data model (Multi-Agent Architecture Phase 1)
+- 🔄 Learning Exchange system (Multi-Agent Architecture Phase 3)
 
 **Dependencies:**
 - Requires Workspace data model (Multi-Agent Architecture Phase 1)
