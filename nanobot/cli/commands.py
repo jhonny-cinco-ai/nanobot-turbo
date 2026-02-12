@@ -9,207 +9,30 @@ import sys
 
 import typer
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
 from rich.table import Table
+from rich.panel import Panel
+from rich.markdown import Markdown
 from rich.text import Text
+from loguru import logger
 
-from prompt_toolkit import PromptSession
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.patch_stdout import patch_stdout
+from nanobot import __logo__
+from nanobot.config.loader import load_config, get_data_dir
+from nanobot.config.schema import MemoryConfig
 
-from nanobot import __version__, __logo__
+# Main CLI app
+app = typer.Typer(name="nanobot", help="nanobot CLI")
 
-app = typer.Typer(
-    name="nanobot",
-    help=f"{__logo__} nanobot - Personal AI Assistant",
-    no_args_is_help=True,
-)
-
-console = Console()
-EXIT_COMMANDS = {"exit", "quit", "/exit", "/quit", ":q"}
-
-# ---------------------------------------------------------------------------
-# CLI input: prompt_toolkit for editing, paste, history, and display
-# ---------------------------------------------------------------------------
-
-_PROMPT_SESSION: PromptSession | None = None
-_SAVED_TERM_ATTRS = None  # original termios settings, restored on exit
-
-
-def _flush_pending_tty_input() -> None:
-    """Drop unread keypresses typed while the model was generating output."""
-    try:
-        fd = sys.stdin.fileno()
-        if not os.isatty(fd):
-            return
-    except Exception:
-        return
-
-    try:
-        import termios
-        termios.tcflush(fd, termios.TCIFLUSH)
-        return
-    except Exception:
-        pass
-
-    try:
-        while True:
-            ready, _, _ = select.select([fd], [], [], 0)
-            if not ready:
-                break
-            if not os.read(fd, 4096):
-                break
-    except Exception:
-        return
-
-
-def _restore_terminal() -> None:
-    """Restore terminal to its original state (echo, line buffering, etc.)."""
-    if _SAVED_TERM_ATTRS is None:
-        return
-    try:
-        import termios
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, _SAVED_TERM_ATTRS)
-    except Exception:
-        pass
-
-
-def _init_prompt_session() -> None:
-    """Create the prompt_toolkit session with persistent file history."""
-    global _PROMPT_SESSION, _SAVED_TERM_ATTRS
-
-    # Save terminal state so we can restore it on exit
-    try:
-        import termios
-        _SAVED_TERM_ATTRS = termios.tcgetattr(sys.stdin.fileno())
-    except Exception:
-        pass
-
-    history_file = Path.home() / ".nanobot" / "history" / "cli_history"
-    history_file.parent.mkdir(parents=True, exist_ok=True)
-
-    _PROMPT_SESSION = PromptSession(
-        history=FileHistory(str(history_file)),
-        enable_open_in_editor=False,
-        multiline=False,   # Enter submits (single line mode)
+# Import memory commands
+try:
+    from nanobot.cli.memory_commands import (
+        memory_app, session_app,
+        memory_init, memory_status, memory_search, memory_entities,
+        memory_entity, memory_forget, memory_doctor,
+        session_compact, session_status, session_reset
     )
-
-
-def _print_agent_response(response: str, render_markdown: bool) -> None:
-    """Render assistant response with clean, copy-friendly header."""
-    content = response or ""
-    body = Markdown(content) if render_markdown else Text(content)
-    console.print()
-    # Use a simple header instead of a Panel box, making it easier to copy text
-    console.print(f"{__logo__} [bold cyan]nanobot[/bold cyan]")
-    console.print(body)
-    console.print()
-
-
-def _is_exit_command(command: str) -> bool:
-    """Return True when input should end interactive chat."""
-    return command.lower() in EXIT_COMMANDS
-
-
-async def _read_interactive_input_async() -> str:
-    """Read user input using prompt_toolkit (handles paste, history, display).
-
-    prompt_toolkit natively handles:
-    - Multiline paste (bracketed paste mode)
-    - History navigation (up/down arrows)
-    - Clean display (no ghost characters or artifacts)
-    """
-    if _PROMPT_SESSION is None:
-        raise RuntimeError("Call _init_prompt_session() first")
-    try:
-        with patch_stdout():
-            return await _PROMPT_SESSION.prompt_async(
-                HTML("<b fg='ansiblue'>You:</b> "),
-            )
-    except EOFError as exc:
-        raise KeyboardInterrupt from exc
-
-
-
-def version_callback(value: bool):
-    if value:
-        console.print(f"{__logo__} nanobot v{__version__}")
-        raise typer.Exit()
-
-
-@app.callback()
-def main(
-    version: bool = typer.Option(
-        None, "--version", "-v", callback=version_callback, is_eager=True
-    ),
-):
-    """nanobot - Personal AI Assistant."""
-    pass
-
-
-# ============================================================================
-# Onboard / Setup
-# ============================================================================
-
-
-@app.command()
-def onboard():
-    """Initialize nanobot configuration and workspace."""
-    from nanobot.config.loader import get_config_path, save_config
-    from nanobot.config.schema import Config
-    from nanobot.utils.helpers import get_workspace_path
-    
-    # Show welcome panel (consistent with configure style)
-    console.print(Panel.fit(
-        f"[bold blue]{__logo__} nanobot Setup[/bold blue]\n\n"
-        "Initialize your nanobot workspace and configuration.",
-        title="Welcome",
-        border_style="blue"
-    ))
-    
-    config_path = get_config_path()
-    
-    if config_path.exists():
-        console.print(f"\n[yellow]⚠️  Configuration already exists at {config_path}[/yellow]")
-        console.print("\n[dim]Tip: To update settings, run: [cyan]nanobot configure[/cyan][/dim]")
-        
-        if not typer.confirm("Reset everything and start fresh?"):
-            console.print("\n[dim]Setup cancelled. Run [cyan]nanobot configure[/cyan] to update settings.[/dim]")
-            raise typer.Exit()
-    
-    # Show spinner while setting up
-    with console.status("[cyan]Setting up workspace...[/cyan]", spinner="dots"):
-        # Create default config
-        config = Config()
-        save_config(config)
-        
-        # Create workspace
-        workspace = get_workspace_path()
-        
-        # Create default bootstrap files
-        _create_workspace_templates(workspace)
-    
-    # Create setup table for visual consistency
-    setup_table = Table(show_header=False, box=None, padding=(0, 2))
-    setup_table.add_column("Status", style="green", width=3)
-    setup_table.add_column("Task", style="white")
-    setup_table.add_column("Location", style="dim")
-    
-    setup_table.add_row("✓", "Configuration file", str(config_path))
-    setup_table.add_row("✓", "Workspace directory", str(workspace))
-    setup_table.add_row("✓", "Bootstrap templates", f"{workspace}/")
-    
-    # Initialize memory database
-    with console.status("[cyan]Initializing memory database...[/cyan]", spinner="dots"):
-        from nanobot.config.schema import MemoryConfig
-        from nanobot.memory.store import MemoryStore
-        
-        memory_config = MemoryConfig(enabled=True)
-        memory_store = MemoryStore(memory_config, workspace)
-        stats = memory_store.get_stats()
-        memory_store.close()
+except ImportError:
+    memory_app = None
+    session_app = None
     
     setup_table.add_row("✓", "Memory database", f"{workspace}/memory/memory.db")
     
@@ -1480,6 +1303,14 @@ def status():
             console.print("  Run [cyan]nanobot routing status[/cyan] for details")
         else:
             console.print(f"Smart Routing: [dim]disabled[/dim]")
+
+
+# Add memory and session subcommands if available
+if memory_app is not None:
+    app.add_typer(memory_app, name="memory")
+
+if session_app is not None:
+    app.add_typer(session_app, name="session")
 
 
 if __name__ == "__main__":

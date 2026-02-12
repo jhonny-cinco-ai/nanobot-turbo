@@ -20,6 +20,7 @@
 
 ## 📢 News
 
+- **2026-02-11** 🧠 **Production-Hardened Memory System** — Complete 10-phase memory implementation with context compaction, knowledge graphs, and semantic search! Never lose context again.
 - **2026-02-10** 🔐 Added secret sanitizer & interactive configuration wizard — secure, user-friendly setup!
 - **2026-02-10** 🧬 Added evolutionary mode — bots can now self-improve while maintaining security boundaries!
 - **2026-02-10** 🎉 Released v0.1.3.post6 with improvements! Check the updates [notes](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post6) and our [roadmap](https://github.com/HKUDS/nanobot/discussions/431).
@@ -36,6 +37,8 @@
 ## Key Features of nanobot:
 
 🪶 **Ultra-Lightweight**: Just ~4,000 lines of core agent code — 99% smaller than Clawdbot.
+
+🧠 **Production-Hardened Memory**: 10-phase memory system with SQLite storage, semantic search, knowledge graphs, and intelligent context compaction. Handles conversations of any length without losing context.
 
 🔬 **Research-Ready**: Clean, readable code that's easy to understand, modify, and extend for research.
 
@@ -71,6 +74,77 @@
     <td align="center">Learn • Memory • Reasoning</td>
   </tr>
 </table>
+
+## 🧠 Memory System
+
+nanobot features a **production-hardened memory system** inspired by OpenClaw's battle-tested architecture. All 10 phases are complete — from event logging to intelligent context compaction.
+
+### Core Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| **📊 Event Logging** | Every interaction stored in SQLite with WAL mode for reliability |
+| **🔍 Semantic Search** | BGE embeddings enable finding relevant past conversations |
+| **🕸️ Knowledge Graph** | Entities, relationships, and facts extracted automatically |
+| **📝 Hierarchical Summaries** | Multi-level summaries for efficient context assembly |
+| **🎯 Context Assembly** | Smart retrieval combines summaries + recent messages |
+| **📚 Learning System** | Detects feedback, extracts preferences, improves over time |
+
+### Context Compaction (Production-Hardened)
+
+Handles long conversations without losing context or breaking tool chains:
+
+| Feature | Description |
+|---------|-------------|
+| **Token-Aware Counting** | Accurate tiktoken-based counting (not rough estimation) |
+| **Multiple Modes** | `summary` (smart), `token-limit` (emergency), `off` (manual) |
+| **Tool Chain Preservation** | Never separates `tool_use` → `tool_result` pairs |
+| **Proactive Trigger** | Compacts at 80% threshold, not reactive at 100% |
+| **Context Visibility** | Shows `context=X%` in responses (warn at 70%, compact at 80%) |
+| **Large Output Handling** | Stores large tool outputs (>10KB) to SQLite, prevents 400KB+ crashes |
+
+### CLI Commands
+
+```bash
+# Memory management
+nanobot memory status        # Show database stats, entity count, learnings
+nanobot memory search "api"  # Search memory content
+nanobot memory entities      # List all entities
+nanobot memory entity "John" # Get entity details
+nanobot memory forget "Bob"  # Remove entity from memory
+nanobot memory doctor        # Run health check
+
+# Session management
+nanobot session status       # Show context=X%, message count, compaction stats
+nanobot session compact      # Manual compaction trigger
+nanobot session reset        # Reset all sessions
+```
+
+### Configuration
+
+```json
+{
+  "memory": {
+    "enabled": true,
+    "db_path": "memory/memory.db",
+    "session_compaction": {
+      "enabled": true,
+      "mode": "summary",
+      "threshold_percent": 0.8,
+      "target_tokens": 3000,
+      "preserve_tool_chains": true
+    },
+    "enhanced_context": {
+      "max_context_tokens": 8000,
+      "show_context_percentage": true,
+      "warning_threshold": 0.70,
+      "compaction_threshold": 0.80
+    }
+  }
+}
+```
+
+See [MEMORY_IMPLEMENTATION_STATUS.md](MEMORY_IMPLEMENTATION_STATUS.md) for complete technical details.
 
 ## 📦 Install
 
@@ -904,6 +978,11 @@ Allow the bot to self-improve by modifying its own source code while maintaining
 | `nanobot routing status` | Show smart routing status |
 | `nanobot routing test "msg"` | Test classification |
 | `nanobot routing analytics` | Show cost savings |
+| `nanobot memory status` | Show memory statistics |
+| `nanobot memory search "query"` | Search memory content |
+| `nanobot memory entities` | List all entities |
+| `nanobot session status` | Show context=X%, message count |
+| `nanobot session compact` | Trigger compaction manually |
 
 <details>
 <summary><b>Smart Routing</b></summary>
@@ -931,6 +1010,27 @@ nanobot routing calibrate --dry-run
 </details>
 
 Interactive mode exits: `exit`, `quit`, `/exit`, `/quit`, `:q`, or `Ctrl+D`.
+
+<details>
+<summary><b>Memory System</b></summary>
+
+```bash
+# Memory management
+nanobot memory init          # Initialize memory database
+nanobot memory status        # Show memory statistics (events, entities, facts)
+nanobot memory search "api"  # Search memory content
+nanobot memory entities      # List all entities
+nanobot memory entity "John" # Get entity details
+nanobot memory forget "Bob"  # Remove entity from memory
+nanobot memory doctor        # Run health check
+
+# Session management  
+nanobot session status       # Show context=X%, message count, compaction stats
+nanobot session compact      # Manual compaction trigger
+nanobot session reset        # Reset all sessions
+```
+
+</details>
 
 <details>
 <summary><b>Scheduled Tasks (Cron)</b></summary>
@@ -985,6 +1085,12 @@ nanobot/
 │   ├── skills.py   #    Skills loader
 │   ├── subagent.py #    Background task execution
 │   └── tools/      #    Built-in tools (incl. spawn)
+├── memory/         # 🧠 Memory system (SQLite, embeddings, knowledge graph)
+│   ├── store.py    #    SQLite storage layer
+│   ├── embeddings.py #  BGE semantic embeddings
+│   ├── models.py   #    Data models (Event, Entity, Edge, Fact...)
+│   ├── session_compactor.py # Context compaction
+│   └── token_counter.py     # Accurate token counting
 ├── skills/         # 🎯 Bundled skills (github, weather, tmux...)
 ├── channels/       # 📱 Chat channel integrations
 ├── bus/            # 🚌 Message routing
@@ -1003,11 +1109,11 @@ PRs welcome! The codebase is intentionally small and readable. 🤗
 **Roadmap** — Pick an item and [open a PR](https://github.com/HKUDS/nanobot/pulls)!
 
 - [x] **Voice Transcription** — Support for Groq Whisper (Issue #13)
+- [x] **Long-term memory** — Production-hardened memory system with context compaction
+- [x] **Self-improvement** — Learning from feedback + evolutionary mode
 - [ ] **Multi-modal** — See and hear (images, voice, video)
-- [ ] **Long-term memory** — Never forget important context
 - [ ] **Better reasoning** — Multi-step planning and reflection
 - [ ] **More integrations** — Calendar and more
-- [ ] **Self-improvement** — Learn from feedback and mistakes
 
 ### Contributors
 

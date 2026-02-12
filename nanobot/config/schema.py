@@ -346,6 +346,56 @@ class ContextConfig(BaseModel):
     always_include_preferences: bool = True
 
 
+class SessionCompactionConfig(BaseModel):
+    """
+    Session compaction configuration for long conversations.
+    
+    Inspired by OpenClaw's production-hardened compaction system.
+    Prevents context overflow while preserving conversation coherence.
+    
+    Modes:
+    - summary: Smart summarization of older messages (default)
+    - token-limit: Hard truncation at safe boundaries (emergency)
+    - off: Disable auto-compaction (manual only)
+    """
+    enabled: bool = True
+    mode: str = "summary"               # summary | token-limit | off
+    threshold_percent: float = 0.8      # Trigger at 80% (proactive, not reactive)
+    target_tokens: int = 3000           # Target session history size
+    min_messages: int = 10                # Always keep at least 10
+    max_messages: int = 100             # Hard limit
+    preserve_recent: int = 20           # Keep last N messages verbatim
+    preserve_tool_chains: bool = True   # NEVER break tool_use → tool_result pairs
+    summary_chunk_size: int = 10        # Summarize N messages at a time
+    enable_memory_flush: bool = True    # Allow pre-compaction memory sync
+
+
+class EnhancedContextConfig(BaseModel):
+    """
+    Enhanced context assembly with real-time monitoring.
+    
+    Provides accurate token counting, budget allocation, and
+    context percentage visibility (context=X%).
+    """
+    # Budget allocation
+    max_context_tokens: int = 8000      # Total model context window
+    response_buffer: int = 1000         # Reserve for model response
+    memory_budget_percent: float = 0.35   # 35% for memory context
+    history_budget_percent: float = 0.35  # 35% for session history
+    system_budget_percent: float = 0.20   # 20% for system prompt
+    
+    # Real-time monitoring
+    enable_real_time_tracking: bool = True
+    show_context_percentage: bool = True  # Show context=65% in status
+    warning_threshold: float = 0.70       # Warn at 70%
+    compaction_threshold: float = 0.80    # Compact at 80%
+    
+    # Priority truncation
+    enable_priority_truncation: bool = True
+    min_history_messages: int = 10
+    preserve_user_preferences: bool = True
+
+
 class PrivacyConfig(BaseModel):
     """Privacy and security configuration."""
     auto_redact_pii: bool = True
@@ -367,6 +417,10 @@ class MemoryConfig(BaseModel):
     learning: LearningConfig = Field(default_factory=LearningConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
+    
+    # Session compaction (Phase 8) - Long conversation support
+    session_compaction: SessionCompactionConfig = Field(default_factory=SessionCompactionConfig)
+    enhanced_context: EnhancedContextConfig = Field(default_factory=EnhancedContextConfig)
 
 
 class Config(BaseSettings):

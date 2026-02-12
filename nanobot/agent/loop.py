@@ -91,12 +91,15 @@ class AgentLoop:
             logger.info("Smart routing enabled")
         
         # Initialize memory system if enabled
+        self.memory_config = memory_config  # Store for later access
         self.memory_store = None
         self.activity_tracker = None
         self.background_processor = None
         self.memory_retrieval = None
         self.context_assembler = None
         self.summary_manager = None
+        self.preferences_aggregator = None
+        self.session_compactor = None
         
         if memory_config and memory_config.enabled:
             from nanobot.memory.store import MemoryStore
@@ -160,7 +163,17 @@ class AgentLoop:
                 self.summary_manager,
             )
             
-            logger.info("Memory system enabled with learning, context assembly, and retrieval")
+            # Initialize session compactor (Phase 8) - Long conversation support
+            from nanobot.memory.session_compactor import SessionCompactor, SessionCompactionConfig
+            
+            self.session_compactor = SessionCompactor(
+                memory_config.session_compaction
+            )
+            
+            logger.info(
+                f"Memory system enabled with learning, context assembly, and retrieval. "
+                f"Session compaction: {memory_config.session_compaction.mode} mode"
+            )
         
         self.subagents = SubagentManager(
             provider=provider,
@@ -442,6 +455,52 @@ class AgentLoop:
             except Exception as e:
                 logger.error(f"Failed to assemble memory context: {e}")
         
+        # Phase 8: Check and trigger session compaction if needed
+        # Prevents context overflow in long conversations
+        if self.session_compactor:
+            try:
+                from nanobot.memory.token_counter import count_messages
+                
+                # Get current context usage
+                max_tokens = self.memory_config.enhanced_context.max_context_tokens if self.memory_config else 8000
+                current_tokens = count_messages(session.messages)
+                
+                # Check if compaction needed
+                if self.session_compactor.should_compact(session.messages, max_tokens):
+                    logger.info(
+                        f"🧹 Compaction triggered: {current_tokens} tokens approaching "
+                        f"{max_tokens} limit"
+                    )
+                    
+                    # Pre-compaction memory flush hook
+                    if self.session_compactor.config.enable_memory_flush:
+                        await self._memory_flush_hook(session, msg)
+                    
+                    # Compact the session
+                    result = await self.session_compactor.compact_session(session, max_tokens)
+                    
+                    # Update session with compacted messages
+                    session.messages = result.messages
+                    
+                    # Log compaction stats
+                    logger.info(
+                        f"🧹 Compaction complete: {result.original_count} → {result.compacted_count} messages, "
+                        f"{result.tokens_before} → {result.tokens_after} tokens "
+                        f"({result.compaction_ratio:.1%})"
+                    )
+                    
+                    # Show compaction notice in response metadata
+                    session.metadata["last_compaction"] = {
+                        "original_count": result.original_count,
+                        "compacted_count": result.compacted_count,
+                        "tokens_before": result.tokens_before,
+                        "tokens_after": result.tokens_after,
+                        "mode": result.mode
+                    }
+            except Exception as e:
+                logger.error(f"Session compaction failed: {e}")
+                # Continue without compaction - don't block message processing
+        
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -559,11 +618,33 @@ class AgentLoop:
             )
             self.memory_store.save_event(event)
         
+        # Phase 9: Add context usage to response metadata
+        response_metadata = msg.metadata or {}
+        if self.memory_config and self.memory_config.enhanced_context.show_context_percentage:
+            try:
+                from nanobot.memory.token_counter import count_messages
+                max_tokens = self.memory_config.enhanced_context.max_context_tokens
+                current_tokens = count_messages(session.messages)
+                percentage = current_tokens / max_tokens if max_tokens > 0 else 0
+                
+                # Add context status to metadata
+                response_metadata["context_usage"] = f"{percentage:.0%}"
+                response_metadata["tokens_used"] = current_tokens
+                response_metadata["tokens_remaining"] = max(0, max_tokens - current_tokens)
+                
+                # Log warning if approaching limit
+                if percentage > self.memory_config.enhanced_context.warning_threshold:
+                    logger.warning(
+                        f"Context at {percentage:.0%} - consider using /compact command"
+                    )
+            except Exception as e:
+                logger.debug(f"Failed to calculate context usage: {e}")
+        
         return OutboundMessage(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=final_content,
-            metadata=msg.metadata or {},  # Pass through for channel-specific needs (e.g. Slack thread_ts)
+            metadata=response_metadata,  # Includes context usage if enabled
         )
     
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
@@ -710,6 +791,55 @@ class AgentLoop:
                 return True
 
         return False
+    
+    async def _memory_flush_hook(self, session: Session, msg: InboundMessage) -> None:
+        """
+        Pre-compaction memory flush hook.
+        
+        Allows the agent to persist important state to memory before
+        compaction removes it from the session context.
+        
+        Inspired by OpenClaw's pre-compaction flush mechanism.
+        
+        Args:
+            session: The session being compacted.
+            msg: The current inbound message.
+        """
+        if not self.memory_store or not self.learning_manager:
+            return
+        
+        try:
+            logger.debug("Running pre-compaction memory flush hook")
+            
+            # Detect any learnings from recent conversation
+            if session.messages:
+                # Get last few messages to check for feedback
+                recent_msgs = session.messages[-10:]
+                for message in recent_msgs:
+                    if message.get("role") == "user":
+                        content = message.get("content", "")
+                        # Check for feedback patterns
+                        if self.learning_manager.feedback_detector.detect_feedback(content):
+                            # Process and store learning
+                            learnings = self.learning_manager.feedback_detector.extract_learning(content)
+                            for learning_data in learnings:
+                                await self.learning_manager.create_learning(
+                                    content=learning_data["content"],
+                                    category=learning_data.get("category", "general"),
+                                    confidence=learning_data.get("confidence", 0.7),
+                                    source_event_id=message.get("event_id", ""),
+                                    tool_name=learning_data.get("tool_name")
+                                )
+            
+            # Refresh preferences summary if needed
+            if self.preferences_aggregator:
+                await self.preferences_aggregator.refresh_if_needed()
+            
+            logger.debug("Memory flush hook complete")
+            
+        except Exception as e:
+            logger.warning(f"Memory flush hook failed (non-critical): {e}")
+            # Don't fail compaction if flush fails
 
     async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
         """Send onboarding message when config is missing."""
