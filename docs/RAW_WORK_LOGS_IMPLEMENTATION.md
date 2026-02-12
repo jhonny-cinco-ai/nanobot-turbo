@@ -1,4 +1,24 @@
-# Raw Work Logs Implementation
+# Raw Work Logs Implementation - Multi-Agent Workspace Edition
+
+**Document Version:** 2.0  
+**Last Updated:** February 12, 2026  
+**Status:** Draft - Integrated with Multi-Agent Architecture  
+**Author:** AI Implementation Team
+
+---
+
+## Integration Notice
+
+**This document has been updated to integrate with the [Multi-Agent Orchestration Architecture](./MULTI_AGENT_ORCHESTRATION_ANALYSIS.md).**
+
+Key integration points:
+- Work logs are now **workspace-centric** (like Discord channels)
+- Support for **bot-to-bot collaboration** logging
+- **Coordinator mode** tracks autonomous decisions
+- **Learning Exchange** integration for cross-bot insights
+- **Workspace-specific** retention and privacy settings
+
+---
 
 **Document Version:** 1.0  
 **Last Updated:** February 12, 2026  
@@ -47,7 +67,12 @@ Based on [VoxYZ research](https://www.voxyz.space/insights/agent-work-logs-beat-
 ### Phase 1: Foundation (Week 1-2)
 **Goal:** Add work logging infrastructure
 
-#### 1.1 WorkLog Data Model
+#### 1.1 WorkLog Data Model - Multi-Agent Workspace Integration
+
+**Updated for Workspace Architecture:**
+
+Work logs are now **workspace-centric** rather than session-centric. This aligns with the multi-agent orchestration model where bots collaborate in contextual workspaces (like Discord channels).
+
 ```python
 # nanobot/agent/work_log.py
 
@@ -57,72 +82,226 @@ from typing import Optional, Any
 from enum import Enum
 
 class LogLevel(Enum):
-    INFO = "info"      # Normal operation
-    THINKING = "thinking"  # Reasoning steps
-    DECISION = "decision"  # Choice made
+    INFO = "info"           # Normal operation
+    THINKING = "thinking"   # Reasoning steps
+    DECISION = "decision"   # Choice made
     CORRECTION = "correction"  # Mistake fixed
     UNCERTAINTY = "uncertainty"  # Low confidence
-    WARNING = "warning"  # Issue encountered
-    ERROR = "error"      # Failure
+    WARNING = "warning"     # Issue encountered
+    ERROR = "error"         # Failure
+    HANDOFF = "handoff"     # Bot-to-bot work transfer
+    COORDINATION = "coordination"  # Coordinator mode decisions
+
+class WorkspaceType(Enum):
+    OPEN = "open"           # #general - casual, all bots
+    PROJECT = "project"     # #project-alpha - focused team
+    DIRECT = "direct"       # DM @researcher - 1-on-1
+    COORDINATION = "coordination"  # nanobot manages autonomously
 
 @dataclass
 class WorkLogEntry:
     timestamp: datetime
     level: LogLevel
-    step: int           # Sequential step number
-    category: str       # "memory", "tool", "routing", "security", etc.
-    message: str        # Human-readable description
-    details: dict = field(default_factory=dict)  # Structured data
-    confidence: Optional[float] = None  # 0.0-1.0 for uncertainty
-    duration_ms: Optional[int] = None  # How long this step took
+    step: int                    # Sequential step number
+    category: str                # "memory", "tool", "routing", "security", etc.
+    message: str                 # Human-readable description
     
-    # Tool execution fields (for agent-to-agent handoffs)
-    tool_name: Optional[str] = None          # e.g., "scan_skill"
-    tool_input: Optional[dict] = None        # Structured input parameters
-    tool_output: Optional[Any] = None        # Structured result (JSON-serializable)
-    tool_status: Optional[str] = None        # "success", "error", "timeout"
-    tool_error: Optional[str] = None         # Error message if failed
+    # Multi-agent context
+    workspace_id: str            # "#general", "#project-refactor"
+    workspace_type: WorkspaceType
+    participants: list[str]      # Bots present in this workspace
+    triggered_by: str            # "user", "nanobot", "@researcher", etc.
+    
+    # Bot identity
+    bot_name: str                # Which bot created this entry
+    bot_role: str                # "coordinator", "specialist", "user-proxy"
+    
+    # Decision context
+    details: dict = field(default_factory=dict)
+    confidence: Optional[float] = None  # 0.0-1.0 for uncertainty
+    duration_ms: Optional[int] = None   # How long this step took
+    
+    # Coordinator mode
+    coordinator_mode: bool = False      # Was nanobot coordinating?
+    escalation: bool = False            # Did this trigger escalation?
+    
+    # Tool execution (for agent-to-agent handoffs)
+    tool_name: Optional[str] = None
+    tool_input: Optional[dict] = None
+    tool_output: Optional[Any] = None
+    tool_status: Optional[str] = None   # "success", "error", "timeout"
+    tool_error: Optional[str] = None
+    
+    # Cross-bot references (tagging)
+    mentions: list[str] = field(default_factory=list)  # ["@researcher", "@coder"]
+    response_to: Optional[int] = None   # Step number this responds to
+    
+    # Learning Exchange
+    shareable_insight: bool = False     # Can this be shared with other bots?
+    insight_category: Optional[str] = None  # "user_preference", "tool_pattern", etc.
     
     def is_tool_entry(self) -> bool:
         """Check if this entry represents a tool execution."""
         return self.tool_name is not None
     
+    def is_bot_conversation(self) -> bool:
+        """Check if this is bot-to-bot communication."""
+        return self.triggered_by.startswith("@") or self.coordinator_mode
+    
     def to_artifact(self) -> dict:
         """Convert to structured artifact for agent consumption."""
         return {
             "step": self.step,
+            "workspace": self.workspace_id,
+            "bot": self.bot_name,
             "category": self.category,
             "tool": self.tool_name,
             "input": self.tool_input,
             "output": self.tool_output,
             "status": self.tool_status,
+            "confidence": self.confidence,
             "duration_ms": self.duration_ms,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
+            "shareable": self.shareable_insight
         }
 
 @dataclass  
 class WorkLog:
     session_id: str
-    query: str          # Original user query
+    workspace_id: str            # "#general", "#project-refactor", "dm-researcher"
+    workspace_type: WorkspaceType
+    query: str                   # Original user query or bot trigger
+    
+    # Participants
+    participants: list[str]      # All bots in this workspace
+    coordinator: Optional[str]   # "nanobot" if in coordinator mode
+    
+    # Timing
     start_time: datetime
     end_time: Optional[datetime] = None
+    
+    # Entries
     entries: list[WorkLogEntry] = field(default_factory=list)
     final_output: Optional[str] = None
     
+    # Workspace context
+    summary: Optional[str] = None        # AI-generated summary
+    artifact_chain: list = field(default_factory=list)  # Structured handoffs
+    
+    # Learning Exchange integration
+    insights_for_sharing: list = field(default_factory=list)  # High-confidence learnings
+    
     def add_entry(self, level: LogLevel, category: str, message: str, 
-                  details: dict = None, confidence: float = None):
-        """Add a work log entry."""
+                  bot_name: str = "nanobot", triggered_by: str = "user",
+                  details: dict = None, confidence: float = None,
+                  coordinator_mode: bool = False) -> WorkLogEntry:
+        """Add a work log entry with workspace context."""
         entry = WorkLogEntry(
             timestamp=datetime.now(),
             level=level,
             step=len(self.entries) + 1,
             category=category,
             message=message,
+            workspace_id=self.workspace_id,
+            workspace_type=self.workspace_type,
+            participants=self.participants.copy(),
+            triggered_by=triggered_by,
+            bot_name=bot_name,
+            coordinator_mode=coordinator_mode,
             details=details or {},
             confidence=confidence
         )
         self.entries.append(entry)
+        
+        # Auto-flag high-confidence insights for Learning Exchange
+        if confidence and confidence >= 0.85 and category in ["user_preference", "tool_pattern"]:
+            entry.shareable_insight = True
+            entry.insight_category = category
+            self.insights_for_sharing.append(entry)
+        
         return entry
+    
+    def add_bot_message(self, bot_name: str, message: str, 
+                       response_to: Optional[int] = None,
+                       mentions: list[str] = None) -> WorkLogEntry:
+        """Add a bot-to-bot conversation entry."""
+        return self.add_entry(
+            level=LogLevel.INFO,
+            category="bot_conversation",
+            message=f"{bot_name}: {message}",
+            bot_name=bot_name,
+            triggered_by=bot_name,
+            coordinator_mode=(self.coordinator is not None)
+        )
+    
+    def add_escalation(self, reason: str, bot_name: str = "nanobot") -> WorkLogEntry:
+        """Log an escalation that needs user attention."""
+        return self.add_entry(
+            level=LogLevel.COORDINATION,
+            category="escalation",
+            message=f"🚨 Escalation: {reason}",
+            bot_name=bot_name,
+            triggered_by=bot_name,
+            coordinator_mode=True,
+            escalation=True
+        )
+
+# Workspace-aware log manager
+class WorkspaceWorkLogManager:
+    """Manages work logs per workspace (multi-agent support)."""
+    
+    def __init__(self, enabled: bool = True, storage: str = "sqlite"):
+        self.enabled = enabled
+        self.storage = storage
+        self.active_logs: dict[str, WorkLog] = {}  # workspace_id -> WorkLog
+    
+    def start_workspace_session(self, workspace_id: str, workspace_type: WorkspaceType,
+                               query: str, participants: list[str],
+                               coordinator: Optional[str] = None) -> WorkLog:
+        """Start a new work log for a workspace."""
+        log = WorkLog(
+            session_id=f"{workspace_id}-{datetime.now().timestamp()}",
+            workspace_id=workspace_id,
+            workspace_type=workspace_type,
+            query=query,
+            participants=participants,
+            coordinator=coordinator,
+            start_time=datetime.now()
+        )
+        self.active_logs[workspace_id] = log
+        return log
+    
+    def get_workspace_log(self, workspace_id: str) -> Optional[WorkLog]:
+        """Get the active work log for a workspace."""
+        return self.active_logs.get(workspace_id)
+    
+    def end_workspace_session(self, workspace_id: str, final_output: str):
+        """End workspace session and queue insights for Learning Exchange."""
+        if workspace_id in self.active_logs:
+            log = self.active_logs[workspace_id]
+            log.end_time = datetime.now()
+            log.final_output = final_output
+            
+            # Queue insights for Learning Exchange
+            if log.insights_for_sharing:
+                self._queue_for_learning_exchange(log)
+            
+            self._save_log(log)
+            del self.active_logs[workspace_id]
+    
+    def _queue_for_learning_exchange(self, log: WorkLog):
+        """Queue high-confidence insights for cross-bot sharing."""
+        from nanobot.learning.exchange import LearningExchange
+        
+        exchange = LearningExchange()
+        for entry in log.insights_for_sharing:
+            exchange.queue_insight(
+                source_bot=entry.bot_name,
+                content=entry.message,
+                category=entry.insight_category,
+                confidence=entry.confidence,
+                workspace=log.workspace_id
+            )
 ```
 
 #### 1.2 WorkLogManager
@@ -181,29 +360,443 @@ class WorkLogManager:
             return self._format_summary()
 ```
 
-#### 1.3 Integration Points
-- Hook into `AgentLoop` - log at key decision points
-- Hook into `ContextBuilder` - log memory assembly
-- Hook into `MemoryRetrieval` - log search decisions
-- Hook into tool execution - log tool selection
-- Hook into `SkillsLoader` - log skill verification
+#### 1.3 Workspace Integration Points
 
-#### 1.4 Configuration
+Work logs are now workspace-aware and integrate with the multi-agent orchestration system:
+
+**Integration Points:**
+1. **Workspace Lifecycle**
+   - `Workspace.start_session()` → `WorkLogManager.start_workspace_session()`
+   - `Workspace.end_session()` → `WorkLogManager.end_workspace_session()`
+   - Logs persist per workspace (not global)
+
+2. **Multi-Agent Communication**
+   - Bot-to-bot messages logged with `add_bot_message()`
+   - @mentions tracked in `mentions` field
+   - Coordinator mode decisions flagged
+
+3. **Learning Exchange Pipeline**
+   - High-confidence insights auto-queued
+   - Shared across workspaces via Learning Exchange
+   - Privacy respected (sensitive data filtered)
+
+4. **Coordinator Mode**
+   - Autonomous decisions logged separately
+   - Escalations clearly marked
+   - User notification summaries generated from logs
+
+#### 1.4 Configuration - Workspace-Aware Settings
+
 ```json
 {
   "work_logs": {
     "enabled": true,
-    "storage": "sqlite",  # "sqlite", "memory", "file", "none"
+    "storage": "sqlite",
     "retention_days": 30,
-    "log_levels": ["info", "thinking", "decision", "correction", "uncertainty", "warning", "error"],
-    "categories": ["memory", "tool", "routing", "security", "skill", "context", "general"],
-    "show_in_response": false,  # Include in normal responses
-    "progressive_disclosure": true,  # Allow user to expand
-    "default_mode": "summary",  # "summary", "detailed", "debug"
-    "confidence_threshold": 0.7  # Flag decisions below this
+    
+    "log_levels": ["info", "thinking", "decision", "correction", "uncertainty", "warning", "error", "handoff", "coordination"],
+    "categories": ["memory", "tool", "routing", "security", "skill", "context", "general", "bot_conversation", "coordination"],
+    
+    "workspace_defaults": {
+      "open": {
+        "log_bot_conversations": false,  # Don't log casual chat
+        "log_coordination": false,
+        "retention_days": 7  # Shorter retention for casual chats
+      },
+      "project": {
+        "log_bot_conversations": true,   # Log all collaboration
+        "log_coordination": true,
+        "retention_days": 90  # Keep project logs longer
+      },
+      "direct": {
+        "log_bot_conversations": true,   # Log 1-on-1 discussions
+        "log_coordination": false,
+        "retention_days": 30
+      },
+      "coordination": {
+        "log_bot_conversations": true,   # Log autonomous decisions
+        "log_coordination": true,
+        "retention_days": 90,
+        "escalation_alerts": true  # Notify user of escalations
+      }
+    },
+    
+    "learning_exchange": {
+      "enabled": true,
+      "min_confidence": 0.85,
+      "auto_approve": false,  # User reviews before sharing
+      "shareable_categories": ["user_preference", "tool_pattern", "research_finding"]
+    },
+    
+    "show_in_response": false,
+    "progressive_disclosure": true,
+    "default_mode": "summary",
+    "confidence_threshold": 0.7,
+    
+    "privacy": {
+      "mask_secrets": true,
+      "workspace_isolation": true,  # Logs don't leak between workspaces
+      "user_only_access": true      # Only workspace owner sees logs
+    }
   }
 }
 ```
+
+**Workspace-Specific Behaviors:**
+
+- **#general (open):** Lightweight logging, focus on user interactions
+- **#project (project):** Full logging, track all collaboration and decisions
+- **DM @bot (direct):** Deep logging for expertise sessions
+- **#coordination:** Comprehensive logging for autonomous work review
+
+---
+
+### Phase 1.5: Workspace-Specific Work Log Examples
+
+#### Example A: Open Workspace (#general)
+**Use case:** Casual conversation, all bots present, user always online
+
+```python
+# User asks in #general
+log = manager.start_workspace_session(
+    workspace_id="#general",
+    workspace_type=WorkspaceType.OPEN,
+    query="What's the weather like?",
+    participants=["nanobot", "researcher", "coder", "social"]
+)
+
+# Simple query - nanobot handles directly
+log.add_entry(
+    level=LogLevel.INFO,
+    category="routing",
+    message="Simple query - classified as TIER_SIMPLE",
+    bot_name="nanobot",
+    triggered_by="user",
+    confidence=0.95
+)
+
+# Tool execution
+log.add_entry(
+    level=LogLevel.DECISION,
+    category="tool",
+    message="Calling weather API",
+    bot_name="nanobot",
+    tool_name="weather_lookup",
+    tool_input={"location": "auto-detect"},
+    tool_output={"temp": 72, "condition": "sunny"},
+    tool_status="success",
+    duration_ms=450
+)
+
+# Result
+log.add_entry(
+    level=LogLevel.INFO,
+    category="general",
+    message="Response delivered to user",
+    bot_name="nanobot"
+)
+
+log.end_workspace_session("It's 72°F and sunny!")
+```
+
+**Log Characteristics:**
+- Simple, straightforward flow
+- No coordination needed
+- Single bot (nanobot) handling everything
+- Low complexity, high confidence
+
+---
+
+#### Example B: Project Workspace (#project-refactor)
+**Use case:** Focused work with specific team, coordinator mode enabled
+
+```python
+# Start project workspace
+log = manager.start_workspace_session(
+    workspace_id="#project-refactor",
+    workspace_type=WorkspaceType.PROJECT,
+    query="Refactor the authentication module",
+    participants=["nanobot", "researcher", "coder"],
+    coordinator="nanobot"  # Coordinator mode active
+)
+
+# Initial assessment by coordinator
+log.add_entry(
+    level=LogLevel.THINKING,
+    category="coordination",
+    message="Assessing task complexity and required expertise",
+    bot_name="nanobot",
+    triggered_by="user",
+    coordinator_mode=True
+)
+
+# Coordinator delegates to researcher
+entry = log.add_bot_message(
+    bot_name="nanobot",
+    message="@researcher Please analyze current auth implementation for security issues",
+    mentions=["@researcher"]
+)
+
+# Researcher responds
+log.add_bot_message(
+    bot_name="researcher",
+    message="Found 2 issues: (1) Missing rate limiting, (2) Weak password policy",
+    response_to=entry.step
+)
+
+# Coordinator delegates to coder
+log.add_bot_message(
+    bot_name="nanobot",
+    message="@coder Can you implement rate limiting? @researcher found it as priority #1",
+    mentions=["@coder", "@researcher"]
+)
+
+# Coder asks for clarification
+log.add_bot_message(
+    bot_name="coder",
+    message="What rate limit should I use? 100 req/min or stricter?"
+)
+
+# Low confidence decision - might need user input
+log.add_entry(
+    level=LogLevel.UNCERTAINTY,
+    category="coordination",
+    message="Rate limit choice unclear - defaulting to 100/min but user might prefer different",
+    bot_name="nanobot",
+    coordinator_mode=True,
+    confidence=0.6
+)
+
+# Decision: Continue with default but note for user review
+log.add_entry(
+    level=LogLevel.DECISION,
+    category="coordination",
+    message="Proceeding with 100 req/min, flagging for user confirmation",
+    bot_name="nanobot",
+    coordinator_mode=True
+)
+
+# Coder implements
+log.add_entry(
+    level=LogLevel.DECISION,
+    category="tool",
+    message="Implementing rate limiting middleware",
+    bot_name="coder",
+    tool_name="write_file",
+    tool_input={"path": "src/auth/rate_limiter.py"},
+    tool_status="success",
+    duration_ms=3200
+)
+
+# Escalation: Need user decision on password policy
+escalation = log.add_escalation(
+    reason="Password policy choice: Require special characters (strict) or allow passphrases (user-friendly)?",
+    bot_name="nanobot"
+)
+
+# Session ends with summary needed
+log.summary = """
+Project: Auth module refactor
+Completed:
+- ✓ Security analysis (2 issues found)
+- ✓ Rate limiting implemented (100 req/min, needs confirmation)
+Pending:
+- ⚠ Password policy decision (awaiting user input)
+- ⏳ Weak password policy fix
+"""
+
+log.end_workspace_session("Progress made! See summary for details.")
+```
+
+**Log Characteristics:**
+- Multiple bots collaborating
+- Coordinator managing flow
+- Bot-to-bot conversation tracked
+- Escalation triggered for user decision
+- Complex workflow with dependencies
+
+---
+
+#### Example C: Direct Message (DM @researcher)
+**Use case:** Deep 1-on-1 research discussion, focused expertise
+
+```python
+log = manager.start_workspace_session(
+    workspace_id="dm-researcher",
+    workspace_type=WorkspaceType.DIRECT,
+    query="Research quantum computing applications in cryptography",
+    participants=["nanobot", "researcher"],
+    coordinator=None  # No coordination - direct bot
+)
+
+# Researcher takes lead
+log.add_entry(
+    level=LogLevel.INFO,
+    category="context",
+    message="Loading researcher expertise context",
+    bot_name="researcher"
+)
+
+# Deep research with multiple tool calls
+log.add_entry(
+    level=LogLevel.THINKING,
+    category="research",
+    message="Beginning literature review on post-quantum cryptography",
+    bot_name="researcher"
+)
+
+# Multiple search iterations
+for query in ["quantum computing cryptography", "post-quantum algorithms", "NIST standards"]:
+    log.add_entry(
+        level=LogLevel.DECISION,
+        category="tool",
+        message=f"Searching: {query}",
+        bot_name="researcher",
+        tool_name="web_search",
+        tool_input={"query": query},
+        tool_status="success",
+        duration_ms=800
+    )
+
+# Synthesis (high confidence insight - shareable)
+log.add_entry(
+    level=LogLevel.DECISION,
+    category="research",
+    message="Key finding: Shor's algorithm threatens RSA/ECC, lattice-based crypto is leading PQC candidate",
+    bot_name="researcher",
+    confidence=0.92,  # High confidence - will be shared
+    shareable_insight=True,
+    insight_category="research_finding"
+)
+
+log.end_workspace_session("Comprehensive research report on quantum cryptography...")
+```
+
+**Log Characteristics:**
+- Single specialist bot (researcher)
+- Deep domain expertise
+- Multiple tool invocations
+- High-confidence insight flagged for sharing
+- No coordination needed
+
+---
+
+#### Example D: Coordination Workspace (#coordination-website)
+**Use case:** nanobot manages autonomously while user sleeps
+
+```python
+log = manager.start_workspace_session(
+    workspace_id="#coordination-website",
+    workspace_type=WorkspaceType.COORDINATION,
+    query="Build company website",
+    participants=["nanobot", "researcher", "coder", "creative"],
+    coordinator="nanobot",
+    # User is offline
+)
+
+# nanobot acts as project manager
+log.add_entry(
+    level=LogLevel.COORDINATION,
+    category="coordination",
+    message="Coordinator mode activated - user offline, managing autonomously",
+    bot_name="nanobot",
+    triggered_by="nanobot",
+    coordinator_mode=True
+)
+
+# Parallel task delegation
+log.add_bot_message(
+    bot_name="nanobot",
+    message="@researcher Analyze 3 competitor websites. @creative Draft homepage designs. @coder Setup repo. Work in parallel.",
+    mentions=["@researcher", "@creative", "@coder"]
+)
+
+# Bots report progress asynchronously
+log.add_bot_message(
+    bot_name="researcher",
+    message="Competitor analysis complete. Key finding: All use React, average load time 2.3s"
+)
+
+log.add_bot_message(
+    bot_name="creative",
+    message="Drafted 2 designs. Minimalist version: strong performance. Visual version: rich media. Need user choice."
+)
+
+log.add_bot_message(
+    bot_name="coder",
+    message="Repo setup complete. Ready for implementation."
+)
+
+# Coordinator synthesizes
+log.add_entry(
+    level=LogLevel.COORDINATION,
+    category="coordination",
+    message="Parallel tasks complete. Blocking issues: Design choice (minimalist vs visual).",
+    bot_name="nanobot",
+    coordinator_mode=True
+)
+
+# Decision: Can make low-risk choice
+log.add_entry(
+    level=LogLevel.DECISION,
+    category="coordination",
+    message="Choosing minimalist design - better performance aligns with competitor analysis findings",
+    bot_name="nanobot",
+    coordinator_mode=True,
+    confidence=0.85
+)
+
+# Delegate implementation
+log.add_bot_message(
+    bot_name="nanobot",
+    message="@coder Proceed with minimalist design. @creative Provide specs to coder.",
+    mentions=["@coder", "@creative"]
+)
+
+# But wait - creative disagrees
+log.add_bot_message(
+    bot_name="creative",
+    message="Respectfully disagree - visual design better for brand. Suggest A/B testing both?"
+)
+
+# Conflict! Must escalate
+log.add_escalation(
+    reason="Design conflict: Coder wants minimalist (performance), Creative wants visual (brand). Both valid. Need user decision.",
+    bot_name="nanobot"
+)
+
+# Generate user notification summary
+log.summary = """
+🌙 Overnight Progress Report (#coordination-website)
+
+✅ COMPLETED:
+- Competitor analysis (3 sites reviewed)
+- 2 homepage designs drafted
+- Repository setup ready
+
+⚠️ NEEDS YOUR DECISION:
+Design approach conflict:
+- Coder recommends: Minimalist (faster load, better SEO)
+- Creative recommends: Visual (stronger brand, richer experience)
+- Suggestion: A/B test both versions
+
+⏳ PENDING:
+- Finalize design choice
+- Begin implementation
+- Deploy initial version
+
+Next action needed: Choose design direction
+"""
+
+log.end_workspace_session("Progress report generated. Awaiting user decision.")
+```
+
+**Log Characteristics:**
+- Heavy coordinator activity
+- Multiple bots working in parallel
+- Conflict resolution attempted
+- Escalation when consensus fails
+- Rich summary for user notification
 
 ---
 
@@ -533,8 +1126,17 @@ Findings:
 
 ---
 
-### Phase 2.5: Multi-Agent Artifact Handoffs (Optional Enhancement)
-**Goal:** Enable work logs as structured artifacts for agent-to-agent communication
+### Phase 2.5: Workspace-Aware Multi-Agent Artifact Handoffs
+**Goal:** Enable work logs as structured artifacts for workspace-based agent collaboration
+
+**Integration with Workspace Architecture:**
+
+Work logs now serve as the **source of truth** for bot-to-bot communication within workspaces. Unlike simple chat messages, they provide:
+
+1. **Structured context** - Bots see full decision history, not just latest message
+2. **Confidence scores** - Know when to trust vs verify
+3. **Tool execution results** - Structured data, not natural language
+4. **Workspace scope** - Artifacts respect workspace boundaries (#general vs #project)
 
 Based on [VoxYZ research on artifact handoffs](https://www.voxyz.space/insights/agents-need-artifact-handoffs-not-chat-reports):
 
@@ -740,32 +1342,107 @@ async def suggest_actions(artifact_id: str):
 
 ---
 
+### Phase 2.6: Learning Exchange Integration
+**Goal:** Work logs feed insights into the Learning Exchange system
+
+**How It Works:**
+
+When bots collaborate in workspaces, they generate insights. High-confidence insights are automatically queued for the Learning Exchange:
+
+```python
+# From WorkLog.add_entry():
+if confidence >= 0.85 and category in ["user_preference", "tool_pattern"]:
+    entry.shareable_insight = True
+    entry.insight_category = category
+    log.insights_for_sharing.append(entry)
+
+# When workspace session ends:
+def _queue_for_learning_exchange(log: WorkLog):
+    """Share valuable insights across bots."""
+    exchange = LearningExchange()
+    
+    for entry in log.insights_for_sharing:
+        package = LearningPackage(
+            source_bot=entry.bot_name,
+            content=entry.message,
+            category=entry.insight_category,
+            confidence=entry.confidence,
+            workspace=log.workspace_id,
+            applicable_to=["all"]  # Or infer from context
+        )
+        exchange.queue_for_exchange(package)
+```
+
+**Example Flow:**
+
+1. **User asks in #general:** "I prefer short summaries first"
+2. **nanobot logs it:** High confidence (0.95), category="user_preference"
+3. **Session ends:** Insight auto-queued for Learning Exchange
+4. **Next exchange cycle:** Insight shared with @researcher, @coder, etc.
+5. **Other bots learn:** Now all bots know user's preference
+
+**Workspace-Specific Learning:**
+
+```python
+# Insights from #general (broad applicability)
+"User prefers concise responses" → Share with all bots
+
+# Insights from DM @researcher (specific applicability)
+"User likes academic citations in research" → Share only with @researcher
+
+# Insights from #project-alpha (project-specific)
+"This project uses React, not Vue" → Share with project team only
+```
+
+**Benefits:**
+- ✓ Bots learn from each other's experiences
+- ✓ User preferences propagate automatically
+- ✓ No need to repeat instructions to each bot
+- ✓ Workspace-scoped learning (general vs specific)
+
+---
+
 ### Phase 3: CLI Integration (Week 3)
 **Goal:** Add user-facing commands to view work logs
 
-#### 3.1 New CLI Commands
+#### 3.1 New CLI Commands - Workspace-Aware
+
 ```python
 # In nanobot/cli/commands.py
 
 @app.command("explain")
 def explain_last_decision(
-    session_id: Optional[str] = typer.Option(None, help="Session ID to explain"),
-    mode: str = typer.Option("detailed", help="Explanation mode: summary, detailed, debug"),
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w", 
+                                           help="Workspace to explain (#general, #project-alpha)"),
+    session_id: Optional[str] = typer.Option(None, "--session", "-s", 
+                                            help="Specific session ID"),
+    mode: str = typer.Option("detailed", "--mode", "-m",
+                            help="Explanation mode: summary, detailed, debug, coordination"),
+    bot: Optional[str] = typer.Option(None, "--bot", "-b",
+                                     help="Filter by bot (@researcher, @coder)"),
 ):
     """
-    Show how the agent made its last decision.
+    Show how decisions were made in a workspace.
     
     Examples:
-        nanobot explain                    # Explain last interaction
-        nanobot explain --mode summary     # Brief explanation
-        nanobot explain --mode debug       # Full technical details
+        nanobot explain                              # Explain last interaction
+        nanobot explain -w #project-refactor         # Explain project workspace
+        nanobot explain -w #coordination-website     # See overnight coordination
+        nanobot explain --mode coordination          # Focus on coordinator decisions
+        nanobot explain -b @researcher               # See what researcher did
     """
-    from nanobot.agent.work_log_manager import WorkLogManager
+    from nanobot.agent.work_log_manager import WorkspaceWorkLogManager
     
-    manager = WorkLogManager()
+    manager = WorkspaceWorkLogManager()
     
-    if session_id:
-        log = manager.get_log(session_id)
+    # Get workspace log
+    if workspace:
+        log = manager.get_workspace_log(workspace)
+        if not log:
+            console.print(f"[yellow]No active work log for {workspace}.[/yellow]")
+            return
+    elif session_id:
+        log = manager.get_log_by_session(session_id)
     else:
         log = manager.get_last_log()
     
@@ -773,23 +1450,115 @@ def explain_last_decision(
         console.print("[yellow]No work log found. Interact with the agent first.[/yellow]")
         return
     
-    console.print(manager.get_formatted_log(mode))
+    # Filter by bot if specified
+    if bot:
+        entries = [e for e in log.entries if e.bot_name == bot.lstrip("@")]
+        console.print(f"[cyan]Showing entries from {bot} in {log.workspace_id}[/cyan]\n")
+    else:
+        entries = log.entries
+        console.print(f"[cyan]Work log for {log.workspace_id} ({log.workspace_type.value})[/cyan]\n")
+    
+    # Format based on mode
+    if mode == "summary":
+        console.print(_format_summary(log, entries))
+    elif mode == "detailed":
+        console.print(_format_detailed(log, entries))
+    elif mode == "coordination":
+        # Focus on coordinator mode entries
+        coord_entries = [e for e in entries if e.coordinator_mode]
+        console.print(_format_coordination_summary(log, coord_entries))
+    elif mode == "debug":
+        console.print(_format_debug(log, entries))
 
 
 @app.command("how")
 def how_did_you_decide(
-    query: str = typer.Argument(..., help="What to explain (e.g., 'routing', 'memory search')"),
+    query: str = typer.Argument(..., help="What to explain (e.g., 'routing', 'why escalate')"),
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
+                                           help="Search in specific workspace"),
 ):
     """
-    Ask how a specific decision was made.
+    Ask how a specific decision was made across workspaces.
     
     Examples:
         nanobot how "why did you choose Claude"
         nanobot how "what memories did you use"
+        nanobot how "why did you escalate" -w #coordination-website
+        nanobot how "what did @researcher find"
     """
-    # Search work logs for relevant entries
-    # Return natural language explanation
-    pass
+    from nanobot.agent.work_log_manager import WorkspaceWorkLogManager
+    
+    manager = WorkspaceWorkLogManager()
+    
+    # Search across all workspace logs or specific one
+    if workspace:
+        logs = [manager.get_workspace_log(workspace)]
+    else:
+        logs = manager.get_all_logs(limit=10)
+    
+    # Search for relevant entries
+    results = []
+    for log in logs:
+        for entry in log.entries:
+            if query.lower() in entry.message.lower():
+                results.append((log.workspace_id, entry))
+    
+    if not results:
+        console.print(f"[yellow]No entries found matching '{query}'[/yellow]")
+        return
+    
+    console.print(f"[cyan]Found {len(results)} relevant decisions:[/cyan]\n")
+    for workspace_id, entry in results[:5]:  # Show top 5
+        console.print(f"[bold]{workspace_id}[/bold] - Step {entry.step}")
+        console.print(f"  {entry.bot_name}: {entry.message}")
+        if entry.confidence:
+            console.print(f"  Confidence: {entry.confidence:.0%}")
+        console.print()
+
+
+@app.command("workspace-logs")
+def list_workspace_logs(
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
+                                           help="Filter by workspace"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Number of logs to show"),
+):
+    """
+    List recent work logs across workspaces.
+    
+    Examples:
+        nanobot workspace-logs              # Show all recent logs
+        nanobot workspace-logs -w #general  # Show only #general logs
+        nanobot workspace-logs -n 20        # Show last 20 logs
+    """
+    from nanobot.agent.work_log_manager import WorkspaceWorkLogManager
+    
+    manager = WorkspaceWorkLogManager()
+    logs = manager.get_all_logs(limit=limit, workspace=workspace)
+    
+    if not logs:
+        console.print("[yellow]No work logs found.[/yellow]")
+        return
+    
+    table = Table(title="Recent Work Logs")
+    table.add_column("Workspace", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Bots", style="yellow")
+    table.add_column("Duration", style="dim")
+    table.add_column("Status", style="blue")
+    
+    for log in logs:
+        duration = "In Progress" if not log.end_time else f"{(log.end_time - log.start_time).seconds}s"
+        status = "🟢 Complete" if log.end_time else "🟡 Active"
+        
+        table.add_row(
+            log.workspace_id,
+            log.workspace_type.value,
+            ", ".join(log.participants[:3]),  # Show first 3 bots
+            duration,
+            status
+        )
+    
+    console.print(table)
 ```
 
 #### 3.2 Agent Integration
@@ -1002,33 +1771,61 @@ async def test_agent_loop_logging():
 
 ---
 
-## Rollout Plan
+## Rollout Plan - Workspace-Aware Implementation
 
-### Week 1: Infrastructure
-- [ ] Create `WorkLog` and `WorkLogEntry` data classes
-- [ ] Implement `WorkLogManager` with storage backends
-- [ ] Add configuration to `config/schema.py`
-- [ ] Unit tests for work log classes
+### Phase 1: Workspace Infrastructure (Week 1-2)
+**Goal:** Build workspace-centric work log system
 
-### Week 2: Core Integration
-- [ ] Hook into `AgentLoop` - start/end sessions
-- [ ] Add logging to `ContextBuilder`
-- [ ] Add logging to `Smart Routing`
-- [ ] Add logging to tool execution
-- [ ] Integration tests
+- [ ] Create `WorkLog` and `WorkLogEntry` data classes with workspace fields
+- [ ] Implement `WorkspaceWorkLogManager` (replaces WorkLogManager)
+- [ ] Add workspace-aware configuration to `config/schema.py`
+- [ ] Create workspace-specific storage schema (SQLite)
+- [ ] Unit tests for workspace work log classes
+- [ ] Test workspace isolation (logs don't leak between workspaces)
 
-### Week 3: CLI & API
-- [ ] Add `explain` CLI command
-- [ ] Add `how` CLI command
-- [ ] Add work log tools to agent (meta-cognition)
+### Phase 2: Multi-Agent Integration (Week 3-4)
+**Goal:** Integrate with multi-agent orchestration
+
+- [ ] Hook into `Workspace` lifecycle (start/end sessions)
+- [ ] Add bot-to-bot conversation logging (`add_bot_message()`)
+- [ ] Implement coordinator mode tracking
+- [ ] Add escalation logging for autonomous decisions
+- [ ] Test workspace types: open, project, direct, coordination
+- [ ] Integration tests with multiple bots
+
+### Phase 3: Learning Exchange Pipeline (Week 5)
+**Goal:** Connect work logs to Learning Exchange
+
+- [ ] Implement `_queue_for_learning_exchange()`
+- [ ] Add insight categorization (user_preference, tool_pattern, etc.)
+- [ ] Test auto-sharing of high-confidence insights
+- [ ] Verify workspace-scoped learning (general vs specific)
+- [ ] Add manual approval workflow for sensitive insights
+
+### Phase 4: CLI & API (Week 6)
+**Goal:** User-facing workspace commands
+
+- [ ] Add `explain -w #workspace` command
+- [ ] Add `workspace-logs` command
+- [ ] Implement bot filtering (`-b @researcher`)
+- [ ] Add coordination mode view (`--mode coordination`)
+- [ ] Add work log query tools to agent (meta-cognition)
 - [ ] Documentation updates
 
-### Week 4: UI & Polish
+### Phase 5: UI & Polish (Week 7)
+**Goal:** Production-ready work logs
+
 - [ ] Implement progressive disclosure UI
 - [ ] Add `--verbose` flag to agent
-- [ ] Performance optimization (async, sampling)
-- [ ] Privacy review (PII masking)
+- [ ] Performance optimization (async, sampling, retention)
+- [ ] Privacy review (PII masking, workspace isolation)
+- [ ] Test all workspace types thoroughly
 - [ ] Final testing & release
+
+**Dependencies:**
+- Requires Workspace data model (Multi-Agent Architecture Phase 1)
+- Requires Learning Exchange system (Multi-Agent Architecture Phase 3)
+- Can start in parallel with other multi-agent features
 
 ---
 
@@ -1052,8 +1849,35 @@ Target: 80% of users report increased understanding after viewing work logs.
 
 ---
 
+## Integration Summary
+
+### Work Logs + Multi-Agent Architecture
+
+**Workspace-Centric Logging:**
+- Work logs are scoped to workspaces (not global sessions)
+- Each workspace (#general, #project-alpha) maintains its own log
+- Logs respect workspace privacy boundaries
+
+**Multi-Agent Collaboration Tracking:**
+- Bot-to-bot conversations logged with @mentions
+- Coordinator mode decisions tracked separately
+- Escalations clearly marked for user attention
+
+**Learning Exchange Pipeline:**
+- High-confidence insights auto-queued for sharing
+- Workspace-scoped learning (general vs specific)
+- Cross-bot knowledge propagation
+
+**CLI Integration:**
+- `nanobot explain -w #workspace` - View workspace-specific logs
+- `nanobot workspace-logs` - List logs across workspaces
+- Workspace filtering and bot filtering supported
+
+---
+
 ## Related Documentation
 
+- [MULTI_AGENT_ORCHESTRATION_ANALYSIS.md](./MULTI_AGENT_ORCHESTRATION_ANALYSIS.md) - **Primary integration doc**
 - [MEMORY_IMPLEMENTATION_STATUS.md](MEMORY_IMPLEMENTATION_STATUS.md) - Memory system architecture
 - [Smart Routing Documentation](ROUTING.md) - Routing decision logic
 - [Security Scanner](docs/SECURITY.md) - Skill verification (future doc)
@@ -1062,7 +1886,10 @@ Target: 80% of users report increased understanding after viewing work logs.
 ---
 
 **Next Steps:**
-1. Review this document with the team
-2. Create GitHub issues for each phase
-3. Assign developers to Week 1 tasks
-4. Schedule weekly check-ins during implementation
+1. ✅ Review this document with the team
+2. ✅ Ensure alignment with Multi-Agent Architecture
+3. Create GitHub issues for each phase
+4. Prioritize workspace-aware WorkLogManager implementation
+5. Integrate with Learning Exchange system
+6. Add workspace-specific CLI commands
+7. Schedule weekly check-ins during implementation

@@ -442,6 +442,21 @@ class MemoryConfig(BaseModel):
     enhanced_context: EnhancedContextConfig = Field(default_factory=EnhancedContextConfig)
 
 
+class WorkLogsConfig(BaseModel):
+    """Work logs configuration for transparency and debugging."""
+    enabled: bool = True
+    storage: str = "sqlite"  # "sqlite", "memory", "none"
+    retention_days: int = 30
+    show_in_response: bool = False  # Include in agent responses
+    default_mode: str = "summary"  # "summary", "detailed", "debug"
+    log_tool_calls: bool = True
+    log_routing_decisions: bool = True
+    min_confidence_to_log: float = 0.0  # Log all decisions (0.0 = all)
+    
+    # Feature flags for gradual rollout
+    beta: bool = False  # Beta flag for gradual rollout
+
+
 class Config(BaseSettings):
     """Root configuration for nanobot."""
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
@@ -452,6 +467,7 @@ class Config(BaseSettings):
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    work_logs: WorkLogsConfig = Field(default_factory=WorkLogsConfig)
     
     @property
     def workspace_path(self) -> Path:
