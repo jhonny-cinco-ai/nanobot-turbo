@@ -24,6 +24,7 @@ from nanobot.agent.subagent import SubagentManager
 from nanobot.agent.stages import RoutingStage, RoutingContext
 from nanobot.config.schema import RoutingConfig
 from nanobot.session.manager import SessionManager, Session
+from nanobot.agent.work_log_manager import get_work_log_manager, LogLevel
 
 
 class AgentLoop:
@@ -188,6 +189,9 @@ class AgentLoop:
             protected_paths=protected_paths,
         )
         
+        # Initialize work log manager for transparency
+        self.work_log_manager = get_work_log_manager()
+        
         self._running = False
         self._register_default_tools()
     
@@ -315,6 +319,11 @@ class AgentLoop:
         """
         # If routing is disabled, use default model
         if not self.routing_stage:
+            self.work_log_manager.log(
+                level=LogLevel.INFO,
+                category="routing",
+                message="Smart routing disabled, using default model"
+            )
             return self.model
         
         try:
@@ -327,7 +336,10 @@ class AgentLoop:
             )
             
             # Execute routing stage
+            import time
+            start_time = time.time()
             routing_ctx = await self.routing_stage.execute(routing_ctx)
+            duration_ms = int((time.time() - start_time) * 1000)
             
             # Log routing decision
             if routing_ctx.decision:
@@ -336,11 +348,40 @@ class AgentLoop:
                     f"(confidence: {routing_ctx.decision.confidence:.2f}, "
                     f"layer: {routing_ctx.decision.layer})"
                 )
+                
+                # Log to work log
+                self.work_log_manager.log(
+                    level=LogLevel.DECISION,
+                    category="routing",
+                    message=f"Classified as {routing_ctx.decision.tier.value} tier",
+                    details={
+                        "tier": routing_ctx.decision.tier.value,
+                        "model": routing_ctx.model,
+                        "confidence": routing_ctx.decision.confidence,
+                        "layer": routing_ctx.decision.layer
+                    },
+                    confidence=routing_ctx.decision.confidence,
+                    duration_ms=duration_ms
+                )
+                
+                # Log if low confidence
+                if routing_ctx.decision.confidence < 0.7:
+                    self.work_log_manager.log(
+                        level=LogLevel.UNCERTAINTY,
+                        category="routing",
+                        message=f"Low confidence routing ({routing_ctx.decision.confidence:.0%})",
+                        confidence=routing_ctx.decision.confidence
+                    )
             
             return routing_ctx.model
             
         except Exception as e:
             logger.warning(f"Smart routing failed, using default model: {e}")
+            self.work_log_manager.log(
+                level=LogLevel.WARNING,
+                category="routing",
+                message=f"Smart routing failed: {str(e)}, using default model"
+            )
             return self.model
     
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
@@ -362,9 +403,16 @@ class AgentLoop:
         if not self._has_required_config():
             return await self._send_onboarding_message(msg)
         
-        # Sanitize message content for logging to prevent secret exposure
+        # Log message processing start
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         sanitized_preview = self.sanitizer.sanitize(preview)
+        self.work_log_manager.log(
+            level=LogLevel.INFO,
+            category="general",
+            message=f"Processing user message: {sanitized_preview}"
+        )
+        
+        # Sanitize message content for logging to prevent secret exposure
         logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {sanitized_preview}")
         
         # Warn if secrets were detected
@@ -443,6 +491,16 @@ class AgentLoop:
         memory_context = ""
         if self.context_assembler and self.memory_retrieval:
             try:
+                # Log memory retrieval start
+                self.work_log_manager.log(
+                    level=LogLevel.THINKING,
+                    category="memory",
+                    message="Retrieving relevant context from memory"
+                )
+                
+                import time
+                mem_start_time = time.time()
+                
                 # Find relevant entities from recent conversation
                 relevant_entities = self.context_assembler.get_relevant_entities(
                     query=sanitized_content,
@@ -458,9 +516,32 @@ class AgentLoop:
                     include_preferences=True,
                 )
                 
+                mem_duration_ms = int((time.time() - mem_start_time) * 1000)
+                
+                if memory_context:
+                    self.work_log_manager.log(
+                        level=LogLevel.INFO,
+                        category="memory",
+                        message=f"Retrieved {len(memory_context)} characters of memory context",
+                        details={"entity_count": len(entity_ids)},
+                        duration_ms=mem_duration_ms
+                    )
+                else:
+                    self.work_log_manager.log(
+                        level=LogLevel.WARNING,
+                        category="memory",
+                        message="No relevant memory context found",
+                        duration_ms=mem_duration_ms
+                    )
+                
                 logger.debug(f"Assembled memory context ({len(memory_context)} chars)")
             except Exception as e:
                 logger.error(f"Failed to assemble memory context: {e}")
+                self.work_log_manager.log(
+                    level=LogLevel.ERROR,
+                    category="memory",
+                    message=f"Failed to retrieve memory context: {str(e)}"
+                )
         
         # Phase 8: Check and trigger session compaction if needed
         # Prevents context overflow in long conversations
@@ -584,7 +665,36 @@ class AgentLoop:
                     # Sanitize tool arguments to prevent secrets in logs
                     sanitized_args = self.sanitizer.sanitize(args_str[:200])
                     logger.info(f"Tool call: {tool_call.name}({sanitized_args})")
-                    result = await self.tools.execute(tool_call.name, tool_call.arguments)
+                    
+                    # Log tool execution start
+                    import time
+                    tool_start_time = time.time()
+                    
+                    try:
+                        result = await self.tools.execute(tool_call.name, tool_call.arguments)
+                        tool_duration_ms = int((time.time() - tool_start_time) * 1000)
+                        
+                        # Log successful tool execution
+                        self.work_log_manager.log_tool(
+                            tool_name=tool_call.name,
+                            tool_input=tool_call.arguments,
+                            tool_output=result,
+                            tool_status="success",
+                            duration_ms=tool_duration_ms
+                        )
+                    except Exception as tool_error:
+                        tool_duration_ms = int((time.time() - tool_start_time) * 1000)
+                        
+                        # Log failed tool execution
+                        self.work_log_manager.log(
+                            level=LogLevel.ERROR,
+                            category="tool_execution",
+                            message=f"Tool {tool_call.name} failed: {str(tool_error)}",
+                            details={"tool": tool_call.name, "error": str(tool_error)},
+                            duration_ms=tool_duration_ms
+                        )
+                        raise
+                    
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
@@ -596,9 +706,21 @@ class AgentLoop:
         if final_content is None:
             final_content = "I've completed processing but have no response to give."
         
-        # Log response preview (sanitize to prevent echoing secrets)
+        # Log response completion
         preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
         sanitized_response_preview = self.sanitizer.sanitize(preview)
+        self.work_log_manager.log(
+            level=LogLevel.INFO,
+            category="general",
+            message="Response generated successfully",
+            details={
+                "response_preview": sanitized_response_preview,
+                "response_length": len(final_content),
+                "iterations": iteration
+            }
+        )
+        
+        # Log response preview (sanitize to prevent echoing secrets)
         logger.info(f"Response to {msg.channel}:{msg.sender_id}: {sanitized_response_preview}")
         
         # Save to session (sanitize to prevent secrets in session history)
@@ -775,15 +897,33 @@ class AgentLoop:
         Returns:
             The agent's response.
         """
-        msg = InboundMessage(
-            channel=channel,
-            sender_id="user",
-            chat_id=chat_id,
-            content=content
-        )
+        # Start work log session for transparency
+        self.work_log_manager.start_session(session_key, content)
+        
+        try:
+            msg = InboundMessage(
+                channel=channel,
+                sender_id="user",
+                chat_id=chat_id,
+                content=content
+            )
 
-        response = await self._process_message(msg)
-        return response.content if response else ""
+            response = await self._process_message(msg)
+            result = response.content if response else ""
+            
+            # End work log session
+            self.work_log_manager.end_session(result)
+            return result
+            
+        except Exception as e:
+            # Log error and end session
+            self.work_log_manager.log(
+                level=LogLevel.ERROR,
+                category="general",
+                message=f"Error processing message: {str(e)}"
+            )
+            self.work_log_manager.end_session(f"Error: {str(e)}")
+            raise
 
     def _has_required_config(self) -> bool:
         """Check if required configuration is present."""
