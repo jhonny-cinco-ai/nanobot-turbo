@@ -6,6 +6,7 @@ import signal
 from pathlib import Path
 import select
 import sys
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -686,6 +687,54 @@ def agent(
                         console.print("\nGoodbye!")
                         break
                     
+                    # Handle work log commands in interactive mode
+                    if command == "/explain":
+                        from nanobot.agent.work_log_manager import get_work_log_manager
+                        manager = get_work_log_manager()
+                        formatted = manager.get_formatted_log("detailed")
+                        console.print("\n[cyan]Last Work Log:[/cyan]")
+                        console.print(formatted)
+                        console.print()
+                        continue
+                    
+                    if command == "/logs":
+                        from nanobot.agent.work_log_manager import get_work_log_manager
+                        manager = get_work_log_manager()
+                        formatted = manager.get_formatted_log("summary")
+                        console.print("\n[cyan]Work Log Summary:[/cyan]")
+                        console.print(formatted)
+                        console.print()
+                        continue
+                    
+                    if command.startswith("/how "):
+                        from nanobot.agent.work_log_manager import get_work_log_manager
+                        from nanobot.agent.work_log import LogLevel
+                        
+                        manager = get_work_log_manager()
+                        log = manager.get_last_log()
+                        
+                        if log:
+                            search_query = command[5:]  # Remove "/how " prefix
+                            query_lower = search_query.lower()
+                            matches = []
+                            
+                            for entry in log.entries:
+                                if (query_lower in entry.message.lower() or
+                                    query_lower in entry.category.lower() or
+                                    (entry.tool_name and query_lower in entry.tool_name.lower())):
+                                    matches.append(entry)
+                            
+                            if matches:
+                                console.print(f"\n[cyan]Found {len(matches)} entries matching '{search_query}':[/cyan]\n")
+                                for entry in matches[:5]:
+                                    icon = _get_work_log_icon(entry.level)
+                                    console.print(f"{icon} Step {entry.step}: {entry.message}")
+                            else:
+                                console.print(f"\n[yellow]No entries found matching '{search_query}'[/yellow]\n")
+                        else:
+                            console.print("\n[yellow]No work log found.[/yellow]\n")
+                        continue
+                    
                     with _thinking_ctx():
                         response = await agent_loop.process_direct(user_input, session_id)
                     _print_agent_response(response, render_markdown=markdown)
@@ -699,6 +748,145 @@ def agent(
                     break
         
         asyncio.run(run_interactive())
+
+
+# ============================================================================
+# Work Log Commands (Transparency & Debugging)
+# ============================================================================
+
+@app.command("explain")
+def explain_last_decision(
+    mode: str = typer.Option("detailed", "--mode", "-m",
+                            help="Display mode: summary, detailed, debug"),
+    session: Optional[str] = typer.Option(None, "--session", "-s",
+                                         help="Specific session ID to explain"),
+):
+    """
+    Show how nanobot made its last decision.
+    
+    Provides transparency into the agent's reasoning process, including:
+    - Routing decisions (why a specific model was chosen)
+    - Tool executions (what tools were called and their results)
+    - Memory retrieval (what context was used)
+    - Confidence scores and timing information
+    
+    Examples:
+        nanobot explain                    # Explain the last interaction
+        nanobot explain --mode summary     # Brief summary only
+        nanobot explain --mode debug       # Full technical details
+        nanobot explain --session abc123   # Explain a specific session
+    """
+    from nanobot.agent.work_log_manager import get_work_log_manager
+    
+    manager = get_work_log_manager()
+    
+    # Get the appropriate log
+    if session:
+        log = manager.get_log_by_session(session)
+        if not log:
+            console.print(f"[yellow]No work log found for session: {session}[/yellow]")
+            console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
+            raise typer.Exit(1)
+    else:
+        log = manager.get_last_log()
+        if not log:
+            console.print("[yellow]No work log found.[/yellow]")
+            console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
+            raise typer.Exit(1)
+    
+    # Display the formatted log
+    formatted = manager.get_formatted_log(mode)
+    console.print(formatted)
+
+
+@app.command("how")
+def how_did_you_decide(
+    query: str = typer.Argument(..., help="What to search for (e.g., 'routing', 'memory', 'web_search')"),
+    limit: int = typer.Option(5, "--limit", "-n", help="Maximum number of results to show"),
+):
+    """
+    Search work logs for specific decisions or events.
+    
+    Helps you understand:
+    - Why a specific model was chosen
+    - What tools were executed
+    - What memories were retrieved
+    - Any errors or warnings
+    
+    Examples:
+        nanobot how "routing"              # Find routing decisions
+        nanobot how "web_search"           # Find web search tool calls
+        nanobot how "memory"               # Find memory retrievals
+        nanobot how "error"                # Find errors
+        nanobot how "claude"               # Find mentions of Claude model
+    """
+    from nanobot.agent.work_log_manager import get_work_log_manager
+    
+    manager = get_work_log_manager()
+    log = manager.get_last_log()
+    
+    if not log:
+        console.print("[yellow]No work log found.[/yellow]")
+        console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
+        raise typer.Exit(1)
+    
+    # Search for matching entries
+    query_lower = query.lower()
+    matches = []
+    
+    for entry in log.entries:
+        # Search in message, category, tool name, and details
+        if (query_lower in entry.message.lower() or
+            query_lower in entry.category.lower() or
+            (entry.tool_name and query_lower in entry.tool_name.lower()) or
+            query_lower in str(entry.details).lower()):
+            matches.append(entry)
+    
+    if not matches:
+        console.print(f"[yellow]No entries found matching '{query}'[/yellow]")
+        console.print(f"[dim]Try searching for: routing, memory, web_search, read_file, error[/dim]")
+        raise typer.Exit(1)
+    
+    # Display results
+    console.print(f"[cyan]Found {len(matches)} entries matching '{query}':[/cyan]\n")
+    
+    for i, entry in enumerate(matches[:limit], 1):
+        icon = _get_work_log_icon(entry.level)
+        console.print(f"{icon} [bold]Step {entry.step}[/bold] - {entry.category}")
+        console.print(f"   {entry.message}")
+        
+        if entry.confidence is not None:
+            confidence_color = "green" if entry.confidence >= 0.8 else "yellow" if entry.confidence >= 0.5 else "red"
+            console.print(f"   [dim]Confidence: [{confidence_color}]{entry.confidence:.0%}[/{confidence_color}][/dim]")
+        
+        if entry.duration_ms:
+            console.print(f"   [dim]Duration: {entry.duration_ms}ms[/dim]")
+        
+        if entry.tool_name:
+            status_icon = "✓" if entry.tool_status == "success" else "✗"
+            console.print(f"   [dim]Tool: {entry.tool_name} [{status_icon} {entry.tool_status}][/dim]")
+        
+        console.print()
+    
+    if len(matches) > limit:
+        console.print(f"[dim]... and {len(matches) - limit} more entries (use --limit to show more)[/dim]")
+
+
+def _get_work_log_icon(level) -> str:
+    """Get emoji icon for work log level."""
+    from nanobot.agent.work_log import LogLevel
+    
+    icons = {
+        LogLevel.INFO: "ℹ️",
+        LogLevel.THINKING: "🧠",
+        LogLevel.DECISION: "🎯",
+        LogLevel.CORRECTION: "🔄",
+        LogLevel.UNCERTAINTY: "❓",
+        LogLevel.WARNING: "⚠️",
+        LogLevel.ERROR: "❌",
+        LogLevel.TOOL: "🔧"
+    }
+    return icons.get(level, "•")
 
 
 # ============================================================================
