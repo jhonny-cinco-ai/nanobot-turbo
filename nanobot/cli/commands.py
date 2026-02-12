@@ -1335,6 +1335,148 @@ def skills_security_status():
     console.print(table)
 
 
+@skills_app.command("approve")
+def skills_approve(
+    skill_name: str = typer.Argument(..., help="Name of skill to approve"),
+    force: bool = typer.Option(False, "--force", help="Force approval even if dangerous"),
+):
+    """
+    Approve a skill for use (overrides security warnings).
+    
+    Examples:
+        nanobot skills approve x-bookmarks
+        nanobot skills approve my-skill --force
+    """
+    from nanobot.agent.skills import SkillsLoader
+    from nanobot.config.loader import load_config
+    from nanobot.security.skill_scanner import scan_skill, format_report_for_cli
+    
+    config = load_config()
+    workspace = config.workspace_path
+    loader = SkillsLoader(workspace)
+    
+    # Check if skill exists
+    skill_path = workspace / "skills" / skill_name
+    if not skill_path.exists():
+        console.print(f"[red]❌ Skill not found: {skill_name}[/red]")
+        console.print("[dim]Make sure the skill is in your workspace/skills/ directory[/dim]")
+        raise typer.Exit(1)
+    
+    # Show current status
+    status = loader.get_verification_status(skill_name)
+    console.print(f"[dim]Current status: {status}[/dim]\n")
+    
+    # If rejected or pending, show scan results
+    if status in ["rejected", "pending"]:
+        console.print("[yellow]⚠️  Security scan detected issues. Review below:[/yellow]\n")
+        report = scan_skill(skill_path)
+        console.print(format_report_for_cli(report))
+        
+        if not report.passed and not force:
+            console.print("\n[red]🚫 This skill has security concerns![/red]")
+            console.print("[yellow]Use --force to approve anyway (not recommended)[/yellow]")
+            raise typer.Exit(1)
+        
+        if force:
+            console.print("\n[orange]⚠️  FORCE APPROVAL - Bypassing security warnings[/orange]")
+    
+    # Approve the skill
+    if loader.approve_skill(skill_name):
+        console.print(f"\n[green]✅ Skill '{skill_name}' has been approved![/green]")
+        console.print("[dim]The skill is now available for use by the agent.[/dim]")
+    else:
+        console.print(f"[red]❌ Failed to approve skill[/red]")
+
+
+@skills_app.command("reject")
+def skills_reject(
+    skill_name: str = typer.Argument(..., help="Name of skill to mark as dangerous"),
+):
+    """Mark a skill as rejected/dangerous (blocks usage)."""
+    from nanobot.agent.skills import SkillsLoader
+    from nanobot.config.loader import load_config
+    
+    config = load_config()
+    workspace = config.workspace_path
+    loader = SkillsLoader(workspace)
+    
+    skill_path = workspace / "skills" / skill_name
+    if not skill_path.exists():
+        console.print(f"[red]❌ Skill not found: {skill_name}[/red]")
+        raise typer.Exit(1)
+    
+    if loader.reject_skill(skill_name):
+        console.print(f"[red]🚫 Skill '{skill_name}' has been marked as REJECTED[/red]")
+        console.print("[dim]The skill will not be available for use.[/dim]")
+        console.print("[dim]To remove the skill completely, delete the folder: {skill_path}[/dim]")
+    else:
+        console.print(f"[red]❌ Failed to reject skill[/red]")
+
+
+@skills_app.command("list")
+def skills_list(
+    all: bool = typer.Option(False, "--all", help="Show all skills including pending/rejected"),
+):
+    """List all skills and their verification status."""
+    from nanobot.agent.skills import SkillsLoader, SkillVerificationStatus
+    from nanobot.config.loader import load_config
+    from rich.table import Table
+    
+    config = load_config()
+    workspace = config.workspace_path
+    loader = SkillsLoader(workspace)
+    
+    skills = loader.list_skills(filter_unavailable=False, include_verification=True)
+    
+    if not skills:
+        console.print("[dim]No skills found[/dim]")
+        return
+    
+    table = Table(title="Installed Skills")
+    table.add_column("Skill", style="cyan")
+    table.add_column("Source", style="blue")
+    table.add_column("Status", style="green")
+    table.add_column("Risk", style="yellow")
+    
+    for s in skills:
+        name = s["name"]
+        source = s.get("source", "unknown")
+        verified = s.get("verified", "unknown")
+        risk = s.get("risk_score", "0")
+        
+        # Status formatting
+        if verified == SkillVerificationStatus.APPROVED:
+            status_str = "✅ Approved"
+            status_color = "green"
+        elif verified == SkillVerificationStatus.MANUAL_APPROVAL:
+            status_str = "✅ Manually Approved"
+            status_color = "blue"
+        elif verified == SkillVerificationStatus.REJECTED:
+            status_str = "🚫 Rejected"
+            status_color = "red"
+        elif verified == SkillVerificationStatus.PENDING:
+            status_str = "⏳ Pending"
+            status_color = "yellow"
+        else:
+            status_str = "❓ Unknown"
+            status_color = "dim"
+        
+        # Risk color
+        if risk == "0" or risk == 0:
+            risk_str = "🟢 None"
+        elif int(str(risk)) < 25:
+            risk_str = f"🟡 {risk}"
+        elif int(str(risk)) < 50:
+            risk_str = f"🟠 {risk}"
+        else:
+            risk_str = f"🔴 {risk}"
+        
+        table.add_row(name, source, f"[{status_color}]{status_str}[/{status_color}]", risk_str)
+    
+    console.print(table)
+    console.print("\n[dim]Use 'nanobot skills approve <name>' to approve pending skills[/dim]")
+
+
 app.add_typer(skills_app, name="skills")
 
 
