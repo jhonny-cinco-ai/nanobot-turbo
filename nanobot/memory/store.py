@@ -15,6 +15,7 @@ from loguru import logger
 
 from nanobot.config.schema import MemoryConfig
 from nanobot.memory.models import Event, Entity, Edge, Fact, Topic, SummaryNode, Learning
+from nanobot.memory.migrations import MigrationManager
 
 
 class TurboMemoryStore:
@@ -77,6 +78,10 @@ class TurboMemoryStore:
             
             # Initialize tables
             self._init_tables()
+            
+            # Apply database migrations for bot-scoping
+            migration_manager = MigrationManager(self.db_path)
+            migration_manager.apply_migrations()
             
             logger.debug("Database connection established with WAL mode")
         
@@ -1325,8 +1330,9 @@ class TurboMemoryStore:
             INSERT INTO learnings (
                 id, content, source, sentiment, confidence, tool_name,
                 recommendation, superseded_by, content_embedding,
-                created_at, updated_at, relevance_score, times_accessed, last_accessed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, relevance_score, times_accessed, last_accessed,
+                metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 learning.id,
@@ -1343,6 +1349,7 @@ class TurboMemoryStore:
                 learning.relevance_score,
                 learning.times_accessed,
                 learning.last_accessed.timestamp() if learning.last_accessed else None,
+                json.dumps(learning.metadata) if learning.metadata else None,
             )
         )
         conn.commit()
@@ -1508,6 +1515,13 @@ class TurboMemoryStore:
     
     def _row_to_learning(self, row: sqlite3.Row) -> Learning:
         """Convert a database row to a Learning object."""
+        metadata = {}
+        try:
+            if row['metadata']:
+                metadata = json.loads(row['metadata'])
+        except (json.JSONDecodeError, TypeError, KeyError):
+            metadata = {}
+        
         return Learning(
             id=row['id'],
             content=row['content'],
@@ -1523,6 +1537,7 @@ class TurboMemoryStore:
             relevance_score=row['relevance_score'] or 1.0,
             times_accessed=row['times_accessed'] or 0,
             last_accessed=datetime.fromtimestamp(row['last_accessed']) if row['last_accessed'] else None,
+            metadata=metadata,
         )
     
     def migrate_from_legacy(self, workspace: Path) -> dict:
@@ -1631,125 +1646,347 @@ class TurboMemoryStore:
             parts.append(f"\n## Conversation Summary\n{latest.content}")
         
         return "\n".join(parts) if parts else ""
-    """
-    DEPRECATED: Use TurboMemoryStore instead.
-    
-    This class exists only for backward compatibility.
-    It will be removed in a future version.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        import warnings
-        warnings.warn(
-            "MemoryStore is deprecated. Use TurboMemoryStore instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        super().__init__(*args, **kwargs)
-    
-    def migrate_from_legacy(self, workspace: Path) -> dict:
-        """
-        Migrate data from old file-based memory system (MEMORY.md + daily notes).
-        
-        Reads the legacy MEMORY.md and YYYY-MM-DD.md files and imports them
-        as events into the SQLite database.
-        
-        Args:
-            workspace: Path to workspace directory containing memory/ folder
-            
-        Returns:
-            Migration statistics {"events_imported": int, "files_processed": int}
-        """
-        from pathlib import Path
-        
-        memory_dir = workspace / "memory"
-        if not memory_dir.exists():
-            return {"events_imported": 0, "files_processed": 0}
-        
-        stats = {"events_imported": 0, "files_processed": 0}
-        
-        # Import MEMORY.md as a long-term memory event
-        memory_file = memory_dir / "MEMORY.md"
-        if memory_file.exists():
-            content = memory_file.read_text(encoding="utf-8")
-            if content.strip():
-                event = Event(
-                    content=f"Legacy long-term memory:\n\n{content[:1000]}",  # Truncate if too long
-                    event_type="legacy_import",
-                    source="memory.md_migration",
-                    importance=0.8
-                )
-                self.save_event(event)
-                stats["events_imported"] += 1
-                stats["files_processed"] += 1
-                logger.info(f"Migrated MEMORY.md ({len(content)} chars)")
-        
-        # Import daily notes as events
-        for file_path in memory_dir.glob("????-??-??.md"):
-            try:
-                # Extract date from filename
-                date_str = file_path.stem  # YYYY-MM-DD
-                content = file_path.read_text(encoding="utf-8")
-                
-                if content.strip():
-                    event = Event(
-                        content=f"Legacy daily notes ({date_str}):\n\n{content[:2000]}",  # Truncate if too long
-                        event_type="legacy_import",
-                        source="daily_notes_migration",
-                        timestamp=datetime.strptime(date_str, "%Y-%m-%d"),
-                        importance=0.6
-                    )
-                    self.save_event(event)
-                    stats["events_imported"] += 1
-                    stats["files_processed"] += 1
-                    logger.info(f"Migrated daily notes: {date_str} ({len(content)} chars)")
-            except Exception as e:
-                logger.warning(f"Failed to migrate {file_path}: {e}")
-        
-        logger.info(f"Migration complete: {stats['events_imported']} events from {stats['files_processed']} files")
-        return stats
-    
-    def get_memory_context(self, limit: int = 50) -> str:
-        """
-        Get memory context formatted for system prompt injection.
-        
-        Retrieves recent events, important entities, active learnings,
-        and summary nodes to provide context for the LLM.
-        
-        Args:
-            limit: Maximum number of recent events to include
-            
-        Returns:
-            Formatted memory context string
-        """
-        parts = []
-        
-        # Get recent events
-        recent_events = self.get_recent_events(limit=limit)
-        if recent_events:
-            parts.append("## Recent Activity")
-            for event in recent_events:
-                parts.append(f"- [{event.timestamp.strftime('%Y-%m-%d %H:%M')}] {event.event_type}: {event.content[:100]}")
-        
-        # Get important entities
-        entities = self.get_all_entities()
-        important_entities = [e for e in entities if e.event_count > 2][:10]
-        if important_entities:
-            parts.append("\n## Key Entities")
-            for entity in important_entities:
-                parts.append(f"- {entity.name} ({entity.entity_type}): {entity.description or 'No description'}")
-        
-        # Get active learnings
-        learnings = self.get_active_learnings(limit=5)
-        if learnings:
-            parts.append("\n## Learned Preferences")
-            for learning in learnings:
-                parts.append(f"- {learning.content}")
-        
-        # Get latest summary
         summaries = self.get_summary_nodes(parent_id=None)
         if summaries:
             latest = max(summaries, key=lambda s: s.created_at or datetime.min)
             parts.append(f"\n## Conversation Summary\n{latest.content}")
         
         return "\n".join(parts) if parts else ""
+    
+    # =========================================================================
+    # Bot-Scoping Operations (Phase 3)
+    # =========================================================================
+    
+    def save_learning_with_bot_scope(
+        self,
+        learning: Learning,
+        bot_id: str,
+        is_private: bool = False
+    ) -> str:
+        """Save a learning with bot-scoping information.
+        
+        Args:
+            learning: The Learning object to save
+            bot_id: The bot that created this learning
+            is_private: Whether this is private to the bot or shared
+            
+        Returns:
+            The learning ID
+        """
+        # First save using the existing method
+        learning_id = self.create_learning(learning)
+        
+        # Update with bot-scoping columns
+        conn = self._get_connection()
+        conn.execute(
+            """
+            UPDATE learnings 
+            SET bot_id = ?, is_private = ?, promotion_count = 0
+            WHERE id = ?
+            """,
+            (bot_id, 1 if is_private else 0, learning_id)
+        )
+        conn.commit()
+        
+        # Log in the bot memory ledger
+        ledger_id = f"ledger:{learning_id}"
+        conn.execute(
+            """
+            INSERT INTO bot_memory_ledger (
+                id, bot_id, learning_id, original_scope, promotion_date
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                ledger_id,
+                bot_id,
+                learning_id,
+                "private" if is_private else "shared",
+                datetime.now().timestamp()
+            )
+        )
+        conn.commit()
+        
+        return learning_id
+    
+    def get_learnings_by_bot(
+        self,
+        bot_id: str,
+        private_only: bool = False,
+        limit: int = 100
+    ) -> list[Learning]:
+        """Get learnings created by a specific bot.
+        
+        Args:
+            bot_id: The bot ID
+            private_only: If True, only return private learnings
+            limit: Maximum learnings to return
+            
+        Returns:
+            List of Learning objects
+        """
+        conn = self._get_connection()
+        
+        if private_only:
+            query = """
+                SELECT * FROM learnings
+                WHERE bot_id = ? AND is_private = 1
+                ORDER BY created_at DESC
+                LIMIT ?
+            """
+            params = (bot_id, limit)
+        else:
+            query = """
+                SELECT * FROM learnings
+                WHERE bot_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """
+            params = (bot_id, limit)
+        
+        cursor = conn.execute(query, params)
+        learnings = []
+        
+        for row in cursor.fetchall():
+            learning = self._row_to_learning(row)
+            learnings.append(learning)
+        
+        return learnings
+    
+    def get_learnings_by_scope(
+        self,
+        workspace_id: str,
+        private: bool = False,
+        limit: int = 100
+    ) -> list[Learning]:
+        """Get learnings by their scope (private or shared).
+        
+        Args:
+            workspace_id: The workspace ID (for filtering)
+            private: If True, get private learnings; False for shared
+            limit: Maximum learnings to return
+            
+        Returns:
+            List of Learning objects
+        """
+        conn = self._get_connection()
+        
+        query = """
+            SELECT * FROM learnings
+            WHERE is_private = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """
+        params = (1 if private else 0, limit)
+        
+        cursor = conn.execute(query, params)
+        learnings = []
+        
+        for row in cursor.fetchall():
+            learning = self._row_to_learning(row)
+            learnings.append(learning)
+        
+        return learnings
+    
+    def promote_learning_to_shared(
+        self,
+        learning_id: str,
+        promoting_bot_id: str,
+        reason: str = ""
+    ) -> bool:
+        """Promote a learning from private to shared.
+        
+        Args:
+            learning_id: The learning to promote
+            promoting_bot_id: The bot promoting the learning
+            reason: Reason for promotion
+            
+        Returns:
+            True if successful
+        """
+        conn = self._get_connection()
+        
+        try:
+            # Update learning to shared
+            conn.execute(
+                """
+                UPDATE learnings
+                SET is_private = 0, promotion_count = promotion_count + 1,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (datetime.now().timestamp(), learning_id)
+            )
+            
+            # Update ledger
+            conn.execute(
+                """
+                UPDATE bot_memory_ledger
+                SET promotion_date = ?, promotion_reason = ?,
+                    cross_pollinated_by = ?
+                WHERE learning_id = ?
+                """,
+                (
+                    datetime.now().timestamp(),
+                    reason,
+                    promoting_bot_id,
+                    learning_id
+                )
+            )
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to promote learning {learning_id}: {e}")
+            conn.rollback()
+            return False
+    
+    def get_promotion_history(self, learning_id: str) -> Optional[dict]:
+        """Get the promotion history of a learning.
+        
+        Args:
+            learning_id: The learning ID
+            
+        Returns:
+            Dictionary with promotion details or None
+        """
+        conn = self._get_connection()
+        
+        cursor = conn.execute(
+            """
+            SELECT bot_id, original_scope, promotion_date, promotion_reason,
+                   cross_pollinated_by, exposure_count
+            FROM bot_memory_ledger
+            WHERE learning_id = ?
+            """,
+            (learning_id,)
+        )
+        
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        return {
+            "bot_id": row[0],
+            "original_scope": row[1],
+            "promotion_date": row[2],
+            "promotion_reason": row[3],
+            "cross_pollinated_by": row[4],
+            "exposure_count": row[5],
+        }
+    
+    def record_bot_expertise(
+        self,
+        bot_id: str,
+        domain: str,
+        successful: bool = True
+    ) -> None:
+        """Record a bot's interaction in a domain.
+        
+        Args:
+            bot_id: The bot ID
+            domain: The domain
+            successful: Whether the interaction succeeded
+        """
+        conn = self._get_connection()
+        
+        # Get current expertise
+        cursor = conn.execute(
+            """
+            SELECT interaction_count, success_count
+            FROM bot_expertise
+            WHERE bot_id = ? AND domain = ?
+            """,
+            (bot_id, domain)
+        )
+        
+        row = cursor.fetchone()
+        
+        if row:
+            # Update existing
+            new_success = row[1] + (1 if successful else 0)
+            new_interaction = row[0] + 1
+            confidence = new_success / new_interaction if new_interaction > 0 else 0.5
+            
+            conn.execute(
+                """
+                UPDATE bot_expertise
+                SET interaction_count = ?, success_count = ?,
+                    confidence = ?, last_updated = ?
+                WHERE bot_id = ? AND domain = ?
+                """,
+                (
+                    new_interaction,
+                    new_success,
+                    confidence,
+                    datetime.now().timestamp(),
+                    bot_id,
+                    domain
+                )
+            )
+        else:
+            # Create new
+            expertise_id = f"expertise:{bot_id}:{domain}"
+            conn.execute(
+                """
+                INSERT INTO bot_expertise (
+                    id, bot_id, domain, confidence, interaction_count,
+                    success_count, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    expertise_id,
+                    bot_id,
+                    domain,
+                    1.0 if successful else 0.0,
+                    1,
+                    1 if successful else 0,
+                    datetime.now().timestamp()
+                )
+            )
+        
+        conn.commit()
+    
+    def get_bot_expertise(self, bot_id: str, domain: str) -> float:
+        """Get expertise confidence score for a bot in a domain.
+        
+        Args:
+            bot_id: The bot ID
+            domain: The domain
+            
+        Returns:
+            Confidence score (0.0-1.0), defaults to 0.5 if no record
+        """
+        conn = self._get_connection()
+        
+        cursor = conn.execute(
+            """
+            SELECT confidence FROM bot_expertise
+            WHERE bot_id = ? AND domain = ?
+            """,
+            (bot_id, domain)
+        )
+        
+        row = cursor.fetchone()
+        return row[0] if row else 0.5
+    
+    def get_all_bot_expertise(self, bot_id: str) -> dict[str, float]:
+        """Get all expertise scores for a bot.
+        
+        Args:
+            bot_id: The bot ID
+            
+        Returns:
+            Dictionary mapping domain -> confidence score
+        """
+        conn = self._get_connection()
+        
+        cursor = conn.execute(
+            """
+            SELECT domain, confidence FROM bot_expertise
+            WHERE bot_id = ?
+            ORDER BY confidence DESC
+            """,
+            (bot_id,)
+        )
+        
+        return {row[0]: row[1] for row in cursor.fetchall()}

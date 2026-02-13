@@ -55,6 +55,12 @@ from nanobot.memory.preferences import (
     PreferencesAggregator,
     create_preferences_aggregator,
 )
+from nanobot.memory.bot_memory import (
+    BotMemory,
+    SharedMemoryPool,
+    CrossPollination,
+    BotExpertise,
+)
 
 __all__ = [
     "Event",
@@ -88,4 +94,8 @@ __all__ = [
     "create_learning_manager",
     "PreferencesAggregator",
     "create_preferences_aggregator",
+    "BotMemory",
+    "SharedMemoryPool",
+    "CrossPollination",
+    "BotExpertise",
 ]

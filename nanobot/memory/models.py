@@ -6,7 +6,7 @@ events, entities, relationships, facts, and learnings.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 
 @dataclass
@@ -200,3 +200,6 @@ class Learning:
     # Access tracking (for re-boost)
     times_accessed: int = 0
     last_accessed: Optional[datetime] = None
+    
+    # Flexible metadata for bot-scoping and extensibility
+    metadata: dict[str, Any] = field(default_factory=dict)
