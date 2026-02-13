@@ -14,10 +14,17 @@
 Currently, nanobot uses a single centralized heartbeat that processes all periodic tasks through one agent instance. This creates a bottleneck and doesn't leverage our multi-agent architecture.
 
 **The Solution:** Implement **per-bot independent heartbeats** where each of the 6 bots (nanobot + 5 specialists) runs their own heartbeat with:
-- **Role-specific intervals** (social needs 15min, research needs 60min)
+- **Standardized intervals** (60min default for all specialists, 30min for coordinator)
+- **User customization** (adjust intervals per bot via configuration)
 - **Domain-specific checklists** (coder checks repos, social checks posts)
 - **Autonomous execution** (bots self-manage their periodic tasks)
 - **Cross-bot coordination** (when tasks require multiple bots)
+
+**Interval Strategy:**
+- **Default:** 60 minutes for all specialist bots (researcher, coder, social, creative, auditor)
+- **Coordinator:** 30 minutes for nanobot (needs faster coordination)
+- **User Control:** All intervals customizable via configuration (minimum: 5 minutes)
+- **Rationale:** Simple defaults that work for most use cases, with flexibility to optimize per domain
 
 ---
 
@@ -61,11 +68,11 @@ Currently, nanobot uses a single centralized heartbeat that processes all period
    - Specialist bots sit idle during heartbeats
    - No parallelism in task execution
 
-2. **Wrong Intervals for Different Domains**
-   - Social media needs checks every 15 minutes
-   - Market research only needs hourly updates
-   - Security scanning might need continuous monitoring
-   - One-size-fits-all 30-minute interval doesn't work
+2. **Inflexible Intervals**
+   - Single 30-minute interval for all task types
+   - Cannot adjust per bot based on domain needs
+   - User cannot customize intervals per bot
+   - One-size-fits-all approach wastes resources
 
 3. **No Autonomy**
    - Bots can't self-initiate their domain-specific checks
@@ -233,7 +240,7 @@ class CheckResult:
 class HeartbeatConfig:
     """Configuration for a bot's heartbeat."""
     bot_name: str
-    interval_s: int = 1800              # 30 minutes default
+    interval_s: int = 3600              # 60 minutes default (1 hour)
     max_execution_time_s: int = 300     # 5 minutes max per tick
     enabled: bool = True
     
@@ -1614,7 +1621,7 @@ def get_researcher_heartbeat_config() -> HeartbeatConfig:
     """Get heartbeat configuration for ResearcherBot."""
     return HeartbeatConfig(
         bot_name="researcher",
-        interval_s=60 * 60,  # 60 minutes - research moves slower
+        interval_s=60 * 60,  # 60 minutes - default for all specialist bots
         max_execution_time_s=600,  # 10 minutes max
         enabled=True,
         
@@ -1675,7 +1682,7 @@ def get_coder_heartbeat_config() -> HeartbeatConfig:
     """Get heartbeat configuration for CoderBot."""
     return HeartbeatConfig(
         bot_name="coder",
-        interval_s=30 * 60,  # 30 minutes - code moves faster
+        interval_s=60 * 60,  # 60 minutes - default (user customizable)
         max_execution_time_s=300,  # 5 minutes max
         enabled=True,
         
@@ -1736,7 +1743,7 @@ def get_social_heartbeat_config() -> HeartbeatConfig:
     """Get heartbeat configuration for SocialBot."""
     return HeartbeatConfig(
         bot_name="social",
-        interval_s=15 * 60,  # 15 minutes - social is fast-paced
+        interval_s=60 * 60,  # 60 minutes - default (user can lower if needed)
         max_execution_time_s=180,  # 3 minutes max
         enabled=True,
         
@@ -1797,7 +1804,7 @@ def get_auditor_heartbeat_config() -> HeartbeatConfig:
     """Get heartbeat configuration for AuditorBot."""
     return HeartbeatConfig(
         bot_name="auditor",
-        interval_s=45 * 60,  # 45 minutes - quality checks are thorough
+        interval_s=60 * 60,  # 60 minutes - default for all specialist bots
         max_execution_time_s=480,  # 8 minutes max for deep analysis
         enabled=True,
         
@@ -1857,7 +1864,7 @@ def get_creative_heartbeat_config() -> HeartbeatConfig:
     """Get heartbeat configuration for CreativeBot."""
     return HeartbeatConfig(
         bot_name="creative",
-        interval_s=60 * 60,  # 60 minutes - creative work needs focus time
+        interval_s=60 * 60,  # 60 minutes - default for all specialist bots
         max_execution_time_s=300,
         enabled=True,
         
@@ -1969,6 +1976,257 @@ def get_heartbeat_config(bot_name: str) -> HeartbeatConfig:
 - ✅ Error handling and logging throughout
 - ✅ Coordinator notifications on important findings
 - ✅ Check registry allows dynamic discovery
+
+---
+
+#### 2.5: User Configuration of Intervals
+**File:** `nanobot/config/heartbeat_config.py`
+
+Users can customize heartbeat intervals per bot via configuration:
+
+```python
+"""User-customizable heartbeat configuration."""
+
+from typing import Dict, Optional
+from dataclasses import dataclass
+
+from nanobot.heartbeat.models import HeartbeatConfig
+from nanobot.bots.heartbeat_configs import get_heartbeat_config, BOT_HEARTBEAT_CONFIGS
+
+
+@dataclass
+class UserHeartbeatSettings:
+    """User-customizable settings for bot heartbeats."""
+    # Bot name -> interval in seconds
+    intervals: Dict[str, int]
+    
+    # Bot name -> enabled/disabled
+    enabled: Dict[str, bool]
+    
+    # Minimum allowed interval (5 minutes to prevent abuse)
+    MIN_INTERVAL_S: int = 5 * 60
+    
+    # Maximum allowed interval (24 hours)
+    MAX_INTERVAL_S: int = 24 * 60 * 60
+    
+    # Default interval for specialist bots
+    DEFAULT_SPECIALIST_INTERVAL_S: int = 60 * 60  # 60 minutes
+    
+    # Default interval for coordinator
+    DEFAULT_COORDINATOR_INTERVAL_S: int = 30 * 60  # 30 minutes
+
+
+class HeartbeatConfigLoader:
+    """Loads and applies user heartbeat configuration."""
+    
+    def __init__(self, config_path: str = "config/heartbeat.json"):
+        self.config_path = config_path
+        self.user_settings = self._load_user_settings()
+    
+    def _load_user_settings(self) -> UserHeartbeatSettings:
+        """Load user settings from config file."""
+        import json
+        from pathlib import Path
+        
+        path = Path(self.config_path)
+        if not path.exists():
+            # Return defaults
+            return UserHeartbeatSettings(
+                intervals={},
+                enabled={}
+            )
+        
+        with open(path) as f:
+            data = json.load(f)
+        
+        return UserHeartbeatSettings(
+            intervals=data.get("intervals", {}),
+            enabled=data.get("enabled", {})
+        )
+    
+    def get_bot_config(self, bot_name: str) -> HeartbeatConfig:
+        """Get heartbeat config for a bot with user overrides applied.
+        
+        Args:
+            bot_name: Name of the bot
+            
+        Returns:
+            HeartbeatConfig with user customizations applied
+        """
+        # Get base config
+        base_config = get_heartbeat_config(bot_name)
+        
+        # Apply user interval override
+        if bot_name in self.user_settings.intervals:
+            user_interval = self.user_settings.intervals[bot_name]
+            
+            # Validate interval
+            user_interval = max(
+                self.user_settings.MIN_INTERVAL_S,
+                min(user_interval, self.user_settings.MAX_INTERVAL_S)
+            )
+            
+            base_config.interval_s = user_interval
+        
+        # Apply user enabled/disabled override
+        if bot_name in self.user_settings.enabled:
+            base_config.enabled = self.user_settings.enabled[bot_name]
+        
+        return base_config
+    
+    def set_bot_interval(self, bot_name: str, interval_minutes: int) -> bool:
+        """Set custom interval for a bot.
+        
+        Args:
+            bot_name: Name of the bot
+            interval_minutes: Interval in minutes (min: 5, max: 1440)
+            
+        Returns:
+            True if successfully set
+        """
+        interval_s = interval_minutes * 60
+        
+        # Validate
+        if interval_s < self.user_settings.MIN_INTERVAL_S:
+            raise ValueError(f"Interval must be at least 5 minutes")
+        
+        if interval_s > self.user_settings.MAX_INTERVAL_S:
+            raise ValueError(f"Interval must be at most 24 hours")
+        
+        # Apply
+        self.user_settings.intervals[bot_name] = interval_s
+        self._save_user_settings()
+        
+        return True
+    
+    def reset_to_defaults(self, bot_name: Optional[str] = None):
+        """Reset intervals to defaults.
+        
+        Args:
+            bot_name: Specific bot to reset, or None for all
+        """
+        if bot_name:
+            if bot_name in self.user_settings.intervals:
+                del self.user_settings.intervals[bot_name]
+        else:
+            self.user_settings.intervals.clear()
+        
+        self._save_user_settings()
+    
+    def _save_user_settings(self):
+        """Save user settings to config file."""
+        import json
+        from pathlib import Path
+        
+        path = Path(self.config_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        data = {
+            "intervals": self.user_settings.intervals,
+            "enabled": self.user_settings.enabled
+        }
+        
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+
+# Example user config file (config/heartbeat.json):
+EXAMPLE_CONFIG = """
+{
+  "intervals": {
+    "social": 900,
+    "coder": 1800
+  },
+  "enabled": {
+    "researcher": true,
+    "social": true,
+    "creative": false
+  }
+}
+"""
+```
+
+**CLI Commands for User Configuration:**
+
+```python
+# nanobot/cli/commands.py
+
+@app.command()
+def heartbeat_config(
+    bot: str = typer.Argument(..., help="Bot name"),
+    interval: int = typer.Option(None, "--interval", "-i", help="Interval in minutes"),
+    reset: bool = typer.Option(False, "--reset", help="Reset to default"),
+    disable: bool = typer.Option(False, "--disable", help="Disable heartbeat"),
+    enable: bool = typer.Option(False, "--enable", help="Enable heartbeat"),
+):
+    """Configure heartbeat interval for a bot."""
+    from nanobot.config.heartbeat_config import HeartbeatConfigLoader
+    
+    loader = HeartbeatConfigLoader()
+    
+    if reset:
+        loader.reset_to_defaults(bot)
+        console.print(f"[green]✓[/green] Reset {bot} heartbeat to default")
+        return
+    
+    if disable:
+        loader.user_settings.enabled[bot] = False
+        loader._save_user_settings()
+        console.print(f"[yellow]✓[/yellow] Disabled heartbeat for {bot}")
+        return
+    
+    if enable:
+        loader.user_settings.enabled[bot] = True
+        loader._save_user_settings()
+        console.print(f"[green]✓[/green] Enabled heartbeat for {bot}")
+        return
+    
+    if interval:
+        try:
+            loader.set_bot_interval(bot, interval)
+            console.print(f"[green]✓[/green] Set {bot} heartbeat to {interval} minutes")
+        except ValueError as e:
+            console.print(f"[red]✗[/red] {e}")
+        return
+    
+    # Show current config
+    config = loader.get_bot_config(bot)
+    console.print(f"\n[bold]{bot} heartbeat configuration:[/bold]")
+    console.print(f"  Interval: {config.interval_s // 60} minutes")
+    console.print(f"  Enabled: {config.enabled}")
+    console.print(f"  Checks: {len(config.checks)}")
+
+
+@app.command()
+def heartbeat_status():
+    """Show status of all bot heartbeats."""
+    from nanobot.config.heartbeat_config import HeartbeatConfigLoader
+    
+    loader = HeartbeatConfigLoader()
+    
+    console.print("\n[bold]Bot Heartbeat Status[/bold]\n")
+    
+    for bot_name in ["researcher", "coder", "social", "creative", "auditor", "nanobot"]:
+        config = loader.get_bot_config(bot_name)
+        interval_min = config.interval_s // 60
+        
+        status = "[green]●[/green] enabled" if config.enabled else "[red]●[/red] disabled"
+        is_custom = bot_name in loader.user_settings.intervals
+        interval_str = f"{interval_min}m"
+        if is_custom:
+            interval_str += " [yellow](custom)[/yellow]"
+        
+        console.print(f"  {bot_name:12} {status:15} interval: {interval_str:10} checks: {len(config.checks)}")
+```
+
+**Acceptance Criteria:**
+- ✅ Users can view current heartbeat configuration
+- ✅ Users can set custom intervals per bot (5min - 24hr range)
+- ✅ Users can enable/disable heartbeats per bot
+- ✅ Changes persist across restarts
+- ✅ CLI commands for easy configuration
+- ✅ Validation prevents invalid intervals
+- ✅ Visual indicators for custom vs default settings
 
 ---
 
@@ -2952,7 +3210,7 @@ await manager.start_all()
 | Phase | Duration | Deliverables |
 |-------|----------|--------------|
 | 1: Infrastructure | 1 day | Data models, registry, BotHeartbeatService |
-| 2: Bot Configs | 1-2 days | Domain-specific checks for all 6 bots |
+| 2: Bot Configs | 1-2 days | Domain-specific checks + user config system |
 | 3: Integration | 1 day | SpecialistBot updates, bot classes |
 | 4: Coordination | 1 day | MultiHeartbeatManager, cross-bot features |
 | 5: Testing | 1 day | Test suite, integration tests |
@@ -2962,12 +3220,14 @@ await manager.start_all()
 
 ## Benefits
 
-1. **Autonomy:** Each bot manages its own periodic tasks
-2. **Efficiency:** Parallel execution across bot team
-3. **Resilience:** Per-bot circuit breakers, isolated failures
-4. **Scalability:** Add new bots without changing infrastructure
-5. **Transparency:** Full audit trail for all periodic actions
-6. **Role Alignment:** Intervals and checks match bot responsibilities
+1. **Autonomy:** Each bot manages its own periodic tasks independently
+2. **Simplicity:** Standardized 60-minute default (30min for coordinator) - easy to understand
+3. **Flexibility:** Users can customize intervals per bot (5min - 24hr range)
+4. **Efficiency:** Parallel execution across bot team
+5. **Resilience:** Per-bot circuit breakers, isolated failures
+6. **Scalability:** Add new bots without changing infrastructure
+7. **Transparency:** Full audit trail for all periodic actions
+8. **Role Alignment:** Domain-specific checks match bot responsibilities
 
 ---
 
