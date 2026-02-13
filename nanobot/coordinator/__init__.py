@@ -37,6 +37,15 @@ from nanobot.coordinator.explanation import (
     ExplanationEngine,
     Explanation,
 )
+from nanobot.coordinator.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitState,
+    CallMetrics,
+    CircuitBreakerOpen,
+    RetryStrategy,
+    LoadBalancer,
+)
 
 __all__ = [
     "BotMessage",
@@ -66,4 +75,11 @@ __all__ = [
     "DecisionAuditRecord",
     "ExplanationEngine",
     "Explanation",
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitState",
+    "CallMetrics",
+    "CircuitBreakerOpen",
+    "RetryStrategy",
+    "LoadBalancer",
 ]

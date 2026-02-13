@@ -5,13 +5,114 @@ Manages persistence of messages, tasks, and decisions to SQLite database.
 
 import json
 import sqlite3
+import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
 
 from loguru import logger
 
 from nanobot.coordinator.models import BotMessage, Task, MessageType, TaskStatus
 from nanobot.memory.store import TurboMemoryStore
+
+
+@dataclass
+class CacheEntry:
+    """Cache entry with TTL."""
+    value: Any
+    timestamp: float = field(default_factory=time.time)
+    hits: int = 0
+
+
+class QueryCache:
+    """Simple TTL-based query cache for performance optimization."""
+    
+    def __init__(self, ttl_seconds: float = 30.0, max_size: int = 100):
+        """Initialize cache.
+        
+        Args:
+            ttl_seconds: Time-to-live in seconds
+            max_size: Maximum cache entries
+        """
+        self.ttl = ttl_seconds
+        self.max_size = max_size
+        self._cache: Dict[str, CacheEntry] = {}
+        self._stats = {"hits": 0, "misses": 0, "evictions": 0}
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache.
+        
+        Args:
+            key: Cache key
+            
+        Returns:
+            Cached value or None if expired/not found
+        """
+        entry = self._cache.get(key)
+        
+        if entry is None:
+            self._stats["misses"] += 1
+            return None
+        
+        # Check TTL
+        if time.time() - entry.timestamp > self.ttl:
+            del self._cache[key]
+            self._stats["misses"] += 1
+            return None
+        
+        entry.hits += 1
+        self._stats["hits"] += 1
+        return entry.value
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set value in cache.
+        
+        Args:
+            key: Cache key
+            value: Value to cache
+        """
+        # Evict oldest if at capacity
+        if len(self._cache) >= self.max_size:
+            oldest_key = min(
+                self._cache.keys(),
+                key=lambda k: self._cache[k].timestamp
+            )
+            del self._cache[oldest_key]
+            self._stats["evictions"] += 1
+        
+        self._cache[key] = CacheEntry(value=value)
+    
+    def invalidate(self, pattern: str = "") -> None:
+        """Invalidate cache entries matching pattern.
+        
+        Args:
+            pattern: Key pattern to match (empty = all)
+        """
+        if not pattern:
+            self._cache.clear()
+        else:
+            keys_to_remove = [k for k in self._cache if pattern in k]
+            for key in keys_to_remove:
+                del self._cache[key]
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics.
+        
+        Returns:
+            Statistics dictionary
+        """
+        total = self._stats["hits"] + self._stats["misses"]
+        hit_rate = self._stats["hits"] / total if total > 0 else 0.0
+        
+        return {
+            "size": len(self._cache),
+            "max_size": self.max_size,
+            "hits": self._stats["hits"],
+            "misses": self._stats["misses"],
+            "evictions": self._stats["evictions"],
+            "hit_rate": hit_rate,
+            "ttl_seconds": self.ttl,
+        }
 
 
 class CoordinatorStore:
@@ -20,13 +121,15 @@ class CoordinatorStore:
     Extends TurboMemoryStore with coordinator-specific tables.
     """
     
-    def __init__(self, memory_store: TurboMemoryStore):
+    def __init__(self, memory_store: TurboMemoryStore, cache_ttl: float = 30.0):
         """Initialize coordinator store.
         
         Args:
             memory_store: TurboMemoryStore instance for database access
+            cache_ttl: Cache TTL in seconds (0 to disable caching)
         """
         self.memory_store = memory_store
+        self._cache = QueryCache(ttl_seconds=cache_ttl) if cache_ttl > 0 else None
         self._ensure_tables_exist()
     
     def _ensure_tables_exist(self) -> None:
@@ -81,6 +184,11 @@ class CoordinatorStore:
         conn.commit()
         
         logger.debug(f"Message saved: {message.id}")
+        
+        # Invalidate cache for this message
+        if self._cache:
+            self._cache.invalidate(f"msg:{message.id}")
+        
         return message.id
     
     def get_message(self, message_id: str) -> Optional[BotMessage]:
@@ -92,6 +200,14 @@ class CoordinatorStore:
         Returns:
             BotMessage or None if not found
         """
+        cache_key = f"msg:{message_id}"
+        
+        # Try cache first
+        if self._cache:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                return cached
+        
         conn = self.memory_store._get_connection()
         
         cursor = conn.execute(
@@ -103,7 +219,13 @@ class CoordinatorStore:
         if not row:
             return None
         
-        return self._row_to_message(row)
+        message = self._row_to_message(row)
+        
+        # Cache the result
+        if self._cache:
+            self._cache.set(cache_key, message)
+        
+        return message
     
     def get_conversation(
         self,
@@ -233,6 +355,14 @@ class CoordinatorStore:
         conn.commit()
         
         logger.debug(f"Task saved: {task.id}")
+        
+        # Invalidate cache for this task
+        if self._cache:
+            self._cache.invalidate(f"task:{task.id}")
+            # Also invalidate bot task lists
+            if task.assigned_to:
+                self._cache.invalidate(f"bot_tasks:{task.assigned_to}")
+        
         return task.id
     
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -244,6 +374,14 @@ class CoordinatorStore:
         Returns:
             Task or None if not found
         """
+        cache_key = f"task:{task_id}"
+        
+        # Try cache first
+        if self._cache:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                return cached
+        
         conn = self.memory_store._get_connection()
         
         cursor = conn.execute(
@@ -255,7 +393,13 @@ class CoordinatorStore:
         if not row:
             return None
         
-        return self._row_to_task(row)
+        task = self._row_to_task(row)
+        
+        # Cache the result
+        if self._cache:
+            self._cache.set(cache_key, task)
+        
+        return task
     
     def get_tasks_by_status(
         self,
