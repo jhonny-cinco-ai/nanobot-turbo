@@ -16,6 +16,7 @@ from nanobot.coordinator.models import (
 from nanobot.coordinator.bus import InterBotBus
 from nanobot.coordinator.coordinator_bot import CoordinatorBot
 from nanobot.coordinator.store import CoordinatorStore
+from nanobot.coordinator.autonomous import AutonomousBotTeam, BotCollaborator
 
 __all__ = [
     "BotMessage",
@@ -29,4 +30,6 @@ __all__ = [
     "InterBotBus",
     "CoordinatorBot",
     "CoordinatorStore",
+    "AutonomousBotTeam",
+    "BotCollaborator",
 ]
