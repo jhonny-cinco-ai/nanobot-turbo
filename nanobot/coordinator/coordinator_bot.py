@@ -12,6 +12,12 @@ from loguru import logger
 from nanobot.bots.base import SpecialistBot
 from nanobot.coordinator.bus import InterBotBus
 from nanobot.coordinator.models import BotMessage, MessageType, Task, TaskStatus
+from nanobot.coordinator.decisions import (
+    DecisionMaker,
+    DisputeResolver,
+    BotPosition,
+    Decision,
+)
 from nanobot.memory.bot_memory import BotExpertise
 from nanobot.models.workspace import Workspace
 
@@ -44,6 +50,10 @@ class CoordinatorBot(SpecialistBot):
         self._active_tasks: Dict[str, Task] = {}
         self._waiting_for_responses: Dict[str, BotMessage] = {}
         self._team_summary: str = ""
+        
+        # Decision-making systems
+        self.decision_maker = DecisionMaker()
+        self.dispute_resolver = DisputeResolver()
     
     def analyze_request(self, content: str, user_id: str) -> Dict:
         """Analyze a user request to determine routing.
@@ -318,6 +328,162 @@ class CoordinatorBot(SpecialistBot):
         logger.info(f"Broadcast to team: {content[:50]}...")
         
         return msg_id
+    
+    def handle_team_disagreement(
+        self,
+        task_id: str,
+        bot_positions: Dict[str, BotPosition]
+    ) -> Decision:
+        """Handle disagreement between team members on a decision.
+        
+        Args:
+            task_id: The task causing disagreement
+            bot_positions: Dict mapping bot_id -> BotPosition
+            
+        Returns:
+            Decision resolving the disagreement
+        """
+        # Detect the disagreement
+        disagreement = self.dispute_resolver.detect_disagreement(bot_positions)
+        
+        if not disagreement:
+            logger.info("No disagreement detected - team is aligned")
+            return None
+        
+        disagreement.task_id = task_id
+        
+        # Analyze the arguments
+        analysis = self.dispute_resolver.analyze_arguments(disagreement)
+        logger.info(
+            f"Disagreement analysis: {disagreement.disagreement_type.value} "
+            f"({analysis['num_positions']} positions, "
+            f"confidence spread: {analysis['confidence_spread']:.2f})"
+        )
+        
+        # Find common ground
+        common_ground = self.dispute_resolver.find_common_ground(disagreement)
+        logger.info(f"Common ground identified: {common_ground}")
+        
+        # Attempt resolution
+        decision = self.dispute_resolver.make_final_decision(
+            disagreement,
+            self.decision_maker
+        )
+        
+        # Broadcast decision to team
+        message = BotMessage(
+            sender_id=self.name,
+            recipient_id="team",
+            message_type=MessageType.DISCUSSION,
+            content=f"Disagreement resolved on task '{task_id}':\n"
+                   f"Decision: {decision.final_decision}\n"
+                   f"Reasoning: {decision.reasoning}\n"
+                   f"Confidence: {decision.confidence:.0%}",
+            context={
+                "task_id": task_id,
+                "subject": f"Disagreement Resolution: {task_id}",
+                "decision_id": decision.id,
+            }
+        )
+        self.bus.send_message(message)
+        
+        logger.info(
+            f"Disagreement handled for task {task_id}: "
+            f"chose '{decision.final_decision}' with {decision.confidence:.0%} confidence"
+        )
+        
+        return decision
+    
+    def gather_team_consensus(
+        self,
+        options: List[str],
+        question: str,
+        participant_bots: List[str]
+    ) -> Optional[str]:
+        """Gather team consensus on available options.
+        
+        Args:
+            options: Options to vote on
+            question: The question being asked
+            participant_bots: Bot IDs to gather positions from
+            
+        Returns:
+            Consensus option if found, None otherwise
+        """
+        # In a real scenario, this would query bots for their positions
+        # For now, we demonstrate the framework
+        positions = {}
+        
+        for bot_id in participant_bots:
+            # Simulate getting bot position (in practice, would query bot)
+            expertise_score = self.expertise.get_expertise_score(
+                bot_id,
+                question.lower().split()[0] if question else "general"
+            )
+            
+            positions[bot_id] = BotPosition(
+                bot_id=bot_id,
+                position=options[0] if options else "unknown",
+                confidence=0.7,
+                reasoning=f"Recommendation based on expertise",
+                expertise_score=expertise_score
+            )
+        
+        # Try to find consensus
+        consensus = self.decision_maker.get_consensus(
+            positions,
+            required_agreement=0.7
+        )
+        
+        if consensus:
+            logger.info(f"Team consensus reached: {consensus}")
+            
+            # Broadcast consensus to team
+            message = BotMessage(
+                sender_id=self.name,
+                recipient_id="team",
+                message_type=MessageType.DISCUSSION,
+                content=f"Team consensus on '{question}':\nDecision: {consensus}",
+                context={"subject": "Team Consensus"}
+            )
+            self.bus.send_message(message)
+        
+        return consensus
+    
+    def make_weighted_decision(
+        self,
+        options: List[str],
+        task_id: str,
+        participants: List[str],
+        positions: Dict[str, BotPosition]
+    ) -> Decision:
+        """Make a decision using weighted voting.
+        
+        Args:
+            options: Available options
+            task_id: Associated task ID
+            participants: Bot IDs participating in decision
+            positions: Dict mapping bot_id -> BotPosition
+            
+        Returns:
+            Decision made
+        """
+        from nanobot.coordinator.decisions import VotingStrategy
+        
+        decision = self.decision_maker.create_consensus_vote(
+            options=options,
+            participants=participants,
+            positions=positions,
+            strategy=VotingStrategy.WEIGHTED,
+            task_id=task_id
+        )
+        
+        logger.info(
+            f"Weighted decision made on task {task_id}: "
+            f"'{decision.final_decision}' with confidence {decision.confidence:.0%}"
+        )
+        
+        return decision
     
     # =========================================================================
     # Private Helper Methods
