@@ -25,6 +25,7 @@ from nanobot.agent.stages import RoutingStage, RoutingContext
 from nanobot.config.schema import RoutingConfig
 from nanobot.session.manager import SessionManager, Session
 from nanobot.agent.work_log_manager import get_work_log_manager, LogLevel
+from nanobot.reasoning.config import get_reasoning_config, ReasoningConfig
 
 
 class AgentLoop:
@@ -64,6 +65,14 @@ class AgentLoop:
         self.workspace = workspace
         self.workspace_id = str(workspace)  # For Learning Exchange
         self.bot_name = "nanobot"  # Identity of this bot instance
+        
+        # Initialize reasoning configuration for this bot
+        self.reasoning_config = get_reasoning_config(self.bot_name)
+        logger.debug(f"Loaded reasoning config for {self.bot_name}: {self.reasoning_config.cot_level.value}")
+        
+        # Initialize current tier for CoT decisions (set by _select_model)
+        self._current_tier = "medium"
+        
         self.model = model or provider.get_default_model()
         self.max_iterations = max_iterations
         self.brave_api_key = brave_api_key
@@ -361,6 +370,8 @@ class AgentLoop:
                 category="routing",
                 message="Smart routing disabled, using default model"
             )
+            # Store tier for CoT decisions
+            self._current_tier = "medium"
             return self.model
         
         try:
@@ -377,6 +388,12 @@ class AgentLoop:
             start_time = time.time()
             routing_ctx = await self.routing_stage.execute(routing_ctx)
             duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Store tier for CoT decisions
+            if routing_ctx.decision:
+                self._current_tier = routing_ctx.decision.tier.value
+            else:
+                self._current_tier = "medium"
             
             # Log routing decision
             if routing_ctx.decision:
@@ -463,7 +480,19 @@ class AgentLoop:
             self.activity_tracker.mark_activity()
         
         # Get or create session
-        session = self.sessions.get_or_create(msg.session_key)
+        key = msg.session_key
+        session = self.sessions.get_or_create(key)
+        
+        # Handle slash commands
+        cmd = msg.content.strip().lower()
+        if cmd == "/new":
+            session.clear()
+            self.sessions.save(session)
+            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
+                                  content="🐈 New session started.")
+        if cmd == "/help":
+            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
+                                  content="🐈 nanobot commands:\n/new — Start a new conversation\n/help — Show available commands")
         
         # Update tool contexts
         message_tool = self.tools.get("message")
@@ -735,13 +764,25 @@ class AgentLoop:
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
+                    
+                    # Check if we should add CoT reflection (bot-level reasoning config)
+                    if self._should_use_cot(tool_call.name):
+                        reflection_prompt = self.reasoning_config.get_reflection_prompt()
+                        messages.append({
+                            "role": "user",
+                            "content": reflection_prompt
+                        })
+                        logger.debug(f"Added CoT reflection after {tool_call.name}")
             else:
                 # No tool calls, we're done
                 final_content = response.content
                 break
         
         if final_content is None:
-            final_content = "I've completed processing but have no response to give."
+            if iteration >= self.max_iterations:
+                final_content = f"Reached {self.max_iterations} iterations without completion."
+            else:
+                final_content = "I've completed processing but have no response to give."
         
         # Log response completion
         preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
@@ -1024,6 +1065,27 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"Memory flush hook failed (non-critical): {e}")
             # Don't fail compaction if flush fails
+
+    def _should_use_cot(self, tool_name: str) -> bool:
+        """Determine if Chain-of-Thought reflection should be used.
+        
+        Checks bot's reasoning configuration and current routing tier.
+        
+        Args:
+            tool_name: Name of the tool that was just executed
+            
+        Returns:
+            True if CoT reflection should be added
+        """
+        # Get current tier (default to medium if not set)
+        tier = getattr(self, '_current_tier', 'medium')
+        
+        # Check if reasoning config is available
+        if not hasattr(self, 'reasoning_config') or not self.reasoning_config:
+            return False
+        
+        # Use reasoning config to decide
+        return self.reasoning_config.should_use_cot(tier, tool_name)
 
     async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
         """Send onboarding message when config is missing."""
