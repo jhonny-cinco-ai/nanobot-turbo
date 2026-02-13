@@ -18,6 +18,13 @@ from nanobot.coordinator.decisions import (
     BotPosition,
     Decision,
 )
+from nanobot.coordinator.audit import (
+    AuditTrail,
+    AuditEventType,
+    AuditEventSeverity,
+    DecisionAuditRecord,
+)
+from nanobot.coordinator.explanation import ExplanationEngine
 from nanobot.memory.bot_memory import BotExpertise
 from nanobot.models.workspace import Workspace
 
@@ -54,6 +61,10 @@ class CoordinatorBot(SpecialistBot):
         # Decision-making systems
         self.decision_maker = DecisionMaker()
         self.dispute_resolver = DisputeResolver()
+        
+        # Transparency and audit systems
+        self.audit_trail = AuditTrail()
+        self.explanation_engine = ExplanationEngine()
     
     def analyze_request(self, content: str, user_id: str) -> Dict:
         """Analyze a user request to determine routing.
@@ -128,6 +139,18 @@ class CoordinatorBot(SpecialistBot):
         
         logger.info(f"Selected {best_bot} for {domain} (score: {best_score:.2f})")
         
+        # Audit the bot selection
+        expertise_scores = {bot_id: self.expertise.get_expertise_score(bot_id, domain) 
+                           for bot_id in available_bots}
+        self.audit_trail.log_bot_selection(
+            task_id="pending",  # Will be updated when task is created
+            selected_bot=best_bot,
+            available_bots=available_bots,
+            domain=domain,
+            expertise_scores=expertise_scores,
+            reasoning=f"Selected based on highest expertise in {domain}"
+        )
+        
         return best_bot
     
     def create_task(
@@ -186,6 +209,21 @@ class CoordinatorBot(SpecialistBot):
             f"Created task '{title}' and assigned to {assigned_to} (task_id: {task.id})"
         )
         
+        # Audit task assignment
+        self.audit_trail.log_event(
+            event_type=AuditEventType.TASK_ASSIGNED,
+            description=f"Task '{title}' assigned to {assigned_to}",
+            task_id=task.id,
+            bot_ids=[assigned_to],
+            reasoning=f"Task in {domain} domain assigned to bot with relevant expertise",
+            details={
+                "title": title,
+                "domain": domain,
+                "requirements_count": len(requirements or []),
+            },
+            confidence=0.8
+        )
+        
         return task
     
     def handle_task_result(
@@ -229,6 +267,23 @@ class CoordinatorBot(SpecialistBot):
             f"(assigned to {task.assigned_to}, confidence: {confidence:.2f})"
         )
         
+        # Audit task completion
+        if task.assigned_to:
+            self.audit_trail.log_event(
+                event_type=AuditEventType.TASK_COMPLETED,
+                description=f"Task '{task.title}' completed by {task.assigned_to}",
+                task_id=task_id,
+                bot_ids=[task.assigned_to],
+                reasoning=f"Task completed with confidence {confidence:.0%}",
+                details={
+                    "result_preview": result[:100] + "..." if len(result) > 100 else result,
+                    "confidence": confidence,
+                    "learnings_count": len(learnings or []),
+                    "follow_ups_count": len(follow_ups or []),
+                },
+                confidence=confidence
+            )
+        
         return True
     
     def handle_task_failure(
@@ -269,6 +324,22 @@ class CoordinatorBot(SpecialistBot):
                 context={"task_id": task_id, "subject": f"Task Recovery: {task.title}"}
             )
             self.bus.send_message(message)
+        
+        # Audit task failure
+        if task.assigned_to:
+            self.audit_trail.log_event(
+                event_type=AuditEventType.TASK_FAILED,
+                description=f"Task '{task.title}' failed",
+                task_id=task_id,
+                bot_ids=[task.assigned_to],
+                reasoning=f"Task failed with error: {error}",
+                details={
+                    "error": error,
+                    "recovery_suggestion": recovery_suggestion,
+                },
+                severity=AuditEventSeverity.ERROR,
+                confidence=1.0
+            )
         
         return True
     
@@ -333,7 +404,7 @@ class CoordinatorBot(SpecialistBot):
         self,
         task_id: str,
         bot_positions: Dict[str, BotPosition]
-    ) -> Decision:
+    ) -> Optional[Decision]:
         """Handle disagreement between team members on a decision.
         
         Args:
@@ -341,7 +412,7 @@ class CoordinatorBot(SpecialistBot):
             bot_positions: Dict mapping bot_id -> BotPosition
             
         Returns:
-            Decision resolving the disagreement
+            Decision resolving the disagreement, or None if no disagreement
         """
         # Detect the disagreement
         disagreement = self.dispute_resolver.detect_disagreement(bot_positions)

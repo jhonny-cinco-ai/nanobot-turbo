@@ -26,6 +26,17 @@ from nanobot.coordinator.decisions import (
     VotingStrategy,
     DisagreementType,
 )
+from nanobot.coordinator.audit import (
+    AuditTrail,
+    AuditEvent,
+    AuditEventType,
+    AuditEventSeverity,
+    DecisionAuditRecord,
+)
+from nanobot.coordinator.explanation import (
+    ExplanationEngine,
+    Explanation,
+)
 
 __all__ = [
     "BotMessage",
@@ -48,4 +59,11 @@ __all__ = [
     "DisputeResolver",
     "VotingStrategy",
     "DisagreementType",
+    "AuditTrail",
+    "AuditEvent",
+    "AuditEventType",
+    "AuditEventSeverity",
+    "DecisionAuditRecord",
+    "ExplanationEngine",
+    "Explanation",
 ]
