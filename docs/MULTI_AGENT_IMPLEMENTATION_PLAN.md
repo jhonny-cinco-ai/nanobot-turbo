@@ -997,77 +997,315 @@ class OnboardingWizard:
 
 ---
 
-#### 2.3: SOUL.md Integration
+#### 2.3: SOUL.md Integration (Multi-Bot Architecture)
 **File:** `nanobot/soul/soul_manager.py`
 
-Integrate theme system with SOUL.md personality definition:
+Integrate theme system with per-bot SOUL.md personality definitions. Each of the 6 bots (nanobot + 5 specialists) has its own personality file that gets updated when themes are applied.
+
+**Key Change from v1.0:** Single-bot SOUL.md → Multi-bot per-file architecture
+
+**Directory Structure:**
+```
+workspace/
+├── bots/
+│   ├── nanobot/
+│   │   └── SOUL.md           # Leader personality
+│   ├── researcher/
+│   │   └── SOUL.md           # Analyst personality
+│   ├── coder/
+│   │   └── SOUL.md           # Developer personality
+│   ├── social/
+│   │   └── SOUL.md           # Community personality
+│   ├── creative/
+│   │   └── SOUL.md           # Innovation personality
+│   └── auditor/
+│       └── SOUL.md           # Quality personality
+└── SOUL.md                   # Fallback for backward compatibility
+```
+
+**SoulManager Implementation:**
 
 ```python
 class SoulManager:
-    """Manage nanobot's personality in SOUL.md."""
+    """Manage personality for all team members."""
     
-    def __init__(self, soul_path: str):
-        self.soul_path = soul_path
-        self.soul_data = self._load_soul()
+    def __init__(self, workspace_path: Path):
+        """Initialize SoulManager with workspace path."""
+        self.workspace = Path(workspace_path)
+        self.bots_dir = self.workspace / "bots"
+        self.bots_dir.mkdir(parents=True, exist_ok=True)
     
-    def apply_theme(self, theme: Theme):
-        """Update SOUL.md with theme personality."""
-        # Get nanobot theming from theme
-        bot_theming = theme.nanobot
+    def apply_theme_to_team(
+        self,
+        theme: Theme,
+        team: List[str],
+        force: bool = False
+    ) -> Dict[str, bool]:
+        """Apply theme to all team members' SOUL files.
         
-        # Update soul content
-        self.soul_data['title'] = bot_theming.title
-        self.soul_data['personality'] = bot_theming.personality
-        self.soul_data['greeting'] = bot_theming.greeting
-        self.soul_data['voice_directive'] = bot_theming.voice_directive
-        self.soul_data['theme'] = theme.name.value
+        Args:
+            theme: Theme object to apply
+            team: List of bot names in team
+            force: If True, overwrite existing SOUL files
         
-        # Save updated SOUL.md
-        self._save_soul()
+        Returns:
+            Dict mapping bot_name -> success (bool)
+        """
+        results = {}
+        
+        for bot_name in team:
+            try:
+                bot_theming = theme.get_bot_theming(bot_name)
+                if bot_theming:
+                    self.apply_theme_to_bot(
+                        bot_name,
+                        bot_theming,
+                        theme,
+                        force=force
+                    )
+                    results[bot_name] = True
+                else:
+                    results[bot_name] = False
+            except Exception as e:
+                results[bot_name] = False
+        
+        return results
     
-    def get_current_personality(self) -> Dict[str, str]:
-        """Get current personality settings."""
-        return {
-            "title": self.soul_data.get('title', 'nanobot'),
-            "personality": self.soul_data.get('personality', ''),
-            "voice": self.soul_data.get('voice_directive', ''),
-            "theme": self.soul_data.get('theme', 'custom'),
+    def apply_theme_to_bot(
+        self,
+        bot_name: str,
+        theming: BotTheming,
+        theme: Theme,
+        force: bool = False
+    ) -> bool:
+        """Update a specific bot's SOUL.md with theme personality.
+        
+        Args:
+            bot_name: Name of the bot
+            theming: Bot theming from theme
+            theme: Theme object (for context)
+            force: If True, overwrite existing file
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        soul_dir = self.bots_dir / bot_name
+        soul_dir.mkdir(parents=True, exist_ok=True)
+        
+        soul_file = soul_dir / "SOUL.md"
+        
+        # Don't overwrite existing files unless forced
+        if soul_file.exists() and not force:
+            return False
+        
+        content = self._generate_soul_content(bot_name, theming, theme)
+        soul_file.write_text(content, encoding="utf-8")
+        
+        return True
+    
+    def _generate_soul_content(
+        self,
+        bot_name: str,
+        theming: BotTheming,
+        theme: Theme
+    ) -> str:
+        """Generate SOUL.md content from theme.
+        
+        Args:
+            bot_name: Name of the bot
+            theming: Bot theming from theme
+            theme: Theme object
+        
+        Returns:
+            Formatted SOUL.md content
+        """
+        role_desc = self._get_role_description(bot_name)
+        timestamp = datetime.now().isoformat()
+        
+        return f"""# Soul: {bot_name.title()}
+
+{theming.emoji} **{theming.title}**
+
+I am the {theming.title}, part of the collaborative team.
+
+## Role & Purpose
+
+{role_desc}
+
+## Personality Traits
+
+{theming.personality}
+
+## Communication Style
+
+{theming.voice_directive}
+
+## Greeting
+
+> {theming.greeting}
+
+## Current Theme
+
+- **Theme**: {theme.name.value}
+- **Title**: {theming.title}
+- **Emoji**: {theming.emoji}
+- **Updated**: {timestamp}
+
+## Team Context
+
+This SOUL.md is generated by the theme system. Each bot has distinct personality that changes with themes.
+
+Custom edits persist until theme is reapplied with `force=True`.
+
+---
+*Generated by SoulManager - Part of multi-agent orchestration*
+"""
+    
+    def _get_role_description(self, bot_name: str) -> str:
+        """Get role-specific description for a bot."""
+        roles = {
+            "nanobot": (
+                "I lead the team, make strategic decisions, and ensure "
+                "coordination between team members. I prioritize alignment "
+                "and overall mission success."
+            ),
+            "researcher": (
+                "I gather and analyze information, verify claims, and provide "
+                "evidence-based insights. I help the team understand problems "
+                "deeply before solutions are attempted."
+            ),
+            "coder": (
+                "I implement technical solutions and turn ideas into working "
+                "code. I focus on reliability, maintainability, and pragmatic "
+                "problem-solving."
+            ),
+            "social": (
+                "I engage with users, understand their needs, and maintain "
+                "positive relationships. I bridge gaps between technical work "
+                "and human needs."
+            ),
+            "creative": (
+                "I explore novel ideas, challenge assumptions, and propose "
+                "innovative solutions. I think beyond conventional boundaries."
+            ),
+            "auditor": (
+                "I ensure quality, validate solutions, and identify risks. "
+                "I maintain standards and prevent problems from reaching users."
+            ),
         }
+        
+        return roles.get(bot_name, "I contribute to team objectives.")
     
-    def customize_personality(self, **kwargs):
-        """Allow manual customization of personality."""
-        for key, value in kwargs.items():
-            if key in self.soul_data:
-                self.soul_data[key] = value
-        self._save_soul()
+    def get_bot_soul(self, bot_name: str) -> Optional[str]:
+        """Load a bot's SOUL.md content.
+        
+        Args:
+            bot_name: Name of the bot
+        
+        Returns:
+            SOUL.md content or None if not found
+        """
+        soul_file = self.bots_dir / bot_name / "SOUL.md"
+        
+        if soul_file.exists():
+            return soul_file.read_text(encoding="utf-8")
+        
+        return None
     
-    def _load_soul(self) -> Dict:
-        """Load SOUL.md and parse."""
-        # Read SOUL.md file
-        # Parse YAML frontmatter
-        pass
+    def list_bots_with_souls(self) -> List[str]:
+        """List all bots that have SOUL.md files."""
+        bots = []
+        
+        if self.bots_dir.exists():
+            for bot_dir in self.bots_dir.iterdir():
+                if bot_dir.is_dir():
+                    soul_file = bot_dir / "SOUL.md"
+                    if soul_file.exists():
+                        bots.append(bot_dir.name)
+        
+        return sorted(bots)
+```
+
+**Integration with ContextBuilder:**
+
+```python
+# nanobot/agent/context.py (modified _load_bootstrap_files)
+
+def _load_bootstrap_files(self, bot_name: str = None) -> str:
+    """Load bootstrap files with bot-specific SOUL if available."""
+    parts = []
     
-    def _save_soul(self):
-        """Save updated SOUL.md."""
-        # Write changes back to file
-        pass
+    for filename in self.BOOTSTRAP_FILES:
+        # Special handling for SOUL.md with bot-specific support
+        if filename == "SOUL.md":
+            if bot_name:
+                # Try to load bot-specific SOUL
+                soul_content = self.soul_manager.get_bot_soul(bot_name)
+                if soul_content:
+                    parts.append(f"## SOUL.md (Bot: {bot_name})\n\n{soul_content}")
+                    continue
+            
+            # Fall back to workspace SOUL.md
+            file_path = self.workspace / filename
+            if file_path.exists():
+                content = file_path.read_text(encoding="utf-8")
+                parts.append(f"## {filename}\n\n{content}")
+        else:
+            # Other bootstrap files
+            file_path = self.workspace / filename
+            if file_path.exists():
+                content = file_path.read_text(encoding="utf-8")
+                parts.append(f"## {filename}\n\n{content}")
+    
+    return "\n\n".join(parts) if parts else ""
+```
+
+**Integration with OnboardingWizard:**
+
+After theme and team are selected, apply theme to all team members:
+
+```python
+def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
+    """Apply selected theme to team in workspace."""
+    soul_manager = SoulManager(workspace_path)
+    theme = get_theme(self.selected_theme)
+    
+    if theme:
+        results = soul_manager.apply_theme_to_team(
+            theme,
+            self.recommended_team,
+            force=True
+        )
+        
+        # Log results
+        successful = sum(1 for v in results.values() if v)
+        console.print(
+            f"[green]✓ Applied theme to {successful}/{len(self.recommended_team)} bots[/green]"
+        )
 ```
 
 **Acceptance Criteria:**
-- Theme application updates SOUL.md
-- SOUL.md maintains backward compatibility
-- Users can see current theme
-- Manual customization possible
-- Theme switching preserves other user settings
+- ✅ SoulManager handles all 6 bots (not just nanobot)
+- ✅ Each bot gets `bots/{name}/SOUL.md` file
+- ✅ Theme application updates all team members' SOUL files atomically
+- ✅ ContextBuilder loads bot-specific SOUL when bot is activated
+- ✅ SOUL.md maintains backward compatibility (workspace/SOUL.md fallback)
+- ✅ Users can manually edit SOUL files (persist until theme reapplied)
+- ✅ Theme switching updates all bot personalities
+- ✅ Each bot has distinct role-specific personality in system prompt
 
 ---
 
 ### Phase 2 Success Metrics
 - ✅ 5 themes fully defined and working
 - ✅ Onboarding wizard completes successfully
-- ✅ SOUL.md integration functional
-- ✅ Theme switching works without data loss
-- ✅ User can select theme or manually customize
+- ✅ SOUL.md integration functional for all 6 bots
+- ✅ Each bot has distinct personality in system prompt
+- ✅ Theme switching updates all team members' personalities atomically
+- ✅ Per-bot SOUL.md files created in `workspace/bots/{name}/`
+- ✅ ContextBuilder loads bot-specific personality when bot activated
+- ✅ Backward compatibility maintained with workspace/SOUL.md fallback
+- ✅ User can select theme or manually customize bot personalities
 
 ---
 
