@@ -175,8 +175,8 @@ class WorkLog:
     coordinator: Optional[str] = None  # "nanobot" if in coordinator mode
     
     def add_entry(self, level: LogLevel, category: str, message: str,
-                  details: dict = None, confidence: float = None,
-                  duration_ms: int = None, bot_name: str = "nanobot",
+                  details: Optional[dict] = None, confidence: Optional[float] = None,
+                  duration_ms: Optional[int] = None, bot_name: str = "nanobot",
                   triggered_by: str = "user") -> WorkLogEntry:
         """Add a work log entry.
         
@@ -214,9 +214,9 @@ class WorkLog:
         return entry
     
     def add_tool_entry(self, tool_name: str, tool_input: dict,
-                      tool_output: Any, tool_status: str,
-                      duration_ms: int, message: str = None,
-                      bot_name: str = "nanobot") -> WorkLogEntry:
+                       tool_output: Any, tool_status: str,
+                       duration_ms: int, message: Optional[str] = None,
+                       bot_name: str = "nanobot") -> WorkLogEntry:
         """Add a tool execution entry.
         
         Args:
@@ -254,7 +254,7 @@ class WorkLog:
     
     def add_bot_message(self, bot_name: str, message: str,
                        response_to: Optional[int] = None,
-                       mentions: List[str] = None) -> WorkLogEntry:
+                       mentions: Optional[List[str]] = None) -> WorkLogEntry:
         """Add a bot-to-bot conversation entry (multi-agent).
         
         Args:

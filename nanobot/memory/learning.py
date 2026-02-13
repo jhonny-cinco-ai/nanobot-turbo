@@ -5,6 +5,7 @@ This module implements Phase 6 of the memory proposal:
 - Learning creation and storage
 - Relevance decay with re-boost on access
 - Contradiction detection
+- Auto-queuing to Learning Exchange for insights with confidence >= 0.85
 """
 
 import json
@@ -57,6 +58,14 @@ FEEDBACK_PATTERNS = {
         r"(?i)^bad",
         r"(?i)^terrible",
     ],
+}
+
+# Mapping feedback types to InsightCategory for Learning Exchange
+FEEDBACK_TO_INSIGHT_CATEGORY = {
+    "correction": "error_pattern",       # Common errors and solutions
+    "preference": "user_preference",     # User likes certain approaches
+    "positive": "reasoning_pattern",     # Successful reasoning approaches
+    "negative": "error_pattern",         # Common errors/anti-patterns
 }
 
 
@@ -138,6 +147,8 @@ class LearningManager:
         embedding_provider: Optional[EmbeddingProvider] = None,
         decay_days: int = 14,
         decay_rate: float = 0.05,
+        exchange=None,
+        bot_name: str = "default",
     ):
         """
         Initialize learning manager.
@@ -147,18 +158,25 @@ class LearningManager:
             embedding_provider: Optional for semantic similarity
             decay_days: Half-life for relevance decay (default 14)
             decay_rate: Daily decay rate (default 0.05 = 5%)
+            exchange: Optional LearningExchange instance for auto-queuing high-confidence insights
+            bot_name: Name of this bot instance (for Learning Exchange)
         """
         self.store = store
         self.embedding_provider = embedding_provider
         self.decay_days = decay_days
         self.decay_rate = decay_rate
         self.feedback_detector = FeedbackDetector()
+        self.exchange = exchange
+        self.bot_name = bot_name
         
-        logger.info(f"LearningManager initialized (decay: {decay_days} days)")
+        logger.info(f"LearningManager initialized (decay: {decay_days} days, bot: {bot_name})")
     
-    async def process_message(self, message: str, context: str = None) -> Optional[Learning]:
+    async def process_message(self, message: str, context: Optional[str] = None) -> Optional[Learning]:
         """
         Process a user message and create learning if feedback detected.
+        
+        High-confidence learnings (confidence >= 0.85) are automatically queued
+        to the Learning Exchange for distribution to other bots.
         
         Args:
             message: User message
@@ -179,14 +197,68 @@ class LearningManager:
         # Step 3: Check for contradictions
         await self._check_contradictions(learning)
         
-        # Step 4: Store
+        # Step 4: Store in Turbo Memory
         self.store.create_learning(learning)
         
         logger.info(f"Created learning from feedback: {learning.id} (type: {learning.source})")
         
+        # Step 5: Auto-queue to Learning Exchange if confidence >= 0.85 and exchange is available
+        if learning.confidence >= 0.85 and self.exchange:
+            await self._queue_to_exchange(learning, detection)
+        
         return learning
     
-    def _create_learning_from_detection(self, detection: dict, context: str = None) -> Learning:
+    async def _queue_to_exchange(self, learning: Learning, detection: dict) -> None:
+        """
+        Auto-queue high-confidence learning to Learning Exchange.
+        
+        Args:
+            learning: The created Learning object
+            detection: The detection result with feedback info
+        """
+        try:
+            # Import here to avoid circular imports
+            from nanobot.agent.learning_exchange import InsightCategory, ApplicabilityScope
+            
+            feedback_type = detection["type"]
+            category_str = self._map_feedback_type_to_category(feedback_type)
+            
+            # Map category string to enum (strings are like "user_preference", enums are like USER_PREFERENCE)
+            category_map = {
+                "user_preference": InsightCategory.USER_PREFERENCE,
+                "error_pattern": InsightCategory.ERROR_PATTERN,
+                "reasoning_pattern": InsightCategory.REASONING_PATTERN,
+                "tool_pattern": InsightCategory.TOOL_PATTERN,
+                "performance_tip": InsightCategory.PERFORMANCE_TIP,
+                "context_tip": InsightCategory.CONTEXT_TIP,
+                "workflow_tip": InsightCategory.WORKFLOW_TIP,
+                "integration_tip": InsightCategory.INTEGRATION_TIP,
+            }
+            category = category_map.get(category_str, InsightCategory.REASONING_PATTERN)
+            
+            # Queue the insight
+            title = f"{feedback_type.title()}: {learning.content[:50]}"
+            description = learning.recommendation or f"{feedback_type} feedback: {learning.content}"
+            
+            self.exchange.queue_insight(
+                category=category,
+                title=title,
+                description=description,
+                confidence=learning.confidence,
+                scope=ApplicabilityScope.GENERAL,
+                evidence={"learning_id": learning.id},
+                context={"sentiment": learning.sentiment, "source": "user_feedback"},
+            )
+            
+            logger.info(
+                f"Queued learning {learning.id} to exchange "
+                f"(type: {feedback_type}, confidence: {learning.confidence:.2f})"
+            )
+        except Exception as e:
+            # Non-blocking: log but don't fail
+            logger.warning(f"Failed to queue learning to exchange: {e}")
+    
+    def _create_learning_from_detection(self, detection: dict, context: Optional[str] = None) -> Learning:
         """Convert detection result to Learning object."""
         feedback_type = detection["type"]
         content = detection["content"]
@@ -231,6 +303,18 @@ class LearningManager:
             return "Continue this approach"
         else:
             return f"Note: {content}"
+    
+    def _map_feedback_type_to_category(self, feedback_type: str) -> str:
+        """
+        Map feedback type to InsightCategory for Learning Exchange.
+        
+        Args:
+            feedback_type: Type of feedback detected (correction, preference, etc.)
+            
+        Returns:
+            InsightCategory string value
+        """
+        return FEEDBACK_TO_INSIGHT_CATEGORY.get(feedback_type, "reasoning_pattern")
     
     async def _check_contradictions(self, new_learning: Learning) -> bool:
         """
@@ -358,7 +442,7 @@ class LearningManager:
         
         return learning
     
-    def get_relevant_learnings(self, topic: str = None, limit: int = 10) -> list[Learning]:
+    def get_relevant_learnings(self, topic: Optional[str] = None, limit: int = 10) -> list[Learning]:
         """
         Get most relevant learnings, optionally filtered by topic.
         
@@ -380,7 +464,27 @@ class LearningManager:
 def create_learning_manager(
     store: TurboMemoryStore,
     embedding_provider: Optional[EmbeddingProvider] = None,
+    exchange=None,
+    bot_name: str = "default",
     **kwargs
 ) -> LearningManager:
-    """Factory function to create LearningManager."""
-    return LearningManager(store, embedding_provider, **kwargs)
+    """
+    Factory function to create LearningManager.
+    
+    Args:
+        store: TurboMemoryStore instance
+        embedding_provider: Optional EmbeddingProvider
+        exchange: Optional LearningExchange instance for auto-queuing
+        bot_name: Name of this bot instance
+        **kwargs: Additional arguments passed to LearningManager
+        
+    Returns:
+        LearningManager instance
+    """
+    return LearningManager(
+        store, 
+        embedding_provider=embedding_provider,
+        exchange=exchange,
+        bot_name=bot_name,
+        **kwargs
+    )

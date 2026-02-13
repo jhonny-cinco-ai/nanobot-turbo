@@ -62,6 +62,8 @@ class AgentLoop:
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
+        self.workspace_id = str(workspace)  # For Learning Exchange
+        self.bot_name = "nanobot"  # Identity of this bot instance
         self.model = model or provider.get_default_model()
         self.max_iterations = max_iterations
         self.brave_api_key = brave_api_key
@@ -147,7 +149,20 @@ class AgentLoop:
                 embedding_provider=embedding_provider,
             )
             
-            # Initialize learning manager (Phase 6)
+            # Initialize Learning Exchange (Phase 6 persistence and distribution)
+            from nanobot.agent.learning_exchange import LearningExchange
+            
+            self.learning_exchange = LearningExchange(
+                bot_name=self.bot_name,
+                workspace_id=self.workspace_id,
+            )
+            
+            # Load any pending packages from previous sessions
+            pending_count = self.learning_exchange.load_pending_packages()
+            if pending_count > 0:
+                logger.info(f"Loaded {pending_count} pending learning packages from previous sessions")
+            
+            # Initialize learning manager (Phase 6) with Learning Exchange
             from nanobot.memory.learning import create_learning_manager
             from nanobot.memory.preferences import create_preferences_aggregator
             
@@ -156,6 +171,28 @@ class AgentLoop:
                 embedding_provider=embedding_provider,
                 decay_days=memory_config.learning.decay_days,
                 decay_rate=memory_config.learning.relevance_decay_rate,
+                exchange=self.learning_exchange,
+                bot_name=self.bot_name,
+            )
+            
+            # Register this bot to receive learning packages from the exchange
+            async def receive_distributed_learning(package):
+                """Callback to receive distributed learning packages."""
+                if self.learning_manager:
+                    learning = self.learning_exchange.receive_learning_package(
+                        package, self.memory_store
+                    )
+                    if learning:
+                        logger.debug(
+                            f"Received learning from exchange: {learning.id} "
+                            f"({package.category.value})" 
+                        )
+                    return learning is not None
+                return False
+            
+            self.learning_exchange.register_distribution_callback(
+                self.bot_name,
+                receive_distributed_learning
             )
             
             # Initialize preferences aggregator

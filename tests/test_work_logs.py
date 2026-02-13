@@ -1,11 +1,13 @@
 """Tests for the work logs system."""
 
+import json
 import pytest
+import sqlite3
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel
+from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel, WorkspaceType
 from nanobot.agent.work_log_manager import WorkLogManager, get_work_log_manager, reset_work_log_manager
 
 
@@ -643,6 +645,434 @@ class TestGlobalWorkLogManager:
         mgr2 = get_work_log_manager()
         
         assert mgr1 is not mgr2
+
+
+class TestMultiAgentFields:
+    """Test multi-agent extension fields in WorkLog and WorkLogEntry."""
+    
+    def test_work_log_entry_multi_agent_defaults(self):
+        """Test that multi-agent fields have correct defaults for single-bot."""
+        entry = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=1,
+            category="test",
+            message="Test message"
+        )
+        
+        assert entry.workspace_id == "default"
+        assert entry.workspace_type == WorkspaceType.OPEN
+        assert entry.participants == ["nanobot"]
+        assert entry.bot_name == "nanobot"
+        assert entry.bot_role == "primary"
+        assert entry.triggered_by == "user"
+        assert entry.coordinator_mode is False
+        assert entry.escalation is False
+        assert entry.mentions == []
+        assert entry.response_to is None
+        assert entry.shareable_insight is False
+        assert entry.insight_category is None
+    
+    def test_work_log_entry_with_workspace_context(self):
+        """Test creating entry with full workspace context."""
+        entry = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=1,
+            category="test",
+            message="Test message",
+            workspace_id="#project-refactor",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher", "coder"],
+            bot_name="researcher",
+            bot_role="specialist",
+            triggered_by="@nanobot"
+        )
+        
+        assert entry.workspace_id == "#project-refactor"
+        assert entry.workspace_type == WorkspaceType.PROJECT
+        assert entry.participants == ["nanobot", "researcher", "coder"]
+        assert entry.bot_name == "researcher"
+        assert entry.bot_role == "specialist"
+        assert entry.triggered_by == "@nanobot"
+    
+    def test_is_bot_conversation(self):
+        """Test detecting bot-to-bot communication."""
+        # User-triggered entry (not bot conversation)
+        entry1 = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=1,
+            category="test",
+            message="User query",
+            triggered_by="user"
+        )
+        assert entry1.is_bot_conversation() is False
+        
+        # Bot-triggered entry
+        entry2 = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=2,
+            category="test",
+            message="Researcher responding",
+            triggered_by="@researcher"
+        )
+        assert entry2.is_bot_conversation() is True
+        
+        # Coordinator mode entry
+        entry3 = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.COORDINATION,
+            step=3,
+            category="coordination",
+            message="Auto-delegating task",
+            coordinator_mode=True
+        )
+        assert entry3.is_bot_conversation() is True
+    
+    def test_is_multi_agent_entry(self):
+        """Test detecting multi-agent specific entries."""
+        # Single-bot entry (defaults)
+        entry1 = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=1,
+            category="test",
+            message="Test"
+        )
+        assert entry1.is_multi_agent_entry() is False
+        
+        # Multi-agent entry
+        entry2 = WorkLogEntry(
+            timestamp=datetime.now(),
+            level=LogLevel.INFO,
+            step=2,
+            category="test",
+            message="Test",
+            workspace_id="#project-alpha",
+            participants=["nanobot", "researcher"]
+        )
+        assert entry2.is_multi_agent_entry() is True
+    
+    def test_work_log_with_workspace(self):
+        """Test WorkLog with workspace context."""
+        log = WorkLog(
+            session_id="workspace-session",
+            query="Refactor auth module",
+            start_time=datetime.now(),
+            workspace_id="#project-refactor",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher", "coder"],
+            coordinator="nanobot"
+        )
+        
+        assert log.workspace_id == "#project-refactor"
+        assert log.workspace_type == WorkspaceType.PROJECT
+        assert log.coordinator == "nanobot"
+        assert "researcher" in log.participants
+    
+    def test_add_entry_inherits_workspace_context(self):
+        """Test that entries inherit workspace context from parent log."""
+        log = WorkLog(
+            session_id="test",
+            query="test",
+            start_time=datetime.now(),
+            workspace_id="#project-alpha",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "coder"],
+            coordinator="nanobot"
+        )
+        
+        entry = log.add_entry(
+            level=LogLevel.DECISION,
+            category="routing",
+            message="Delegating to coder",
+            bot_name="nanobot",
+            triggered_by="user"
+        )
+        
+        assert entry.workspace_id == "#project-alpha"
+        assert entry.workspace_type == WorkspaceType.PROJECT
+        assert "coder" in entry.participants
+        assert entry.coordinator_mode is True
+    
+    def test_add_bot_message_multi_agent(self):
+        """Test adding bot-to-bot messages."""
+        log = WorkLog(
+            session_id="test",
+            query="test",
+            start_time=datetime.now(),
+            workspace_id="#project-refactor",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher", "coder"],
+            coordinator="nanobot"
+        )
+        
+        # Nanobot delegates to researcher
+        entry = log.add_bot_message(
+            bot_name="nanobot",
+            message="@researcher Analyze auth security",
+            mentions=["@researcher"],
+            response_to=None
+        )
+        
+        assert entry.category == "bot_conversation"
+        assert "@researcher" in entry.mentions
+        assert entry.bot_name == "nanobot"
+        assert entry.triggered_by == "nanobot"
+        assert entry.coordinator_mode is True
+        
+        # Researcher responds
+        response = log.add_bot_message(
+            bot_name="researcher",
+            message="Found 2 security issues",
+            response_to=entry.step,
+            mentions=[]
+        )
+        
+        assert response.response_to == entry.step
+        assert response.bot_name == "researcher"
+    
+    def test_add_escalation(self):
+        """Test adding escalation entries."""
+        log = WorkLog(
+            session_id="test",
+            query="test",
+            start_time=datetime.now(),
+            workspace_id="#coordination-website",
+            workspace_type=WorkspaceType.COORDINATION,
+            participants=["nanobot", "researcher", "coder", "creative"],
+            coordinator="nanobot"
+        )
+        
+        entry = log.add_escalation(
+            reason="Design conflict between coder and creative",
+            bot_name="nanobot"
+        )
+        
+        assert entry.escalation is True
+        assert entry.coordinator_mode is True
+        assert entry.level == LogLevel.COORDINATION
+        assert entry.category == "escalation"
+    
+    def test_get_entries_by_bot(self):
+        """Test filtering entries by bot name."""
+        log = WorkLog(
+            session_id="test",
+            query="test",
+            start_time=datetime.now(),
+            workspace_id="#project-alpha",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher"]
+        )
+        
+        log.add_entry(LogLevel.INFO, "test", "Entry from nanobot", bot_name="nanobot")
+        log.add_entry(LogLevel.INFO, "test", "Entry from researcher", bot_name="researcher")
+        log.add_entry(LogLevel.INFO, "test", "Another from nanobot", bot_name="nanobot")
+        
+        nanobot_entries = log.get_entries_by_bot("nanobot")
+        researcher_entries = log.get_entries_by_bot("researcher")
+        
+        assert len(nanobot_entries) == 2
+        assert len(researcher_entries) == 1
+    
+    def test_get_bot_conversations(self):
+        """Test getting bot-to-bot conversation entries."""
+        log = WorkLog(
+            session_id="test",
+            query="test",
+            start_time=datetime.now(),
+            workspace_id="#project-alpha",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher"],
+            coordinator="nanobot"
+        )
+        
+        log.add_entry(LogLevel.INFO, "test", "User message", triggered_by="user")
+        log.add_bot_message("nanobot", "@researcher Check this", mentions=["@researcher"])
+        log.add_bot_message("researcher", "Got it", response_to=2)
+        
+        conversations = log.get_bot_conversations()
+        
+        # When coordinator_mode is active, all entries are considered bot conversations
+        # In this case: user message (coordinator active), nanobot message, researcher message
+        assert len(conversations) == 3
+        
+        # Verify the actual bot-to-bot messages
+        bot_messages = [e for e in conversations if e.category == "bot_conversation"]
+        assert len(bot_messages) == 2
+    
+    def test_to_dict_includes_multi_agent_fields(self):
+        """Test that to_dict includes multi-agent fields."""
+        entry = WorkLogEntry(
+            timestamp=datetime(2026, 2, 12, 10, 0, 0),
+            level=LogLevel.DECISION,
+            step=1,
+            category="routing",
+            message="Delegated to specialist",
+            workspace_id="#project-alpha",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher"],
+            bot_name="researcher",
+            bot_role="specialist",
+            triggered_by="@nanobot",
+            coordinator_mode=True,
+            mentions=["@researcher"],
+            shareable_insight=True,
+            insight_category="task_delegation"
+        )
+        
+        data = entry.to_dict()
+        
+        assert data["workspace_id"] == "#project-alpha"
+        assert data["workspace_type"] == "project"
+        assert data["participants"] == ["nanobot", "researcher"]
+        assert data["bot_name"] == "researcher"
+        assert data["bot_role"] == "specialist"
+        assert data["triggered_by"] == "@nanobot"
+        assert data["coordinator_mode"] is True
+        assert data["mentions"] == ["@researcher"]
+        assert data["shareable_insight"] is True
+        assert data["insight_category"] == "task_delegation"
+
+
+class TestMultiAgentPersistence:
+    """Test persistence of multi-agent work logs."""
+    
+    @pytest.fixture
+    def temp_db(self):
+        """Create a temporary database for testing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_multi_agent.db"
+            yield db_path
+    
+    @pytest.fixture
+    def manager(self, temp_db):
+        """Create a WorkLogManager with temp database."""
+        reset_work_log_manager()
+        mgr = WorkLogManager()
+        mgr.db_path = temp_db
+        mgr._init_db()
+        return mgr
+    
+    def test_save_and_load_multi_agent_log(self, manager):
+        """Test saving and loading a multi-agent log."""
+        # Create log with workspace context
+        log = WorkLog(
+            session_id="multi-agent-test",
+            query="Build website",
+            start_time=datetime.now(),
+            workspace_id="#project-website",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher", "coder", "creative"],
+            coordinator="nanobot"
+        )
+        
+        # Add entries with different bots
+        log.add_entry(LogLevel.THINKING, "coordination", "Planning website build", bot_name="nanobot")
+        log.add_bot_message("nanobot", "@researcher Analyze competitors", mentions=["@researcher"])
+        log.add_bot_message("researcher", "Found 3 competitors with React", response_to=2)
+        log.add_entry(LogLevel.DECISION, "coordination", "Choosing React stack", bot_name="nanobot", confidence=0.9)
+        
+        # Save to DB via manager - first create work_logs row with multi-agent fields
+        manager.current_log = log
+        with sqlite3.connect(manager.db_path) as conn:
+            conn.execute(
+                """INSERT INTO work_logs 
+                   (id, session_id, query, start_time, workspace_id, workspace_type, participants_json, coordinator) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (log.session_id, log.session_id, log.query, log.start_time.isoformat(),
+                 log.workspace_id, log.workspace_type.value, 
+                 json.dumps(log.participants), log.coordinator)
+            )
+        
+        for entry in log.entries:
+            manager._save_entry(entry)
+        
+        log.end_time = datetime.now()
+        log.final_output = "Website plan complete"
+        
+        with sqlite3.connect(manager.db_path) as conn:
+            conn.execute(
+                "UPDATE work_logs SET end_time = ?, final_output = ?, entry_count = ? WHERE session_id = ?",
+                (log.end_time.isoformat(), log.final_output, len(log.entries), log.session_id)
+            )
+        
+        # Load back
+        loaded = manager.get_log_by_session("multi-agent-test")
+        
+        assert loaded is not None
+        assert loaded.workspace_id == "#project-website"
+        assert loaded.workspace_type == WorkspaceType.PROJECT
+        assert loaded.coordinator == "nanobot"
+        assert "researcher" in loaded.participants
+        assert len(loaded.entries) == 4
+        
+        # Check entry multi-agent fields
+        entry = loaded.entries[1]  # Bot message
+        assert entry.category == "bot_conversation"
+        assert entry.bot_name == "nanobot"
+        assert "@researcher" in entry.mentions
+        
+        # Check coordinator mode preserved
+        coord_entry = loaded.entries[3]
+        assert coord_entry.coordinator_mode is True
+        assert coord_entry.confidence == 0.9
+    
+    def test_get_last_log_multi_agent(self, manager):
+        """Test retrieving last log preserves multi-agent fields."""
+        # Create first session (single-bot)
+        log1 = WorkLog(
+            session_id="single-bot",
+            query="Simple query",
+            start_time=datetime.now()
+        )
+        log1.add_entry(LogLevel.INFO, "test", "Test")
+        
+        # Use start_session to properly create DB entry
+        manager.start_session("single-bot", "Simple query")
+        manager.current_log = log1
+        for entry in log1.entries:
+            manager._save_entry(entry)
+        manager.end_session("Done")
+        
+        # Create second session (multi-agent)
+        log2 = WorkLog(
+            session_id="multi-agent",
+            query="Complex project",
+            start_time=datetime.now(),
+            workspace_id="#project-alpha",
+            workspace_type=WorkspaceType.PROJECT,
+            participants=["nanobot", "researcher"],
+            coordinator="nanobot"
+        )
+        log2.add_entry(LogLevel.INFO, "test", "Multi-agent test")
+        
+        # Use start_session to properly create DB entry
+        manager.start_session("multi-agent", "Complex project")
+        manager.current_log = log2
+        
+        # Update work_logs with multi-agent fields
+        with sqlite3.connect(manager.db_path) as conn:
+            conn.execute(
+                """UPDATE work_logs 
+                   SET workspace_id = ?, workspace_type = ?, participants_json = ?, coordinator = ?
+                   WHERE session_id = ?""",
+                (log2.workspace_id, log2.workspace_type.value, 
+                 json.dumps(log2.participants), log2.coordinator, log2.session_id)
+            )
+        
+        for entry in log2.entries:
+            manager._save_entry(entry)
+        manager.end_session("Done")
+        
+        # Get last should be multi-agent
+        last = manager.get_last_log()
+        
+        assert last.session_id == "multi-agent"
+        assert last.workspace_id == "#project-alpha"
+        assert last.coordinator == "nanobot"
 
 
 if __name__ == "__main__":

@@ -596,7 +596,7 @@ def gateway(
             console.print("\nShutting down...")
             heartbeat.stop()
             cron.stop()
-            agent.stop()
+            await agent.stop()
             await channels.stop_all()
     
     asyncio.run(run())
@@ -757,9 +757,13 @@ def agent(
 @app.command("explain")
 def explain_last_decision(
     mode: str = typer.Option("detailed", "--mode", "-m",
-                            help="Display mode: summary, detailed, debug"),
+                            help="Display mode: summary, detailed, debug, coordination, conversations"),
     session: Optional[str] = typer.Option(None, "--session", "-s",
                                          help="Specific session ID to explain"),
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
+                                           help="Workspace to explain (#general, #project-alpha)"),
+    bot: Optional[str] = typer.Option(None, "--bot", "-b",
+                                     help="Filter by bot (@researcher, @coder)"),
 ):
     """
     Show how nanobot made its last decision.
@@ -771,17 +775,29 @@ def explain_last_decision(
     - Confidence scores and timing information
     
     Examples:
-        nanobot explain                    # Explain the last interaction
-        nanobot explain --mode summary     # Brief summary only
-        nanobot explain --mode debug       # Full technical details
-        nanobot explain --session abc123   # Explain a specific session
+        nanobot explain                              # Explain the last interaction
+        nanobot explain --mode summary               # Brief summary only
+        nanobot explain --mode debug                 # Full technical details
+        nanobot explain --session abc123             # Explain a specific session
+        nanobot explain -w #project-refactor         # Explain project workspace
+        nanobot explain -w #coordination-website     # See overnight coordination
+        nanobot explain --mode coordination          # Focus on coordinator decisions
+        nanobot explain -b @researcher               # See what researcher did
     """
     from nanobot.agent.work_log_manager import get_work_log_manager
+    from nanobot.agent.work_log import LogLevel
     
     manager = get_work_log_manager()
     
     # Get the appropriate log
-    if session:
+    if workspace:
+        logs = manager.get_logs_by_workspace(workspace, limit=1)
+        log = logs[0] if logs else None
+        if not log:
+            console.print(f"[yellow]No work log found for workspace: {workspace}[/yellow]")
+            console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
+            raise typer.Exit(1)
+    elif session:
         log = manager.get_log_by_session(session)
         if not log:
             console.print(f"[yellow]No work log found for session: {session}[/yellow]")
@@ -794,6 +810,35 @@ def explain_last_decision(
             console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
             raise typer.Exit(1)
     
+    # Filter by bot if specified
+    if bot:
+        entries = [e for e in log.entries if e.bot_name == bot.lstrip("@")]
+        if not entries:
+            console.print(f"[yellow]No entries found for bot: {bot}[/yellow]")
+            raise typer.Exit(1)
+        console.print(f"[cyan]Work log for {log.workspace_id} - showing entries from {bot}[/cyan]\n")
+    else:
+        entries = log.entries
+        if log.workspace_id != "default":
+            console.print(f"[cyan]Work log for {log.workspace_id} ({log.workspace_type.value})[/cyan]\n")
+    
+    # Handle special display modes
+    if mode == "coordination":
+        coord_entries = [e for e in entries if e.coordinator_mode]
+        if not coord_entries:
+            console.print("[yellow]No coordinator mode entries found.[/yellow]")
+            raise typer.Exit(1)
+        _print_coordination_summary(log, coord_entries)
+        return
+    
+    if mode == "conversations":
+        convo_entries = [e for e in entries if e.category == "bot_conversation"]
+        if not convo_entries:
+            console.print("[yellow]No bot conversations found.[/yellow]")
+            raise typer.Exit(1)
+        _print_bot_conversations(log, convo_entries)
+        return
+    
     # Display the formatted log
     formatted = manager.get_formatted_log(mode)
     console.print(formatted)
@@ -803,6 +848,8 @@ def explain_last_decision(
 def how_did_you_decide(
     query: str = typer.Argument(..., help="What to search for (e.g., 'routing', 'memory', 'web_search')"),
     limit: int = typer.Option(5, "--limit", "-n", help="Maximum number of results to show"),
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
+                                           help="Search in specific workspace"),
 ):
     """
     Search work logs for specific decisions or events.
@@ -814,33 +861,44 @@ def how_did_you_decide(
     - Any errors or warnings
     
     Examples:
-        nanobot how "routing"              # Find routing decisions
-        nanobot how "web_search"           # Find web search tool calls
-        nanobot how "memory"               # Find memory retrievals
-        nanobot how "error"                # Find errors
-        nanobot how "claude"               # Find mentions of Claude model
+        nanobot how "routing"                  # Find routing decisions
+        nanobot how "web_search"               # Find web search tool calls
+        nanobot how "memory"                   # Find memory retrievals
+        nanobot how "error"                    # Find errors
+        nanobot how "claude"                   # Find mentions of Claude model
+        nanobot how "why did you escalate" -w #coordination-website
+        nanobot how "what did @researcher find"
     """
     from nanobot.agent.work_log_manager import get_work_log_manager
     
     manager = get_work_log_manager()
-    log = manager.get_last_log()
     
-    if not log:
-        console.print("[yellow]No work log found.[/yellow]")
-        console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
-        raise typer.Exit(1)
+    # Get logs to search
+    if workspace:
+        logs = manager.get_logs_by_workspace(workspace, limit=10)
+        if not logs:
+            console.print(f"[yellow]No work logs found for workspace: {workspace}[/yellow]")
+            raise typer.Exit(1)
+    else:
+        log = manager.get_last_log()
+        if not log:
+            console.print("[yellow]No work log found.[/yellow]")
+            console.print("[dim]Tip: Use 'nanobot agent' first to generate a work log.[/dim]")
+            raise typer.Exit(1)
+        logs = [log]
     
-    # Search for matching entries
+    # Search for matching entries across all logs
     query_lower = query.lower()
     matches = []
     
-    for entry in log.entries:
-        # Search in message, category, tool name, and details
-        if (query_lower in entry.message.lower() or
-            query_lower in entry.category.lower() or
-            (entry.tool_name and query_lower in entry.tool_name.lower()) or
-            query_lower in str(entry.details).lower()):
-            matches.append(entry)
+    for log in logs:
+        for entry in log.entries:
+            # Search in message, category, tool name, and details
+            if (query_lower in entry.message.lower() or
+                query_lower in entry.category.lower() or
+                (entry.tool_name and query_lower in entry.tool_name.lower()) or
+                query_lower in str(entry.details).lower()):
+                matches.append((log.workspace_id, entry))
     
     if not matches:
         console.print(f"[yellow]No entries found matching '{query}'[/yellow]")
@@ -850,10 +908,19 @@ def how_did_you_decide(
     # Display results
     console.print(f"[cyan]Found {len(matches)} entries matching '{query}':[/cyan]\n")
     
-    for i, entry in enumerate(matches[:limit], 1):
+    for i, (workspace_id, entry) in enumerate(matches[:limit], 1):
         icon = _get_work_log_icon(entry.level)
-        console.print(f"{icon} [bold]Step {entry.step}[/bold] - {entry.category}")
-        console.print(f"   {entry.message}")
+        
+        # Show workspace for multi-workspace searches
+        if len(logs) > 1:
+            console.print(f"[dim]{workspace_id}[/dim] - Step {entry.step} - {entry.category}")
+        else:
+            console.print(f"{icon} [bold]Step {entry.step}[/bold] - {entry.category}")
+        
+        if entry.bot_name != "nanobot":
+            console.print(f"   [cyan]@{entry.bot_name}:[/cyan] {entry.message}")
+        else:
+            console.print(f"   {entry.message}")
         
         if entry.confidence is not None:
             confidence_color = "green" if entry.confidence >= 0.8 else "yellow" if entry.confidence >= 0.5 else "red"
@@ -872,6 +939,53 @@ def how_did_you_decide(
         console.print(f"[dim]... and {len(matches) - limit} more entries (use --limit to show more)[/dim]")
 
 
+@app.command("workspace-logs")
+def list_workspace_logs(
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
+                                           help="Filter by workspace"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Number of logs to show"),
+):
+    """
+    List recent work logs across workspaces.
+    
+    Examples:
+        nanobot workspace-logs              # Show all recent logs
+        nanobot workspace-logs -w #general  # Show only #general logs
+        nanobot workspace-logs -n 20        # Show last 20 logs
+    """
+    from nanobot.agent.work_log_manager import get_work_log_manager
+    
+    manager = get_work_log_manager()
+    logs = manager.get_all_logs(limit=limit, workspace=workspace)
+    
+    if not logs:
+        workspace_msg = f" for workspace {workspace}" if workspace else ""
+        console.print(f"[yellow]No work logs found{workspace_msg}.[/yellow]")
+        console.print("[dim]Tip: Use 'nanobot agent' first to generate work logs.[/dim]")
+        raise typer.Exit(1)
+    
+    table = Table(title="Recent Work Logs")
+    table.add_column("Workspace", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Bots", style="yellow")
+    table.add_column("Duration", style="dim")
+    table.add_column("Status", style="blue")
+    
+    for log in logs:
+        duration = "In Progress" if not log.end_time else f"{(log.end_time - log.start_time).seconds}s"
+        status = "🟢 Complete" if log.end_time else "🟡 Active"
+        
+        table.add_row(
+            log.workspace_id,
+            log.workspace_type.value,
+            ", ".join(log.participants[:3]),  # Show first 3 bots
+            duration,
+            status
+        )
+    
+    console.print(table)
+
+
 def _get_work_log_icon(level) -> str:
     """Get emoji icon for work log level."""
     from nanobot.agent.work_log import LogLevel
@@ -887,6 +1001,149 @@ def _get_work_log_icon(level) -> str:
         LogLevel.TOOL: "🔧"
     }
     return icons.get(level, "•")
+
+
+def _print_coordination_summary(log, entries):
+    """Print a rich summary of coordinator mode decisions."""
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.text import Text
+    
+    # Header with workspace context
+    header = Text()
+    header.append("🤖 Coordinator Mode Summary", style="bold cyan")
+    header.append(f" - {log.workspace_id}", style="bold")
+    console.print(header)
+    console.print()
+    
+    # Workspace Info Panel
+    info_lines = [
+        f"[cyan]Workspace:[/cyan] {log.workspace_id} ({log.workspace_type.value})",
+        f"[cyan]Coordinator:[/cyan] {log.coordinator}",
+        f"[cyan]Participants:[/cyan] {', '.join(log.participants)}",
+        f"[cyan]Total Coordinator Entries:[/cyan] {len(entries)}"
+    ]
+    console.print(Panel("\n".join(info_lines), title="[bold]Context[/bold]", border_style="blue"))
+    console.print()
+    
+    # Separate by category
+    bot_delegations = [e for e in entries if e.category == "bot_conversation"]
+    decisions = [e for e in entries if e.level.value == "decision"]
+    escalations = [e for e in entries if e.escalation]
+    
+    # Bot Delegations Table
+    if bot_delegations:
+        delegation_table = Table(title="Bot Delegations & Handoffs", box=None)
+        delegation_table.add_column("Step", style="dim", width=5)
+        delegation_table.add_column("From", style="yellow", width=12)
+        delegation_table.add_column("To", style="cyan", width=12)
+        delegation_table.add_column("Task", style="white")
+        
+        for entry in bot_delegations:
+            mentions = ", ".join([m.lstrip("@") for m in entry.mentions]) if entry.mentions else "-"
+            delegation_table.add_row(
+                str(entry.step),
+                entry.bot_name,
+                mentions,
+                entry.message[:50] + "..." if len(entry.message) > 50 else entry.message,
+            )
+        
+        console.print(delegation_table)
+        console.print()
+    
+    # Decisions Table
+    if decisions:
+        decision_table = Table(title="Autonomous Decisions", box=None)
+        decision_table.add_column("Step", style="dim", width=5)
+        decision_table.add_column("Bot", style="cyan", width=12)
+        decision_table.add_column("Decision", style="white")
+        decision_table.add_column("Confidence", style="green", width=12)
+        
+        for entry in decisions:
+            conf_color = "green" if entry.confidence and entry.confidence >= 0.8 else "yellow" if entry.confidence and entry.confidence >= 0.5 else "red"
+            confidence_str = f"[{conf_color}]{entry.confidence:.0%}[/{conf_color}]" if entry.confidence else "-"
+            decision_table.add_row(
+                str(entry.step),
+                entry.bot_name,
+                entry.message[:50] + "..." if len(entry.message) > 50 else entry.message,
+                confidence_str
+            )
+        
+        console.print(decision_table)
+        console.print()
+    
+    # Escalations Alert
+    if escalations:
+        esc_panel_lines = []
+        for esc in escalations:
+            esc_panel_lines.append(f"[red]Step {esc.step}:[/red] {esc.message}")
+        
+        console.print(Panel(
+            "\n".join(esc_panel_lines),
+            title="[bold red]⚠️  Escalations Requiring User Input[/bold red]",
+            border_style="red"
+        ))
+        console.print()
+    
+    # Summary Stats
+    stats_text = Text()
+    stats_text.append(f"Total Actions: {len(entries)}", style="dim")
+    stats_text.append(f" | Delegations: {len(bot_delegations)}", style="yellow")
+    stats_text.append(f" | Decisions: {len(decisions)}", style="cyan")
+    stats_text.append(f" | Escalations: {len(escalations)}", style="red" if escalations else "green")
+    console.print(stats_text)
+
+
+def _print_bot_conversations(log, entries):
+    """Print bot-to-bot conversation threading visualization."""
+    from rich.text import Text
+    
+    console.print(f"[bold cyan]💬 Bot Conversation Threads - {log.workspace_id}[/bold cyan]\n")
+    
+    # Build conversation threads (response_to chains)
+    threads = {}
+    standalone = []
+    
+    for entry in entries:
+        if entry.category == "bot_conversation":
+            if entry.response_to:
+                # Part of a thread
+                if entry.response_to not in threads:
+                    threads[entry.response_to] = []
+                threads[entry.response_to].append(entry)
+            else:
+                # Standalone message or thread start
+                if entry.step not in threads:
+                    standalone.append(entry)
+    
+    # Display threads
+    thread_num = 1
+    for root_step in sorted(threads.keys()):
+        root_msg = next((e for e in entries if e.step == root_step), None)
+        if not root_msg:
+            continue
+        
+        console.print(f"[bold yellow]Thread {thread_num}:[/bold yellow]")
+        
+        # Initial message
+        console.print(f"  [{root_step}] [cyan]@{root_msg.bot_name}[/cyan]: {root_msg.message[:70]}")
+        
+        # Responses
+        for response in threads[root_step]:
+            indent = "      " if response.response_to == root_step else "    "
+            mentions_str = f" (→ {', '.join([m.lstrip('@') for m in response.mentions])})" if response.mentions else ""
+            console.print(f"{indent}↳ [{response.step}] [cyan]@{response.bot_name}[/cyan]: {response.message[:65]}{mentions_str}")
+        
+        console.print()
+        thread_num += 1
+    
+    # Standalone messages
+    if standalone:
+        console.print(f"[bold yellow]Standalone Messages:[/bold yellow]")
+        for entry in standalone:
+            mentions_str = f" → {', '.join([m.lstrip('@') for m in entry.mentions])}" if entry.mentions else ""
+            console.print(f"  [{entry.step}] [cyan]@{entry.bot_name}[/cyan]: {entry.message[:70]}{mentions_str}")
+        console.print()
 
 
 # ============================================================================
@@ -1475,14 +1732,15 @@ def routing_analytics():
     
     # Calculate blended cost vs using most expensive model
     blended_cost = 0
+    tiers_dict = config.routing.tiers.model_dump()
     for tier_name, count in tier_counts.items():
-        tier_config = config.routing.tiers.get(tier_name)
+        tier_config = tiers_dict.get(tier_name)
         if tier_config:
             pct = count / total
-            blended_cost += pct * tier_config.cost_per_mtok
+            blended_cost += pct * tier_config.get('cost_per_mtok', 0)
     
     most_expensive = max(
-        (t.cost_per_mtok for t in config.routing.tiers.values()),
+        (tier.get('cost_per_mtok', 0) for tier in tiers_dict.values()),
         default=75.0
     )
     
