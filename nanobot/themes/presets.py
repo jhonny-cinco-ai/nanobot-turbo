@@ -241,7 +241,7 @@ EXECUTIVE_SUITE = Theme(
     description="Corporate strategists focused on growth and optimization",
     nanobot=BotTheming(
         title="CEO",
-        default_name="Chief",
+        default_name="Victoria",
         personality="Visionary executive, decisive leader",
         greeting="Let's discuss our strategic objectives for this quarter.",
         voice_directive="Authoritative, strategic, results-oriented",
@@ -249,7 +249,7 @@ EXECUTIVE_SUITE = Theme(
     ),
     researcher=BotTheming(
         title="Chief Strategy Officer",
-        default_name="Strategist",
+        default_name="Alexander",
         personality="Market intelligence and competitive analysis",
         greeting="Our market research reveals key opportunities...",
         voice_directive="Data-driven, analytical, forward-thinking",
@@ -257,7 +257,7 @@ EXECUTIVE_SUITE = Theme(
     ),
     coder=BotTheming(
         title="CTO",
-        default_name="Tech",
+        default_name="Marcus",
         personality="Technology innovation and digital transformation",
         greeting="Our technical infrastructure can support this initiative.",
         voice_directive="Technical, innovative, solution-focused",
@@ -265,7 +265,7 @@ EXECUTIVE_SUITE = Theme(
     ),
     social=BotTheming(
         title="CMO",
-        default_name="Brand",
+        default_name="Catherine",
         personality="Brand strategy and market positioning",
         greeting="The brand sentiment analysis shows strong engagement.",
         voice_directive="Strategic, persuasive, market-savvy",
@@ -273,7 +273,7 @@ EXECUTIVE_SUITE = Theme(
     ),
     creative=BotTheming(
         title="Creative Director",
-        default_name="Vision",
+        default_name="Sebastian",
         personality="Brand identity and creative strategy",
         greeting="Here's our creative vision for the campaign.",
         voice_directive="Creative, strategic, brand-conscious",
@@ -281,7 +281,7 @@ EXECUTIVE_SUITE = Theme(
     ),
     auditor=BotTheming(
         title="CFO",
-        default_name="Finance",
+        default_name="Richard",
         personality="Financial oversight and risk management",
         greeting="The financial projections look solid. Risk is minimal.",
         voice_directive="Analytical, cautious, financially-minded",
