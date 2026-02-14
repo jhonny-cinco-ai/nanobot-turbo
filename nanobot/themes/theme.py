@@ -11,7 +11,8 @@ class ThemeName(Enum):
     PIRATE_CREW = "pirate_crew"
     ROCK_BAND = "rock_band"
     SWAT_TEAM = "swat_team"
-    PROFESSIONAL = "professional"
+    FERAL_CLOWDER = "feral_clowder"
+    EXECUTIVE_SUITE = "executive_suite"
     SPACE_CREW = "space_crew"
 
 

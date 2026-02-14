@@ -2201,7 +2201,7 @@ def theme_list():
 
 @theme_app.command("set")
 def theme_set(
-    theme_name: str = typer.Argument(..., help="Theme name (pirate_crew, rock_band, swat_team, professional, space_crew)"),
+    theme_name: str = typer.Argument(..., help="Theme name (pirate_crew, rock_band, swat_team, feral_clowder, executive_suite, space_crew)"),
 ):
     """Set the crew theme."""
     from nanobot.themes import get_theme, ThemeManager

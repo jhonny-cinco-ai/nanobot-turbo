@@ -13,7 +13,7 @@ class ThemeManager:
         """Initialize theme manager.
 
         Args:
-            default_theme: Default theme name (pirate_crew, rock_band, swat_team, professional, space_crew)
+            default_theme: Default theme name (pirate_crew, rock_band, swat_team, feral_clowder, executive_suite, space_crew)
         """
         self.current_theme: Optional[Theme] = get_theme(default_theme)
         if self.current_theme is None:
