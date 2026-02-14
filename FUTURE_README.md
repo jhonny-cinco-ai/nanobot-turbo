@@ -447,22 +447,7 @@ Each Nanofolks crew has 6 bots:
 | **Creative** (@creative) | Creative | Brainstorms, designs, creates |
 | **Auditor** (@auditor) | Quality | Reviews, validates, tests |
 
-## Add Your API Key
-
-After onboarding, add your API key to `~/.nanobot/config.json`:
-
-```json
-{
-  "providers": {
-    "openrouter": {
-      "apiKey": "sk-or-v1-xxx"
-    }
-  }
-}
-```
-
-> [!TIP]
-> Get API keys from: [OpenRouter](https://openrouter.ai/keys), [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), etc.
+That's it! Your crew is ready to go!
 
 ## Start Chatting
 
