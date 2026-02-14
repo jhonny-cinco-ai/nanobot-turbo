@@ -1,6 +1,6 @@
 <div align="center">
   <img src="nanobot_logo.png" alt="Nanofolks" width="500">
-  <h1>Nanofolks — Your crew's already on it.</h1>
+  <h1>Nanofolks - Your crew's already on it.</h1>
   <p>
     <a href="https://pypi.org/project/nanobot-ai/"><img src="https://img.shields.io/pypi/v/nanobot-ai" alt="PyPI"></a>
     <a href="https://pepy.tech/project/nanobot-ai"><img src="https://static.pepy.tech/badge/nanobot-ai" alt="Downloads"></a>
@@ -10,11 +10,11 @@
   </p>
 </div>
 
-Nanofolks is a platform for building friendly AI crews — teams of characters that collaborate to help you think, create, plan, and build.
+Nanofolks is a platform for building friendly AI crews - teams of characters that collaborate to help you think, create, plan, and build.
 
 Instead of a single assistant, you work alongside a crew of AI specialists with distinct roles and personalities.
 
-From pirate captains to space explorers to creative misfits, your companions don't just respond — they work together.
+From pirate captains to space explorers to creative misfits, your companions don't just respond - they work together.
 
 Pick the kind of crew that fits you.
 
@@ -26,7 +26,7 @@ Pick the kind of crew that fits you.
 | 🎭 | **Characters** over tools |
 | 🤝 | **Companionship** over commands |
 
-> It's not just an assistant — it's a team.
+> It's not just an assistant - it's a team.
 
 One that can help with:
 
@@ -158,7 +158,7 @@ Skills extend Nanofolks' capabilities. Before any skill is used, it goes through
 
 ## 💭 Chain of Thought
 
-Nanofolks doesn't just respond — it thinks through problems.
+Nanofolks doesn't just respond - it thinks through problems.
 
 ### The Pattern
 
@@ -209,9 +209,9 @@ AI models have maximum context windows (typically 8K-200K tokens). Without manag
 
 | Mode | When to Use |
 |------|-------------|
-| **Summary** | Default — AI generates smart summaries |
-| **Token-Limit** | Emergency — preserves recent messages only |
-| **Off** | Manual — you control when to compact |
+| **Summary** | Default - AI generates smart summaries |
+| **Token-Limit** | Emergency - preserves recent messages only |
+| **Off** | Manual - you control when to compact |
 
 ### Large Output Handling
 
@@ -272,7 +272,7 @@ Typical usage (45% simple, 35% medium, 15% complex, 5% reasoning):
 
 ## 💓 Multi-Heartbeat System
 
-Nanofolks doesn't just wait for you to message it — it can proactively act.
+Nanofolks doesn't just wait for you to message it - it can proactively act.
 
 ### Scheduled Tasks (Cron)
 
@@ -317,10 +317,10 @@ Nanofolks maintains persistent logs of completed work for future reference.
 ### Why It Matters
 
 Work logs enable:
-- **Audit trail** — Know what was done and when
-- **Context continuity** — Pick up where you left off
-- **Reference** — Look back at previous solutions
-- **Learning** — Nanofolks improves from past work
+- **Audit trail** - Know what was done and when
+- **Context continuity** - Pick up where you left off
+- **Reference** - Look back at previous solutions
+- **Learning** - Nanofolks improves from past work
 
 ### Access
 
@@ -339,9 +339,9 @@ Nanofolks supports multiple AI characters working together as a crew.
 
 A "crew" is a group of 6 AI characters, each with:
 
-- **Personality** — How they respond (from the theme)
-- **Role** — What they're good at
-- **Expertise** — Specific knowledge domains
+- **Personality** - How they respond (from the theme)
+- **Role** - What they're good at
+- **Expertise** - Specific knowledge domains
 
 ### Your Team
 
