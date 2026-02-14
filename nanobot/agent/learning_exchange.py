@@ -524,10 +524,52 @@ class LearningExchange:
                 except Exception as e:
                     from loguru import logger
                     logger.warning(f"Failed to update distribution status: {e}")
+                
+                # Save to Turbo Memory for cross-bot learning
+                self._save_to_turbo_memory(package)
             else:
                 stats["skipped"].append(package.package_id)
         
         return stats
+    
+    def _save_to_turbo_memory(self, package: LearningPackage) -> None:
+        """Save distributed insight to Turbo Memory for persistent learning.
+        
+        Converts the LearningPackage to a Learning object and saves it
+        to Turbo Memory's learnings table.
+        
+        Args:
+            package: The distributed LearningPackage
+        """
+        try:
+            # Convert to Learning object for Turbo Memory
+            learning = LearningExchange.create_learning_from_package(package)
+            
+            if not learning:
+                return
+            
+            # Get Turbo Memory store
+            from nanobot.memory.store import TurboMemoryStore
+            from nanobot.config.loader import get_data_dir
+            
+            memory_store = TurboMemoryStore(get_data_dir())
+            
+            # Save as shared learning (not bot-specific)
+            # This allows all bots to benefit from distributed insights
+            learning_id = memory_store.create_learning(learning)
+            
+            from loguru import logger
+            logger.info(
+                f"Saved distributed insight to Turbo Memory: {learning.content[:50]}... "
+                f"(id: {learning_id})"
+            )
+            
+        except ImportError as e:
+            # Turbo Memory not available, skip
+            pass
+        except Exception as e:
+            from loguru import logger
+            logger.warning(f"Failed to save to Turbo Memory: {e}")
     
     def get_applicable_insights(self, workspace_id: Optional[str] = None,
                                bot_name: Optional[str] = None) -> List[LearningPackage]:
