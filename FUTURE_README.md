@@ -12,9 +12,11 @@
 
 Nanofolks is a platform for building friendly AI crews — teams of characters that collaborate to help you think, create, plan, and build.
 
-Instead of interacting with a single assistant, Nanofolks lets you work alongside a group of AI specialists with distinct roles and personalities.
+Instead of a single assistant, you work alongside a crew of AI specialists with distinct roles and personalities.
 
-From pirate crews to space teams to creative collectives, your AI companions don't just respond — they work together.
+From pirate captains to space explorers to creative misfits, your companions don't just respond — they work together.
+
+Pick the kind of crew that fits you.
 
 ## What Makes Nanofolks Different?
 
@@ -24,7 +26,7 @@ From pirate crews to space teams to creative collectives, your AI companions don
 | 🎭 | **Characters** over tools |
 | 🤝 | **Companionship** over commands |
 
-It's not just an assistant — it's a team.
+> It's not just an assistant — it's a team.
 
 One that can help with:
 
@@ -37,7 +39,7 @@ One that can help with:
 
 and so much more!
 
-## Built for Real Use
+## Built to work in real life.
 
 Nanofolks provides a flexible architecture for:
 
@@ -703,7 +705,7 @@ docker run -v ~/.nanobot:/root/.nanobot -p 18790:18790 nanofolks gateway
 
 Nanofolks isn't about replacing you.
 
-It's about surrounding you with the right help — in a way that feels natural, collaborative, and even a little fun.
+It's about expanding what you can do, by surrounding you with the right crew.
 
 We believe AI should:
 - Work *with* you, not *for* you
