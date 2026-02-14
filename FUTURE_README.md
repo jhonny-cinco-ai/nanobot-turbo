@@ -335,10 +335,24 @@ Nanofolks supports multiple AI characters working together as a crew.
 
 ### The Crew Concept
 
-A "crew" is a group of AI characters, each with:
-- **Personality** — How they respond
+A "crew" is a group of 6 AI characters, each with:
+
+- **Personality** — How they respond (from the theme)
 - **Role** — What they're good at
 - **Expertise** — Specific knowledge domains
+
+### Your Team
+
+Each Nanofolks crew has 6 bots:
+
+| Bot | Role | Expertise |
+|-----|------|-----------|
+| **Leader** (@nanobot) | Coordinates the crew | Planning, delegation, decision-making |
+| **Researcher** (@researcher) | Deep research | Analysis, information gathering |
+| **Coder** (@coder) | Technical implementation | Code, debugging, architecture |
+| **Social** (@social) | Community engagement | Communication, user relations |
+| **Creative** (@creative) | Creative work | Design, brainstorming, content |
+| **Auditor** (@auditor) | Quality review | Validation, compliance, testing |
 
 ### How It Works
 
@@ -414,21 +428,24 @@ This will guide you through:
 
 | Step | Description |
 |------|-------------|
-| **1. Crew Selection** | Choose from 6 themes |
-| **2. Provider Setup** | Select your AI provider |
-| **3. Model Selection** | Choose default model |
-| **4. Optional Features** | Smart routing, voice |
+| **1. Provider Setup** | Select your AI provider and API key |
+| **2. Model Selection** | Choose default model |
+| **3. Smart Routing** | Enable automatic model tier selection |
+| **4. Evolutionary Mode** | Optional self-improvement features |
+| **5. Team Theme** | Choose your crew's personality |
 
-### Crew Themes
+### Team Themes
 
 | Theme | Description |
 |-------|-------------|
-| **Generalists** | Balanced team for everyday tasks |
-| **Pirates** | Adventure-themed crew |
-| **Space Crew** | Sci-fi exploration team |
-| **Explorers** | Research-focused |
-| **Creatives** | Writing and art |
-| **Custom** | Build your own |
+| **Pirate Crew** | Bold adventurers exploring uncharted territories |
+| **Rock Band** | Creative team making hits together |
+| **SWAT Team** | Elite tactical unit handling critical operations |
+| **Feral Clowder** | Independent and resourceful team |
+| **Executive Suite** | Corporate leadership team |
+| **Space Crew** | Interstellar exploration team |
+
+Each theme comes with 6 unique bots:
 
 ## Add Your API Key
 
