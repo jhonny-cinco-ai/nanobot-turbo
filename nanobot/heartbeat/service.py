@@ -1,6 +1,20 @@
-"""Heartbeat service - periodic agent wake-up to check for tasks."""
+"""Heartbeat service - periodic agent wake-up to check for tasks.
+
+DEPRECATED: This module is deprecated in favor of the multi-bot heartbeat system.
+
+Use BotHeartbeatService (from nanobot.heartbeat.bot_heartbeat) instead.
+Each bot in the multi-bot architecture has its own heartbeat with:
+- HEARTBEAT.md support (OpenClaw-style)
+- Smart routing for model selection
+- Per-bot reasoning/CoT settings
+- Work log integration
+
+The old single-bot HeartbeatService is maintained for backward compatibility
+but will be removed in a future version.
+"""
 
 import asyncio
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
@@ -37,10 +51,30 @@ def _is_heartbeat_empty(content: str | None) -> bool:
 
 class HeartbeatService:
     """
-    Periodic heartbeat service that wakes the agent to check for tasks.
+    DEPRECATED: Periodic heartbeat service that wakes the agent to check for tasks.
     
-    The agent reads HEARTBEAT.md from the workspace and executes any
-    tasks listed there. If nothing needs attention, it replies HEARTBEAT_OK.
+    .. deprecated::
+        Use BotHeartbeatService instead.
+        
+        The multi-bot heartbeat system provides:
+        - HEARTBEAT.md support per bot (workspace/bots/{bot_name}/HEARTBEAT.md)
+        - Smart routing for model selection
+        - Per-bot reasoning/CoT settings
+        - Work log integration
+        
+        Example:
+            from nanobot.heartbeat.bot_heartbeat import BotHeartbeatService
+            
+            service = BotHeartbeatService(
+                bot_instance=bot,
+                config=HeartbeatConfig(bot_name="researcher", interval_s=3600),
+                workspace=workspace,
+                provider=provider,
+                routing_config=routing_config,
+                reasoning_config=reasoning_config,
+                work_log_manager=work_log_manager,
+            )
+            await service.start()
     """
     
     def __init__(
@@ -50,6 +84,12 @@ class HeartbeatService:
         interval_s: int = DEFAULT_HEARTBEAT_INTERVAL_S,
         enabled: bool = True,
     ):
+        warnings.warn(
+            "HeartbeatService is deprecated. Use BotHeartbeatService instead. "
+            "See nanobot.heartbeat.bot_heartbeat for the new multi-bot heartbeat system.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.workspace = workspace
         self.on_heartbeat = on_heartbeat
         self.interval_s = interval_s
