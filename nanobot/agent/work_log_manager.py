@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 
-from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel, WorkspaceType
+from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel, RoomType, WorkspaceType
 from nanobot.agent.learning_exchange import (
     LearningExchange, LearningPackage, InsightCategory, ApplicabilityScope
 )

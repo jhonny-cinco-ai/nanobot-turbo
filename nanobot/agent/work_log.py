@@ -28,12 +28,16 @@ class LogLevel(Enum):
     COORDINATION = "coordination"  # Coordinator mode decisions
 
 
-class WorkspaceType(Enum):
-    """Types of workspaces for multi-agent collaboration."""
+class RoomType(Enum):
+    """Types of rooms for multi-agent collaboration."""
     OPEN = "open"           # #general - casual, all bots
     PROJECT = "project"     # #project-alpha - focused team
     DIRECT = "direct"       # DM @researcher - 1-on-1
     COORDINATION = "coordination"  # nanobot manages autonomously
+
+
+# Legacy alias for backwards compatibility
+WorkspaceType = RoomType
 
 
 @dataclass
@@ -69,8 +73,8 @@ class WorkLogEntry:
     # ===============================
     
     # Workspace context (single-bot: uses "default")
-    workspace_id: str = "default"  # "#general", "#project-refactor", or "default"
-    workspace_type: WorkspaceType = WorkspaceType.OPEN
+    room_id: str = "default"  # "#general", "#project-refactor", or "default"
+    room_type: WorkspaceType = RoomType.OPEN
     participants: List[str] = field(default_factory=lambda: ["nanobot"])
     
     # Bot identity (single-bot: always "nanobot")
@@ -108,8 +112,8 @@ class WorkLogEntry:
         Returns True if any multi-agent fields are set to non-default values.
         """
         return (
-            self.workspace_id != "default" or
-            self.workspace_type != WorkspaceType.OPEN or
+            self.room_id != "default" or
+            self.room_type != RoomType.OPEN or
             len(self.participants) > 1 or
             self.bot_name != "nanobot" or
             self.bot_role != "primary" or
@@ -139,8 +143,8 @@ class WorkLogEntry:
             "tool_status": self.tool_status,
             "tool_error": self.tool_error,
             # Multi-agent fields
-            "workspace_id": self.workspace_id,
-            "workspace_type": self.workspace_type.value,
+            "room_id": self.room_id,
+            "room_type": self.room_type.value,
             "participants": self.participants,
             "bot_name": self.bot_name,
             "bot_role": self.bot_role,
@@ -169,8 +173,8 @@ class WorkLog:
     final_output: Optional[str] = None
     
     # Multi-agent context (single-bot: uses defaults)
-    workspace_id: str = "default"  # "#general", "#project-alpha", etc.
-    workspace_type: WorkspaceType = WorkspaceType.OPEN
+    room_id: str = "default"  # "#general", "#project-alpha", etc.
+    room_type: WorkspaceType = RoomType.OPEN
     participants: List[str] = field(default_factory=lambda: ["nanobot"])
     coordinator: Optional[str] = None  # "nanobot" if in coordinator mode
     
@@ -203,8 +207,8 @@ class WorkLog:
             confidence=confidence,
             duration_ms=duration_ms,
             # Multi-agent context from parent log
-            workspace_id=self.workspace_id,
-            workspace_type=self.workspace_type,
+            room_id=self.room_id,
+            room_type=self.room_type,
             participants=self.participants.copy(),
             bot_name=bot_name,
             triggered_by=triggered_by,
@@ -243,8 +247,8 @@ class WorkLog:
             tool_output=tool_output,
             tool_status=tool_status,
             # Multi-agent context from parent log
-            workspace_id=self.workspace_id,
-            workspace_type=self.workspace_type,
+            room_id=self.room_id,
+            room_type=self.room_type,
             participants=self.participants.copy(),
             bot_name=bot_name,
             coordinator_mode=(self.coordinator is not None)
@@ -277,8 +281,8 @@ class WorkLog:
             response_to=response_to,
             mentions=mentions or [],
             # Multi-agent context from parent log
-            workspace_id=self.workspace_id,
-            workspace_type=self.workspace_type,
+            room_id=self.room_id,
+            room_type=self.room_type,
             participants=self.participants.copy(),
             coordinator_mode=(self.coordinator is not None)
         )
@@ -306,8 +310,8 @@ class WorkLog:
             coordinator_mode=True,
             escalation=True,
             # Multi-agent context from parent log
-            workspace_id=self.workspace_id,
-            workspace_type=self.workspace_type,
+            room_id=self.room_id,
+            room_type=self.room_type,
             participants=self.participants.copy()
         )
         self.entries.append(entry)
@@ -404,8 +408,8 @@ class WorkLog:
             "entry_count": len(self.entries),
             "duration_ms": self.get_duration_ms(),
             # Multi-agent fields
-            "workspace_id": self.workspace_id,
-            "workspace_type": self.workspace_type.value,
+            "room_id": self.room_id,
+            "room_type": self.room_type.value,
             "participants": self.participants,
             "coordinator": self.coordinator,
             "entries": [e.to_dict() for e in self.entries]
