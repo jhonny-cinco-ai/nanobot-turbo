@@ -14,7 +14,6 @@ from .definitions import (
     list_available_bots,
 )
 from .room_manager import RoomManager, get_room_manager
-from .workspace_manager import WorkspaceManager, get_workspace_manager  # Legacy aliases
 from .implementations import (
     NanobotLeader,
     ResearcherBot,
@@ -53,12 +52,9 @@ from .checks import (
 __all__ = [
     # Base classes
     "SpecialistBot",
-    # Room management (new)
+    # Room management
     "RoomManager",
     "get_room_manager",
-    # Room management (legacy aliases)
-    "WorkspaceManager",
-    "get_workspace_manager",
     # Role definitions
     "RoleCard",
     "RoleCardDomain",
