@@ -10,11 +10,11 @@
   </p>
 </div>
 
-Nanofolks is a platform for building friendly AI crews - teams of characters that collaborate to help you think, create, plan, and build.
+Nanofolks is a platform for building friendly AI crews, teams of characters that collaborate to help you think, create, plan, and build.
 
 Instead of a single assistant, you work alongside a crew of AI specialists with distinct roles and personalities.
 
-From pirate captains to space explorers to creative misfits, your companions don't just respond - they work together.
+From pirate captains to space explorers to creative misfits, your companions don't just respond. They work together.
 
 Pick the kind of crew that fits you.
 
@@ -26,7 +26,7 @@ Pick the kind of crew that fits you.
 | 🎭 | **Characters** over tools |
 | 🤝 | **Companionship** over commands |
 
-> It's not just an assistant - it's a team.
+> It's not just an assistant. It's a team.
 
 One that can help with:
 
@@ -158,7 +158,7 @@ Skills extend Nanofolks' capabilities. Before any skill is used, it goes through
 
 ## 💭 Chain of Thought
 
-Nanofolks doesn't just respond - it thinks through problems.
+Nanofolks doesn't just respond. It thinks through problems.
 
 ### The Pattern
 
@@ -272,7 +272,7 @@ Typical usage (45% simple, 35% medium, 15% complex, 5% reasoning):
 
 ## 💓 Multi-Heartbeat System
 
-Nanofolks doesn't just wait for you to message it - it can proactively act.
+Nanofolks doesn't just wait for you to message it. It can proactively act.
 
 ### Scheduled Tasks (Cron)
 
