@@ -2559,54 +2559,54 @@ def bot_reset(
 app.add_typer(bot_app, name="bot")
 
 # ============================================================================
-# Workspace Commands
+# Room Commands
 # ============================================================================
 
-workspace_app = typer.Typer(help="Manage workspaces and bot invitations")
+room_app = typer.Typer(help="Manage rooms and bot invitations")
 
 
-@workspace_app.command("list")
-def workspace_list():
-    """List all workspaces."""
-    from nanobot.bots.workspace_manager import get_workspace_manager
+@room_app.command("list")
+def room_list():
+    """List all rooms."""
+    from nanobot.bots.room_manager import get_room_manager
     
-    manager = get_workspace_manager()
-    workspaces = manager.list_workspaces()
+    manager = get_room_manager()
+    rooms = manager.list_rooms()
     
-    if not workspaces:
-        console.print("[yellow]No workspaces found.[/yellow]")
+    if not rooms:
+        console.print("[yellow]No rooms found.[/yellow]")
         return
     
-    table = Table(title="Workspaces")
+    table = Table(title="Rooms")
     table.add_column("ID", style="cyan")
     table.add_column("Type", style="blue")
     table.add_column("Bots", style="green")
     table.add_column("Default", style="yellow")
     
-    for ws in workspaces:
-        is_default = "★" if ws["is_default"] else ""
-        bots = ", ".join(ws["participants"])
+    for room in rooms:
+        is_default = "★" if room["is_default"] else ""
+        bots = ", ".join(room["participants"])
         table.add_row(
-            ws["id"],
-            ws["type"],
+            room["id"],
+            room["type"],
             bots,
             is_default
         )
     
     console.print(table)
-    console.print("\n[dim]Use 'nanobot workspace create <name>' to create new workspace[/dim]")
+    console.print("\n[dim]Use 'nanobot room create <name>' to create new room[/dim]")
 
 
-@workspace_app.command("create")
-def workspace_create(
-    name: str = typer.Argument(..., help="Workspace name"),
+@room_app.command("create")
+def room_create(
+    name: str = typer.Argument(..., help="Room name"),
     bots: Optional[str] = typer.Option(None, "--bots", "-b", help="Comma-separated bot names (default: nanobot only)"),
 ):
-    """Create a new workspace."""
-    from nanobot.bots.workspace_manager import get_workspace_manager
-    from nanobot.models.workspace import WorkspaceType
+    """Create a new room."""
+    from nanobot.bots.room_manager import get_room_manager
+    from nanobot.models.room import RoomType
     
-    manager = get_workspace_manager()
+    manager = get_room_manager()
     
     # Parse bot list
     if bots:
@@ -2615,28 +2615,28 @@ def workspace_create(
         participant_list = ["nanobot"]  # Default to just Leader
     
     try:
-        workspace = manager.create_workspace(
+        room = manager.create_room(
             name=name,
-            workspace_type=WorkspaceType.PROJECT,
+            room_type=RoomType.PROJECT,
             participants=participant_list
         )
-        console.print(f"\n✅ [green]Created workspace:[/green] {workspace.id}")
-        console.print(f"   Participants: {', '.join(workspace.participants)}")
-        console.print(f"\n[dim]Use 'nanobot workspace invite {workspace.id} <bot>' to add more bots[/dim]")
+        console.print(f"\n✅ [green]Created room:[/green] {room.id}")
+        console.print(f"   Participants: {', '.join(room.participants)}")
+        console.print(f"\n[dim]Use 'nanobot room invite {room.id} <bot>' to add more bots[/dim]")
     except ValueError as e:
         console.print(f"[red]❌ {e}[/red]")
         raise typer.Exit(1)
 
 
-@workspace_app.command("invite")
-def workspace_invite(
-    workspace_id: str = typer.Argument(..., help="Workspace ID"),
+@room_app.command("invite")
+def room_invite(
+    room_id: str = typer.Argument(..., help="Room ID"),
     bot_name: str = typer.Argument(..., help="Bot to invite (nanobot, researcher, coder, social, creative, auditor)"),
 ):
-    """Invite a bot to a workspace."""
-    from nanobot.bots.workspace_manager import get_workspace_manager
+    """Invite a bot to a room."""
+    from nanobot.bots.room_manager import get_room_manager
     
-    manager = get_workspace_manager()
+    manager = get_room_manager()
     
     # Validate bot name
     valid_bots = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
@@ -2645,58 +2645,58 @@ def workspace_invite(
         console.print(f"[dim]Valid bots: {', '.join(valid_bots)}[/dim]")
         raise typer.Exit(1)
     
-    success = manager.invite_bot(workspace_id, bot_name.lower())
+    success = manager.invite_bot(room_id, bot_name.lower())
     
     if success:
-        console.print(f"\n✅ [green]Invited {bot_name} to {workspace_id}[/green]")
+        console.print(f"\n✅ [green]Invited {bot_name} to {room_id}[/green]")
     else:
-        console.print(f"[yellow]⚠ {bot_name} is already in {workspace_id} or workspace not found[/yellow]")
+        console.print(f"[yellow]⚠ {bot_name} is already in {room_id} or room not found[/yellow]")
 
 
-@workspace_app.command("remove")
-def workspace_remove(
-    workspace_id: str = typer.Argument(..., help="Workspace ID"),
+@room_app.command("remove")
+def room_remove(
+    room_id: str = typer.Argument(..., help="Room ID"),
     bot_name: str = typer.Argument(..., help="Bot to remove"),
 ):
-    """Remove a bot from a workspace."""
-    from nanobot.bots.workspace_manager import get_workspace_manager
+    """Remove a bot from a room."""
+    from nanobot.bots.room_manager import get_room_manager
     
-    manager = get_workspace_manager()
+    manager = get_room_manager()
     
-    success = manager.remove_bot(workspace_id, bot_name.lower())
+    success = manager.remove_bot(room_id, bot_name.lower())
     
     if success:
-        console.print(f"\n✅ [green]Removed {bot_name} from {workspace_id}[/green]")
+        console.print(f"\n✅ [green]Removed {bot_name} from {room_id}[/green]")
     else:
-        console.print(f"[yellow]⚠ Could not remove {bot_name} (not in workspace, or workspace not found)[/yellow]")
+        console.print(f"[yellow]⚠ Could not remove {bot_name} (not in room, or room not found)[/yellow]")
 
 
-@workspace_app.command("show")
-def workspace_show(
-    workspace_id: str = typer.Argument(..., help="Workspace ID (or 'general' for default)"),
+@room_app.command("show")
+def room_show(
+    room_id: str = typer.Argument(..., help="Room ID (or 'general' for default)"),
 ):
-    """Show workspace details."""
-    from nanobot.bots.workspace_manager import get_workspace_manager
+    """Show room details."""
+    from nanobot.bots.room_manager import get_room_manager
     
-    manager = get_workspace_manager()
-    workspace = manager.get_workspace(workspace_id)
+    manager = get_room_manager()
+    room = manager.get_room(room_id)
     
-    if not workspace:
-        console.print(f"[red]❌ Workspace '{workspace_id}' not found[/red]")
+    if not room:
+        console.print(f"[red]❌ Room '{room_id}' not found[/red]")
         raise typer.Exit(1)
     
-    console.print(f"\n📁 [bold]{workspace.id}[/bold]")
-    console.print(f"   Type: {workspace.type.value}")
-    console.print(f"   Created: {workspace.created_at}")
-    console.print(f"\n   Participants ({len(workspace.participants)}):")
+    console.print(f"\n📁 [bold]{room.id}[/bold]")
+    console.print(f"   Type: {room.type.value}")
+    console.print(f"   Created: {room.created_at}")
+    console.print(f"\n   Participants ({len(room.participants)}):")
     
-    for bot in workspace.participants:
+    for bot in room.participants:
         console.print(f"   • {bot}")
     
-    console.print(f"\n[dim]Use 'nanobot workspace invite {workspace_id} <bot>' to add bots[/dim]")
+    console.print(f"\n[dim]Use 'nanobot room invite {room_id} <bot>' to add bots[/dim]")
 
 
-app.add_typer(workspace_app, name="workspace")
+app.add_typer(room_app, name="room")
 
 # Import and wire heartbeat commands
 try:

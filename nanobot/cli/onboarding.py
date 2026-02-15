@@ -4,7 +4,7 @@ This module provides a unified CLI wizard that guides new users through:
 1. Provider selection (API key)
 2. Model selection
 3. Theme/Team selection (with team description)
-4. #general workspace creation with all bots
+4. #general room creation with all bots
 5. SOUL.md personality file generation
 
 Uses typer and rich for interactive prompts and rich terminal output.
@@ -20,7 +20,7 @@ from rich.prompt import Prompt, Confirm
 from rich import box
 
 from nanobot.themes import ThemeManager, list_themes, get_theme
-from nanobot.models import Workspace, WorkspaceType
+from nanobot.models import Room, RoomType
 from nanobot.soul import SoulManager
 
 console = Console()
@@ -33,7 +33,7 @@ class OnboardingWizard:
     1. Provider selection and API key
     2. Model selection
     3. Theme/Team selection with full team description
-    4. Workspace creation
+    4. Room creation
     5. SOUL.md personality file generation
     """
     
@@ -58,7 +58,7 @@ class OnboardingWizard:
         """Run the complete onboarding wizard.
         
         Args:
-            workspace_path: Optional workspace path for SOUL file generation and workspace storage
+            workspace_path: Optional workspace path for SOUL file generation and room storage
         
         Returns:
             Dictionary containing:
@@ -66,7 +66,7 @@ class OnboardingWizard:
                 - model: selected model
                 - theme: selected theme name
                 - workspace_path: workspace path used
-                - general_workspace: created Workspace object for #general
+                - general_room: created Room object for #general
         """
         self._show_welcome()
         
@@ -79,21 +79,21 @@ class OnboardingWizard:
         # Step 3: Summary & Create
         self._confirm_and_create()
         
-        # Create the #general workspace
-        general_workspace = self.create_general_workspace()
+        # Create the #general room
+        general_room = self.create_general_room()
         
         # Apply theme to workspace if path provided
         if workspace_path:
             self._apply_theme_to_workspace(workspace_path)
-            # Save the general workspace to disk
-            self._save_workspace(general_workspace, workspace_path)
+            # Save the general room to disk
+            self._save_room(general_room, workspace_path)
         
         return {
             "provider": self.config_result.get("provider"),
             "model": self.config_result.get("model"),
             "theme": self.selected_theme,
             "workspace_path": str(workspace_path) if workspace_path else None,
-            "general_workspace": general_workspace,
+            "general_room": general_room,
         }
     
     def _show_welcome(self) -> None:
@@ -104,8 +104,8 @@ class OnboardingWizard:
             "This wizard will guide you through:\n"
             "  1. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"
             "  2. [bold]Evolutionary Mode[/bold] (optional)\n"
-            "  3. [bold]Team Theme[/bold] - Choose your team's personality\n"
-            "  4. [bold]Launch[/bold] - Create workspace and initialize bots",
+            "  3. [bold]Team Theme[/bold] - Choose your crew's personality\n"
+            "  4. [bold]Launch[/bold] - Create your workspace and crew",
             title="🎉",
             border_style="cyan"
         ))
@@ -114,7 +114,7 @@ class OnboardingWizard:
     def _configure_provider(self) -> None:
         """Step 1: Configure AI provider and API key."""
         console.print("[bold cyan]Step 1: AI Provider Setup[/bold cyan]\n")
-        console.print("Choose the AI provider for your team:\n")
+        console.print("Choose the AI provider for your crew:\n")
         
         for key, (name, desc) in self.PROVIDERS.items():
             console.print(f"  [{key}] {desc}")
@@ -146,7 +146,7 @@ class OnboardingWizard:
         
         # Model selection
         console.print("[bold]Select Model[/bold]")
-        console.print("Choose the default model for your team:\n")
+        console.print("Choose the default model for your crew:\n")
         
         models = self._get_available_models(provider_name)
         for i, model in enumerate(models[:5], 1):
@@ -304,13 +304,13 @@ class OnboardingWizard:
     
     def _select_theme(self) -> None:
         """Interactive team/theme selection."""
-        console.print("[bold cyan]Step 2: Choose Your Team Theme[/bold cyan]\n")
+        console.print("[bold cyan]Step 2: Choose Your Crew Theme[/bold cyan]\n")
         
         themes = list_themes()
         theme_names = [t["name"] for t in themes]
         
         # First show just the team theme options
-        console.print("Choose your team's personality:\n")
+        console.print("Choose your crew's personality:\n")
         for i, theme in enumerate(themes, 1):
             console.print(f"  [{i}] {theme['display_name']} - {theme['description']}")
         console.print("  [b] Back to previous step")
@@ -319,7 +319,7 @@ class OnboardingWizard:
         
         # Let user select
         choice = Prompt.ask(
-            "Select team theme",
+            "Select crew theme",
             choices=[str(i) for i in range(1, len(themes) + 1)] + ["b"],
         )
         
@@ -336,7 +336,7 @@ class OnboardingWizard:
         
         # Confirm with option to go back
         console.print()
-        confirm = Confirm.ask(f"✓ Confirm {selected_theme['display_name']} team?", default=True)
+        confirm = Confirm.ask(f"✓ Confirm {selected_theme['display_name']} crew?", default=True)
         
         if confirm:
             self.theme_manager.select_theme(self.selected_theme)
@@ -351,11 +351,11 @@ class OnboardingWizard:
         if not theme:
             return
         
-        console.print(f"\n[bold]Team: {theme.name.value}[/bold]\n")
+        console.print(f"\n[bold]Crew: {theme.name.value}[/bold]\n")
         console.print(f"[dim]{theme.description}[/dim]\n")
         
         # Create a table showing each team member
-        team_table = Table(title="Your Team Members", box=box.ROUNDED)
+        team_table = Table(title="Your Crew Members", box=box.ROUNDED)
         team_table.add_column("Role", style="cyan", width=15)
         team_table.add_column("Bot", style="green", width=12)
         team_table.add_column("Description", style="white")
@@ -383,7 +383,7 @@ class OnboardingWizard:
         console.print("[dim]All 6 bots will be created and ready to use.[/dim]\n")
     
     def _confirm_and_create(self) -> None:
-        """Final confirmation and workspace creation."""
+        """Final confirmation and room creation."""
         console.print("[bold cyan]Step 3: Ready to Launch![/bold cyan]\n")
         
         # Show summary table
@@ -400,87 +400,87 @@ class OnboardingWizard:
         # Theme info
         theme_obj = self.theme_manager.get_current_theme()
         theme_name = theme_obj.name.value if theme_obj else self.selected_theme or "Unknown"
-        summary_table.add_row("Team Theme", theme_name)
+        summary_table.add_row("Crew Theme", theme_name)
         summary_table.add_row("Bots", "6 (all ready)")
-        summary_table.add_row("Workspace", "#general")
+        summary_table.add_row("Room", "#general")
         
         console.print(summary_table)
         console.print()
         
-        if Confirm.ask("🚀 Launch your team?", default=True):
+        if Confirm.ask("🚀 Launch your crew?", default=True):
             console.print("\n[green]✓ Setup complete![/green]\n")
-            console.print("Your multi-agent team is ready!")
+            console.print("Your AI crew is ready!")
             console.print("\n[bold]Get started:[/bold]")
             console.print("  [cyan]nanobot agent[/cyan]        - Start chatting")
-            console.print("  [cyan]#general[/cyan]            - Team chat")
+            console.print("  [cyan]#general[/cyan]            - Crew chat room")
             console.print("  [cyan]@researcher[/cyan]        - DM a bot directly")
             console.print("  [cyan]nanobot configure[/cyan]  - Add more providers/models\n")
         else:
             console.print("[yellow]Setup cancelled[/yellow]\n")
     
-    def create_general_workspace(self) -> Workspace:
-        """Create #general workspace with nanobot (Leader).
+    def create_general_room(self) -> Room:
+        """Create #general room with nanobot (Leader).
         
         Returns:
-            Created Workspace object
+            Created Room object
         """
-        general_ws = Workspace(
+        general_room = Room(
             id="general",
-            type=WorkspaceType.OPEN,
-            participants=["nanobot"],  # Only Leader in general workspace by default
+            type=RoomType.OPEN,
+            participants=["nanobot"],  # Only Leader in general room by default
             owner="system",
             metadata={
                 "name": "General",
-                "description": "General discussion and coordination workspace",
+                "description": "General discussion and coordination room",
             }
         )
-        return general_ws
+        return general_room
     
-    def _save_workspace(self, workspace: Workspace, workspace_path: Path) -> None:
-        """Save workspace to disk.
+    def _save_room(self, room: Room, workspace_path: Path) -> None:
+        """Save room to disk.
         
         Args:
-            workspace: Workspace object to save
+            room: Room object to save
             workspace_path: Path to workspace root directory
         """
         import json
         from datetime import datetime
         
         try:
-            # Create workspaces directory if it doesn't exist
-            workspaces_dir = workspace_path / "workspaces"
-            workspaces_dir.mkdir(parents=True, exist_ok=True)
+            # Create rooms directory if it doesn't exist
+            rooms_dir = workspace_path / "rooms"
+            rooms_dir.mkdir(parents=True, exist_ok=True)
             
-            # Convert workspace to JSON-serializable format
-            workspace_data = {
-                "id": workspace.id,
-                "type": workspace.type.value,
-                "participants": workspace.participants,
-                "owner": workspace.owner,
-                "created_at": workspace.created_at.isoformat(),
-                "auto_archive": workspace.auto_archive,
-                "archive_after_days": workspace.archive_after_days,
-                "coordinator_mode": workspace.coordinator_mode,
-                "escalation_threshold": workspace.escalation_threshold,
-                "deadline": workspace.deadline,
-                "metadata": workspace.metadata,
-                "summary": workspace.summary,
+            # Convert room to JSON-serializable format
+            room_data = {
+                "id": room.id,
+                "type": room.type.value,
+                "participants": room.participants,
+                "owner": room.owner,
+                "created_at": room.created_at.isoformat(),
+                "auto_archive": room.auto_archive,
+                "archive_after_days": room.archive_after_days,
+                "coordinator_mode": room.coordinator_mode,
+                "escalation_threshold": room.escalation_threshold,
+                "deadline": room.deadline,
+                "metadata": room.metadata,
+                "summary": room.summary,
             }
             
-            # Save to workspace-specific JSON file
-            workspace_file = workspaces_dir / f"{workspace.id}.json"
-            with open(workspace_file, "w") as f:
-                json.dump(workspace_data, f, indent=2, default=str)
+            # Save to room-specific JSON file
+            room_file = rooms_dir / f"{room.id}.json"
+            with open(room_file, "w") as f:
+                json.dump(room_data, f, indent=2, default=str)
             
-            console.print(f"[green]✓ Saved workspace to {workspace_file}[/green]")
+            console.print(f"[green]✓ Saved room to {room_file}[/green]")
         
         except Exception as e:
-            console.print(f"[yellow]⚠ Could not save workspace: {e}[/yellow]")
+            console.print(f"[yellow]⚠ Could not save room: {e}[/yellow]")
     
     def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
-        """Apply selected theme to all team members in workspace.
+        """Apply selected theme to all crew members in workspace.
         
-        Creates SOUL.md and IDENTITY.md personality files for the entire team so all bots are ready.
+        Creates SOUL.md and IDENTITY.md personality files for the entire crew.
         
         Args:
             workspace_path: Path to workspace
@@ -491,9 +491,9 @@ class OnboardingWizard:
             theme = get_theme(self.selected_theme) if self.selected_theme else None
             
             if theme and self.selected_theme:
-                console.print("\n[cyan]Initializing team personalities...[/cyan]")
+                console.print("\n[cyan]Initializing crew personalities...[/cyan]")
                 
-                # Apply theme to entire team
+                # Apply theme to entire crew
                 team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
                 
                 # Apply SOUL.md theme
@@ -523,7 +523,7 @@ class OnboardingWizard:
                     )
                 
                 # Show team personalities
-                console.print("\n[bold]Team personalities configured:[/bold]")
+                console.print("\n[bold]Crew personalities configured:[/bold]")
                 for bot_name in team:
                     theming = theme.get_bot_theming(bot_name)
                     if theming:
