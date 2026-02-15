@@ -2,13 +2,19 @@
 
 from .base import SpecialistBot
 from .definitions import (
-    NANOBOT_ROLE,
-    RESEARCHER_ROLE,
-    CODER_ROLE,
-    SOCIAL_ROLE,
-    CREATIVE_ROLE,
-    AUDITOR_ROLE,
+    RoleCard,
+    RoleCardDomain,
+    BotCapabilities,
+    BUILTIN_BOTS,
+    get_role_card,
+    list_bots,
+    is_valid_bot,
+    BotRegistry,
+    get_bot_registry,
+    list_available_bots,
 )
+from .room_manager import RoomManager, get_room_manager
+from .workspace_manager import WorkspaceManager, get_workspace_manager  # Legacy aliases
 from .implementations import (
     NanobotLeader,
     ResearcherBot,
@@ -47,13 +53,23 @@ from .checks import (
 __all__ = [
     # Base classes
     "SpecialistBot",
+    # Room management (new)
+    "RoomManager",
+    "get_room_manager",
+    # Room management (legacy aliases)
+    "WorkspaceManager",
+    "get_workspace_manager",
     # Role definitions
-    "NANOBOT_ROLE",
-    "RESEARCHER_ROLE",
-    "CODER_ROLE",
-    "SOCIAL_ROLE",
-    "CREATIVE_ROLE",
-    "AUDITOR_ROLE",
+    "RoleCard",
+    "RoleCardDomain",
+    "BotCapabilities",
+    "BUILTIN_BOTS",
+    "get_role_card",
+    "list_bots",
+    "is_valid_bot",
+    "BotRegistry",
+    "get_bot_registry",
+    "list_available_bots",
     # Bot implementations
     "NanobotLeader",
     "ResearcherBot",

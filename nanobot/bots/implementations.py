@@ -1,15 +1,8 @@
 """Concrete bot implementations."""
 
 from nanobot.bots.base import SpecialistBot
-from nanobot.bots.definitions import (
-    NANOBOT_ROLE,
-    RESEARCHER_ROLE,
-    CODER_ROLE,
-    SOCIAL_ROLE,
-    CREATIVE_ROLE,
-    AUDITOR_ROLE,
-)
 from nanobot.models.room import Room
+from nanobot.models import get_role_card
 
 
 class NanobotLeader(SpecialistBot):
@@ -29,7 +22,7 @@ class NanobotLeader(SpecialistBot):
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
         """
-        super().__init__(NANOBOT_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("nanobot"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.authority_level = "high"
         self.can_create_workspaces = True
         self.can_recruit_bots = True
@@ -72,7 +65,7 @@ class ResearcherBot(SpecialistBot):
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
         """
-        super().__init__(RESEARCHER_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("researcher"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.add_expertise("data_analysis")
         self.add_expertise("web_research")
         
@@ -115,7 +108,7 @@ class CoderBot(SpecialistBot):
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
         """
-        super().__init__(CODER_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("coder"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.add_expertise("python")
         self.add_expertise("testing")
         self.add_expertise("refactoring")
@@ -157,7 +150,7 @@ class SocialBot(SpecialistBot):
             workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
-        super().__init__(SOCIAL_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("social"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.add_expertise("community_management")
         self.add_expertise("social_media")
 
@@ -198,7 +191,7 @@ class CreativeBot(SpecialistBot):
             workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
-        super().__init__(CREATIVE_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("creative"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.add_expertise("visual_design")
         self.add_expertise("content_creation")
 
@@ -239,7 +232,7 @@ class AuditorBot(SpecialistBot):
             workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
-        super().__init__(AUDITOR_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("auditor"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.add_expertise("quality_assurance")
         self.add_expertise("compliance")
 
