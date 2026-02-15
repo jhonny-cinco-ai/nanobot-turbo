@@ -73,6 +73,8 @@ class BotInvoker:
         bus: MessageBus,
         work_log_manager: Any = None,
         model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
         brave_api_key: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
         restrict_to_workspace: bool = False,
@@ -84,6 +86,8 @@ class BotInvoker:
         self.workspace = workspace
         self.bus = bus
         self.model = model or provider.get_default_model()
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
@@ -319,7 +323,8 @@ Focus only on your domain expertise and provide a helpful response.
         response = await self.provider.chat(
             model=self.model,
             messages=messages,
-            max_tokens=4000,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
         )
         
         return response.content or ""
