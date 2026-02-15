@@ -745,26 +745,26 @@ def gateway(
         logger.warning(f"Failed to initialize multi-heartbeat manager: {e}")
         multi_manager = None
     
-        # Create dashboard service for real-time monitoring
-        try:
-            dashboard_service = DashboardService(
-                manager=multi_manager,
-                port=9090,
-                update_interval=5.0,  # Update every 5 seconds
-            )
-            dashboard_server = DashboardHTTPServer(
-                dashboard_service,
-                host="localhost",
-                port=9090
-            )
-            console.print("[green]✓[/green] Dashboard initialized on http://localhost:9090")
-        except Exception as e:
-            logger.warning(f"Failed to initialize dashboard: {e}")
-            dashboard_service = None
-            dashboard_server = None
-        
-        # Create channel manager
-        channels = ChannelManager(config, bus, session_manager=session_manager)
+    # Create dashboard service for real-time monitoring
+    try:
+        dashboard_service = DashboardService(
+            manager=multi_manager,
+            port=9090,
+            update_interval=5.0,  # Update every 5 seconds
+        )
+        dashboard_server = DashboardHTTPServer(
+            dashboard_service,
+            host="localhost",
+            port=9090
+        )
+        console.print("[green]✓[/green] Dashboard initialized on http://localhost:9090")
+    except Exception as e:
+        logger.warning(f"Failed to initialize dashboard: {e}")
+        dashboard_service = None
+        dashboard_server = None
+    
+    # Create channel manager
+    channels = ChannelManager(config, bus)
     
     if channels.enabled_channels:
         console.print(f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}")
@@ -807,7 +807,7 @@ def gateway(
             
             # Stop multi-heartbeat manager if initialized
             if multi_manager:
-                await multi_manager.stop_all()
+                multi_manager.stop_all()
             
             heartbeat.stop()
             cron.stop()
@@ -2437,14 +2437,6 @@ bot_app = typer.Typer(help="Manage your AI crew members")
 @bot_app.command("list")
 def bot_list():
     """List all crew members."""
-    from nanobot.bots.definitions import (
-        NANOBOT_ROLE,
-        RESEARCHER_ROLE,
-        CODER_ROLE,
-        SOCIAL_ROLE,
-        CREATIVE_ROLE,
-        AUDITOR_ROLE,
-    )
     from nanobot.config.loader import get_data_dir
     import json
     
