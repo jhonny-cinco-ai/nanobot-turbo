@@ -133,8 +133,8 @@ class BotInvoker:
         if bot_name not in AVAILABLE_BOTS:
             return f"Error: Unknown bot '{bot_name}'. Available bots: {', '.join(AVAILABLE_BOTS.keys())}"
         
-        if bot_name == "nanobot":
-            return "Error: Cannot invoke nanobot (Leader) - use @nanobot directly"
+        if bot_name == "leader":
+            return "Error: Cannot invoke leader (Leader) - use @leader directly"
         
         invocation_id = str(uuid.uuid4())[:8]
         
@@ -299,7 +299,7 @@ Provide helpful, expert responses in your domain."""
         # Add task context
         system_prompt += f"""
 
-You were invoked by the Leader (nanobot) to help with a task.
+You were invoked by the Leader (leader) to help with a task.
 Focus only on your domain expertise and provide a helpful response.
 """
         
@@ -440,7 +440,7 @@ Focus only on your domain expertise and provide a helpful response.
         try:
             # Log as a bot message with mention
             self.work_log_manager.log_bot_message(
-                bot_name="nanobot",
+                bot_name="leader",
                 message=f"Invoking @{bot_name} with task: {task[:200]}...",
                 mentions=[f"@{bot_name}"]
             )
@@ -455,7 +455,7 @@ Focus only on your domain expertise and provide a helpful response.
                     "task": task[:500],
                     "context": context[:500] if context else None,
                 },
-                triggered_by="nanobot"
+                triggered_by="leader"
             )
         except Exception as e:
             logger.warning(f"Failed to log invocation request: {e}")
@@ -513,7 +513,7 @@ Focus only on your domain expertise and provide a helpful response.
                     "task": task[:500],
                     "error": error,
                 },
-                triggered_by="nanobot"
+                triggered_by="leader"
             )
         except Exception as e:
             logger.warning(f"Failed to log invocation error: {e}")

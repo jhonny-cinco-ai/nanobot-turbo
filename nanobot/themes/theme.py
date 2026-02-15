@@ -64,7 +64,7 @@ class Theme:
             BotTheming or None if bot not found
         """
         bot_map = {
-            "nanobot": self.nanobot,
+            "leader": self.nanobot,
             "researcher": self.researcher,
             "coder": self.coder,
             "social": self.social,
@@ -80,7 +80,7 @@ class Theme:
             Dictionary mapping bot names to their theming
         """
         return {
-            "nanobot": self.nanobot,
+            "leader": self.nanobot,
             "researcher": self.researcher,
             "coder": self.coder,
             "social": self.social,
@@ -98,7 +98,7 @@ class Theme:
             "name": self.name.value,
             "description": self.description,
             "bots": {
-                "nanobot": {
+                "leader": {
                     "title": self.nanobot.title,
                     "personality": self.nanobot.personality,
                     "greeting": self.nanobot.greeting,

@@ -33,7 +33,7 @@ class RoomType(Enum):
     OPEN = "open"           # #general - casual, all bots
     PROJECT = "project"     # #project-alpha - focused team
     DIRECT = "direct"       # DM @researcher - 1-on-1
-    COORDINATION = "coordination"  # nanobot manages autonomously
+    COORDINATION = "coordination"  # leader manages autonomously
 
 
 # Legacy alias for backwards compatibility
@@ -75,15 +75,15 @@ class WorkLogEntry:
     # Workspace context (single-bot: uses "default")
     room_id: str = "default"  # "#general", "#project-refactor", or "default"
     room_type: WorkspaceType = RoomType.OPEN
-    participants: List[str] = field(default_factory=lambda: ["nanobot"])
+    participants: List[str] = field(default_factory=lambda: ["leader"])
     
-    # Bot identity (single-bot: always "nanobot")
-    bot_name: str = "nanobot"      # Which bot created this entry
+    # Bot identity (single-bot: always "leader")
+    bot_name: str = "leader"      # Which bot created this entry
     bot_role: str = "primary"      # "coordinator", "specialist", "user-proxy", "primary"
-    triggered_by: str = "user"     # "user", "nanobot", "@researcher", etc.
+    triggered_by: str = "user"     # "user", "leader", "@researcher", etc.
     
     # Coordinator mode (single-bot: always False)
-    coordinator_mode: bool = False      # Was nanobot coordinating?
+    coordinator_mode: bool = False      # Was leader coordinating?
     escalation: bool = False            # Did this trigger escalation?
     
     # Cross-bot communication (single-bot: empty)
@@ -115,7 +115,7 @@ class WorkLogEntry:
             self.room_id != "default" or
             self.room_type != RoomType.OPEN or
             len(self.participants) > 1 or
-            self.bot_name != "nanobot" or
+            self.bot_name != "leader" or
             self.bot_role != "primary" or
             self.triggered_by != "user" or
             self.coordinator_mode or
@@ -175,12 +175,12 @@ class WorkLog:
     # Multi-agent context (single-bot: uses defaults)
     room_id: str = "default"  # "#general", "#project-alpha", etc.
     room_type: WorkspaceType = RoomType.OPEN
-    participants: List[str] = field(default_factory=lambda: ["nanobot"])
-    coordinator: Optional[str] = None  # "nanobot" if in coordinator mode
+    participants: List[str] = field(default_factory=lambda: ["leader"])
+    coordinator: Optional[str] = None  # "leader" if in coordinator mode
     
     def add_entry(self, level: LogLevel, category: str, message: str,
                   details: Optional[dict] = None, confidence: Optional[float] = None,
-                  duration_ms: Optional[int] = None, bot_name: str = "nanobot",
+                  duration_ms: Optional[int] = None, bot_name: str = "leader",
                   triggered_by: str = "user") -> WorkLogEntry:
         """Add a work log entry.
         
@@ -220,7 +220,7 @@ class WorkLog:
     def add_tool_entry(self, tool_name: str, tool_input: dict,
                        tool_output: Any, tool_status: str,
                        duration_ms: int, message: Optional[str] = None,
-                       bot_name: str = "nanobot") -> WorkLogEntry:
+                       bot_name: str = "leader") -> WorkLogEntry:
         """Add a tool execution entry.
         
         Args:
@@ -289,7 +289,7 @@ class WorkLog:
         self.entries.append(entry)
         return entry
     
-    def add_escalation(self, reason: str, bot_name: str = "nanobot") -> WorkLogEntry:
+    def add_escalation(self, reason: str, bot_name: str = "leader") -> WorkLogEntry:
         """Log an escalation that needs user attention (multi-agent).
         
         Args:

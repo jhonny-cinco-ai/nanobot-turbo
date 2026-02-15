@@ -12,7 +12,7 @@ class RoomType(Enum):
     OPEN = "open"  # #general - all bots, casual chat
     PROJECT = "project"  # #project-x - specific team, deadline-driven
     DIRECT = "direct"  # DM @bot - 1-on-1 focused discussion
-    COORDINATION = "coordination"  # nanobot manages when user away
+    COORDINATION = "coordination"  # leader manages when user away
 
 
 @dataclass
@@ -49,7 +49,7 @@ class Room:
 
     id: str  # "general", "project-alpha", "dm-researcher"
     type: RoomType  # OPEN, PROJECT, DIRECT, COORDINATION
-    participants: List[str] = field(default_factory=list)  # ["nanobot", "researcher"]
+    participants: List[str] = field(default_factory=list)  # ["leader", "researcher"]
     owner: str = "user"  # "user" or bot name if coordination mode
     created_at: datetime = field(default_factory=datetime.now)
 

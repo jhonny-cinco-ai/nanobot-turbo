@@ -349,7 +349,7 @@ Each Nanofolks crew has 6 bots:
 
 | Bot | Role | Expertise |
 |-----|------|-----------|
-| **Leader** (@nanobot) | Coordinates the crew | Planning, delegation, decision-making |
+| **Leader** (@leader) | Coordinates the crew | Planning, delegation, decision-making |
 | **Researcher** (@researcher) | Deep research | Analysis, information gathering |
 | **Coder** (@coder) | Technical implementation | Code, debugging, architecture |
 | **Social** (@social) | Community engagement | Communication, user relations |

@@ -56,7 +56,7 @@ class RoomManager:
         general = Room(
             id=self.DEFAULT_ROOM_ID,
             type=RoomType.OPEN,
-            participants=["nanobot"],  # Only Leader initially
+            participants=["leader"],  # Only Leader initially
             owner="user",
             created_at=datetime.now(),
         )
@@ -129,7 +129,7 @@ class RoomManager:
         Args:
             name: Room name (becomes ID)
             room_type: Type of room
-            participants: Initial bot participants (defaults to ["nanobot"])
+            participants: Initial bot participants (defaults to ["leader"])
             
         Returns:
             Created room
@@ -142,7 +142,7 @@ class RoomManager:
         
         # Default to just Leader if no participants specified
         if participants is None:
-            participants = ["nanobot"]
+            participants = ["leader"]
         
         room = Room(
             id=room_id,

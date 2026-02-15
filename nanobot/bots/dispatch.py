@@ -48,9 +48,9 @@ class BotDispatch:
     
     # Bot mention patterns
     BOT_MENTIONS = {
-        "@leader": "nanobot",
-        "@nanobot": "nanobot",
-        "@coordinator": "nanobot",
+        "@leader": "leader",
+        "@nanobot": "leader",
+        "@coordinator": "leader",
         "@researcher": "researcher",
         "@coder": "coder",
         "@social": "social",
@@ -104,10 +104,10 @@ class BotDispatch:
         if mentioned_bot:
             if mentioned_bot == "all":
                 # @all or @crew - notify all room participants
-                participants = room.participants if room else ["nanobot"]
+                participants = room.participants if room else ["leader"]
                 return DispatchResult(
                     target=DispatchTarget.DIRECT_BOT,
-                    primary_bot="nanobot",  # Leader coordinates
+                    primary_bot="leader",  # Leader coordinates
                     secondary_bots=participants,
                     room_id=room.id if room else None,
                     reason="User tagged @all/@crew - leader coordinates all bots"
@@ -123,12 +123,12 @@ class BotDispatch:
                 )
         
         # Case 3: Default - Route through Leader first
-        participants = room.participants if room else ["nanobot"]
-        secondary = [p for p in participants if p != "nanobot"]
+        participants = room.participants if room else ["leader"]
+        secondary = [p for p in participants if p != "leader"]
         
         return DispatchResult(
             target=DispatchTarget.LEADER_FIRST,
-            primary_bot="nanobot",
+            primary_bot="leader",
             secondary_bots=secondary,
             room_id=room.id if room else None,
             reason="Default: Leader coordinates response"
@@ -239,17 +239,17 @@ class BotDispatch:
             List of recommended bot names
         """
         suggestions = {
-            "web": ["nanobot", "coder", "creative"],
-            "mobile": ["nanobot", "coder", "creative"],
-            "research": ["nanobot", "researcher"],
-            "audit": ["nanobot", "auditor"],
-            "marketing": ["nanobot", "social", "creative"],
-            "social": ["nanobot", "social"],
-            "content": ["nanobot", "creative", "social"],
-            "general": ["nanobot"],
+            "web": ["leader", "coder", "creative"],
+            "mobile": ["leader", "coder", "creative"],
+            "research": ["leader", "researcher"],
+            "audit": ["leader", "auditor"],
+            "marketing": ["leader", "social", "creative"],
+            "social": ["leader", "social"],
+            "content": ["leader", "creative", "social"],
+            "general": ["leader"],
         }
         
-        return suggestions.get(project_type, ["nanobot"])
+        return suggestions.get(project_type, ["leader"])
     
     def format_dispatch_summary(self, result: DispatchResult) -> str:
         """Format dispatch result for debugging/logging.

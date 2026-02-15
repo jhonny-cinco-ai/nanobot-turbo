@@ -7,7 +7,7 @@ TEMPLATES_DIR = Path(__file__).parent / "bots"
 SOUL_TEMPLATES_DIR = Path(__file__).parent / "soul"
 IDENTITY_TEMPLATES_DIR = Path(__file__).parent / "identity"
 
-BOT_NAMES = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+BOT_NAMES = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 THEME_NAMES = ["pirate_crew", "rock_band", "swat_team", "feral_clowder", "executive_suite", "space_crew"]
 
 

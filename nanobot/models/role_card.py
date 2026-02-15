@@ -52,8 +52,8 @@ class RoleCard:
 # Built-in bot definitions (minimal - just domain + capabilities)
 # These define what each bot CAN do functionally
 BUILTIN_BOTS: Dict[str, RoleCard] = {
-    "nanobot": RoleCard(
-        bot_name="nanobot",
+    "leader": RoleCard(
+        bot_name="leader",
         domain=RoleCardDomain.COORDINATION,
         capabilities=BotCapabilities(
             can_invoke_bots=True,

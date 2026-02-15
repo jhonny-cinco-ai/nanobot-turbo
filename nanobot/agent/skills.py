@@ -418,7 +418,7 @@ class SkillsLoader:
         """Parse nanobot metadata JSON from frontmatter."""
         try:
             data = json.loads(raw)
-            return data.get("nanobot", {}) if isinstance(data, dict) else {}
+            return data.get("leader", {}) if isinstance(data, dict) else {}
         except (json.JSONDecodeError, TypeError):
             return {}
     

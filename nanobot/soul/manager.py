@@ -28,7 +28,7 @@ class SoulManager:
     
     # Role descriptions for each bot type
     ROLE_DESCRIPTIONS = {
-        "nanobot": (
+        "leader": (
             "I lead the team, make strategic decisions, and ensure "
             "coordination between team members. I prioritize alignment "
             "and overall mission success."

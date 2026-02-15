@@ -362,7 +362,7 @@ class OnboardingWizard:
         
         # Add each bot
         bots = [
-            ("Leader", theme.nanobot, "nanobot"),
+            ("Leader", theme.nanobot, "leader"),
             ("Researcher", theme.researcher, "researcher"),
             ("Coder", theme.coder, "coder"),
             ("Social", theme.social, "social"),
@@ -419,7 +419,7 @@ class OnboardingWizard:
             console.print("[yellow]Setup cancelled[/yellow]\n")
     
     def create_general_room(self) -> Room:
-        """Create #general room with nanobot (Leader).
+        """Create #general room with leader (Leader).
         
         Returns:
             Created Room object
@@ -427,7 +427,7 @@ class OnboardingWizard:
         general_room = Room(
             id="general",
             type=RoomType.OPEN,
-            participants=["nanobot"],  # Only Leader in general room by default
+            participants=["leader"],  # Only Leader in general room by default
             owner="system",
             metadata={
                 "name": "General",
@@ -494,7 +494,7 @@ class OnboardingWizard:
                 console.print("\n[cyan]Initializing crew personalities...[/cyan]")
                 
                 # Apply theme to entire crew
-                team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+                team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
                 
                 # Apply SOUL.md theme
                 soul_results = soul_manager.apply_theme_to_team(
@@ -545,7 +545,7 @@ class OnboardingWizard:
             from nanobot.soul import SoulManager
             
             soul_manager = SoulManager(workspace_path)
-            team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+            team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
             
             console.print("\n[cyan]Creating bot configuration files...[/cyan]")
             

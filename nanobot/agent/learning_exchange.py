@@ -153,7 +153,7 @@ class InsightQueue:
     """
     
     workspace_id: str = "default"
-    bot_name: str = "nanobot"
+    bot_name: str = "leader"
     _queue: List[LearningPackage] = field(default_factory=list)
     _processed: List[str] = field(default_factory=list)
         # Package IDs that have been processed
@@ -351,7 +351,7 @@ class LearningExchange:
     learning exchange workflow with SQLite persistence.
     """
     
-    def __init__(self, bot_name: str = "nanobot",
+    def __init__(self, bot_name: str = "leader",
                  workspace_id: str = "default",
                  store=None):
         """Initialize the Learning Exchange system.

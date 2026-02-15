@@ -25,6 +25,7 @@ from nanobot.agent.stages import RoutingStage, RoutingContext
 from nanobot.config.schema import RoutingConfig
 from nanobot.session.manager import SessionManager, Session
 from nanobot.agent.work_log_manager import get_work_log_manager, LogLevel
+from nanobot.agent.work_log import RoomType
 from nanobot.reasoning.config import get_reasoning_config, ReasoningConfig
 
 
@@ -59,7 +60,7 @@ class AgentLoop:
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
         memory_config: "MemoryConfig | None" = None,
-        bot_name: str = "nanobot",
+        bot_name: str = "leader",
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -67,7 +68,7 @@ class AgentLoop:
         self.provider = provider
         self.workspace = workspace
         self.workspace_id = str(workspace)  # For Learning Exchange
-        self.bot_name = bot_name  # Identity of this bot (nanobot is the leader)
+        self.bot_name = bot_name  # Identity of this bot (leader is the leader)
         
         # Initialize reasoning configuration for this bot
         self.reasoning_config = get_reasoning_config(self.bot_name)
@@ -75,6 +76,11 @@ class AgentLoop:
         
         # Initialize current tier for CoT decisions (set by _select_model)
         self._current_tier = "medium"
+        
+        # Room context for multi-agent collaboration
+        self._current_room_id: str = "default"
+        self._current_room_type: str = "open"
+        self._current_room_participants: list[str] = ["leader"]
         
         self.model = model or provider.get_default_model()
         self.max_iterations = max_iterations
@@ -273,14 +279,14 @@ class AgentLoop:
         """Apply the selected theme to all team members' SOUL files on first start.
         
         This ensures all bots are ready to use immediately, whether in rooms or via DM.
-        Team includes: nanobot (Leader), researcher, coder, social, creative, auditor
+        Team includes: leader (Leader), researcher, coder, social, creative, auditor
         """
         try:
             from nanobot.themes import ThemeManager
             from nanobot.soul import SoulManager
             
-            # Check if theme has been applied already (use nanobot as indicator)
-            soul_file = self.workspace / "bots" / "nanobot" / "SOUL.md"
+            # Check if theme has been applied already (use leader as indicator)
+            soul_file = self.workspace / "bots" / "leader" / "SOUL.md"
             if soul_file.exists():
                 # Theme already applied to team
                 logger.debug("Team SOUL files already initialized")
@@ -296,7 +302,7 @@ class AgentLoop:
                 return
             
             # Define the complete team (all available bots)
-            team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+            team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
             
             # Apply the theme to all team members
             soul_manager = SoulManager(self.workspace)
@@ -783,6 +789,9 @@ class AgentLoop:
             chat_id=msg.chat_id,
             memory_context=memory_context if memory_context else None,
             bot_name=self.bot_name,
+            room_id=self._current_room_id,
+            room_type=self._current_room_type,
+            participants=self._current_room_participants,
         )
         
         # Select model using smart routing
@@ -1093,6 +1102,9 @@ class AgentLoop:
         session_key: str = "cli:direct",
         channel: str = "cli",
         chat_id: str = "direct",
+        room_id: str = "default",
+        room_type: str = "open",
+        participants: list | None = None,
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
@@ -1102,12 +1114,26 @@ class AgentLoop:
             session_key: Session identifier.
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
+            room_id: Room identifier for multi-agent context.
+            room_type: Type of room (open, project, direct, coordination).
+            participants: List of bot participants in the room.
 
         Returns:
             The agent's response.
         """
-        # Start work log session for transparency
-        self.work_log_manager.start_session(session_key, content)
+        # Set room context for this session
+        self._current_room_id = room_id
+        self._current_room_type = room_type
+        self._current_room_participants = participants or ["leader"]
+        
+        # Start work log session for transparency with room context
+        self.work_log_manager.start_session(
+            session_key, 
+            content,
+            workspace_id=room_id,
+            workspace_type=RoomType(room_type) if room_type else RoomType.OPEN,
+            participants=participants or ["leader"]
+        )
         
         try:
             msg = InboundMessage(

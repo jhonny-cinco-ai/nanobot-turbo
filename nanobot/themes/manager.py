@@ -67,7 +67,7 @@ class ThemeManager:
             bot_name: Name of bot (nanobot, researcher, coder, social, creative, auditor)
 
         Returns:
-            Dictionary with bot theming info (title, personality, greeting, voice, emoji)
+            Dictionary with bot theming info (title, personality, greeting, voice, emoji, default_name)
         """
         if not self.current_theme:
             return {}
@@ -80,6 +80,7 @@ class ThemeManager:
                 "greeting": theming.greeting,
                 "voice": theming.voice_directive,
                 "emoji": theming.emoji,
+                "default_name": theming.default_name,
             }
         return {}
 

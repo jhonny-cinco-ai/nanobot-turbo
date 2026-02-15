@@ -25,7 +25,7 @@ class WorkLogManager:
 the current active log.
     """
     
-    def __init__(self, enabled: bool = True, bot_name: str = "nanobot"):
+    def __init__(self, enabled: bool = True, bot_name: str = "leader"):
         """Initialize the work log manager.
         
         Args:
@@ -57,7 +57,7 @@ the current active log.
                     -- Multi-agent fields
                     workspace_id TEXT DEFAULT 'default',
                     workspace_type TEXT DEFAULT 'open',
-                    participants_json TEXT DEFAULT '["nanobot"]',
+                    participants_json TEXT DEFAULT '["leader"]',
                     coordinator TEXT
                 )
             """)
@@ -82,8 +82,8 @@ the current active log.
                     -- Multi-agent fields
                     workspace_id TEXT DEFAULT 'default',
                     workspace_type TEXT DEFAULT 'open',
-                    participants_json TEXT DEFAULT '["nanobot"]',
-                    bot_name TEXT DEFAULT 'nanobot',
+                    participants_json TEXT DEFAULT '["leader"]',
+                    bot_name TEXT DEFAULT 'leader',
                     bot_role TEXT DEFAULT 'primary',
                     triggered_by TEXT DEFAULT 'user',
                     coordinator_mode INTEGER DEFAULT 0,
@@ -154,7 +154,7 @@ the current active log.
                 start_time=datetime.now(),
                 workspace_id=workspace_id or "default",
                 workspace_type=workspace_type or WorkspaceType.OPEN,
-                participants=participants or ["nanobot"],
+                participants=participants or ["leader"],
                 coordinator=coordinator
             )
         
@@ -170,7 +170,7 @@ the current active log.
             start_time=datetime.now(),
             workspace_id=workspace_id or "default",
             workspace_type=workspace_type or WorkspaceType.OPEN,
-            participants=participants or ["nanobot"],
+            participants=participants or ["leader"],
             coordinator=coordinator
         )
         
@@ -183,7 +183,7 @@ the current active log.
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (session_id, session_id, query, self.current_log.start_time.isoformat(),
                      workspace_id, (workspace_type or WorkspaceType.OPEN).value,
-                     json.dumps(participants or ["nanobot"]), coordinator)
+                     json.dumps(participants or ["leader"]), coordinator)
                 )
         except sqlite3.IntegrityError:
             # Session already exists, update it with multi-agent fields
@@ -194,7 +194,7 @@ the current active log.
                            SET workspace_id = ?, workspace_type = ?, participants_json = ?, coordinator = ?
                            WHERE session_id = ?""",
                         (workspace_id, (workspace_type or WorkspaceType.OPEN).value,
-                         json.dumps(participants or ["nanobot"]), coordinator, session_id)
+                         json.dumps(participants or ["leader"]), coordinator, session_id)
                     )
             except Exception:
                 pass
@@ -203,7 +203,7 @@ the current active log.
     
     def log(self, level: LogLevel, category: str, message: str,
             details: Optional[dict] = None, confidence: Optional[float] = None,
-            duration_ms: Optional[int] = None, bot_name: str = "nanobot",
+            duration_ms: Optional[int] = None, bot_name: str = "leader",
             triggered_by: str = "user") -> Optional[WorkLogEntry]:
         """Add an entry to the current work log.
         
@@ -287,7 +287,7 @@ the current active log.
         self._save_entry(entry)
         return entry
     
-    def log_escalation(self, reason: str, bot_name: str = "nanobot") -> Optional[WorkLogEntry]:
+    def log_escalation(self, reason: str, bot_name: str = "leader") -> Optional[WorkLogEntry]:
         """Log an escalation that needs user attention.
         
         Args:
@@ -533,7 +533,7 @@ the current active log.
             # Multi-agent fields from DB
             workspace_id=row['workspace_id'] if 'workspace_id' in row.keys() else 'default',
             workspace_type=WorkspaceType(row['workspace_type']) if 'workspace_type' in row.keys() else WorkspaceType.OPEN,
-            participants=json.loads(row['participants_json']) if 'participants_json' in row.keys() and row['participants_json'] else ['nanobot'],
+            participants=json.loads(row['participants_json']) if 'participants_json' in row.keys() and row['participants_json'] else ['leader'],
             coordinator=row['coordinator'] if 'coordinator' in row.keys() else None
         )
         
@@ -561,8 +561,8 @@ the current active log.
                 # Multi-agent fields - use dict-like access with fallback
                 workspace_id=entry_row['workspace_id'] if 'workspace_id' in entry_row.keys() else 'default',
                 workspace_type=WorkspaceType(entry_row['workspace_type']) if 'workspace_type' in entry_row.keys() else WorkspaceType.OPEN,
-                participants=json.loads(entry_row['participants_json']) if 'participants_json' in entry_row.keys() and entry_row['participants_json'] else ['nanobot'],
-                bot_name=entry_row['bot_name'] if 'bot_name' in entry_row.keys() else 'nanobot',
+                participants=json.loads(entry_row['participants_json']) if 'participants_json' in entry_row.keys() and entry_row['participants_json'] else ['leader'],
+                bot_name=entry_row['bot_name'] if 'bot_name' in entry_row.keys() else 'leader',
                 bot_role=entry_row['bot_role'] if 'bot_role' in entry_row.keys() else 'primary',
                 triggered_by=entry_row['triggered_by'] if 'triggered_by' in entry_row.keys() else 'user',
                 coordinator_mode=bool(entry_row['coordinator_mode']) if 'coordinator_mode' in entry_row.keys() else False,

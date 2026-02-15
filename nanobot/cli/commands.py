@@ -24,6 +24,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from nanobot import __logo__
 from nanobot.config.loader import load_config, get_data_dir
 from nanobot.config.schema import MemoryConfig
+from nanobot.cli.room_ui import TeamRoster
 
 # Initialize Rich console
 console = Console()
@@ -127,26 +128,60 @@ def _flush_pending_tty_input() -> None:
 # Exit commands for interactive mode
 EXIT_COMMANDS = {"exit", "quit", "/exit", "/quit", ":q"}
 
+# Room creation detection prompt for AI-assisted room creation
+ROOM_CREATION_PROMPT = """You are an expert at understanding project requirements.
+If the user is asking to create a room, workspace, or start a new project,
+recommend which specialist bots would be helpful.
+
+Available bots:
+- researcher: Market research, competitive analysis, information gathering
+- coder: Software development, coding, debugging, technical implementation
+- creative: Design, UX/UI, visuals, branding, content creation
+- social: Community management, social media, customer engagement
+- auditor: Quality assurance, testing, code review, compliance
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "should_create_room": true or false,
+  "room_name": "short-name-using-dashes",
+  "room_type": "project",
+  "summary": "2-3 sentence description of what the project involves",
+  "recommended_bots": [
+    {"name": "bot-name", "reason": "why this bot is needed"}
+  ]
+}
+
+Examples of room creation requests:
+- "create a room for my website project" -> should_create_room: true
+- "I need to build an API" -> should_create_room: true  
+- "let's start a new feature" -> should_create_room: true
+- "what's the weather" -> should_create_room: false
+- "help me debug this" -> should_create_room: false"""
+
 
 def _is_exit_command(command: str) -> bool:
     """Return True when input should end interactive chat."""
     return command.lower() in EXIT_COMMANDS
 
 
-async def _read_interactive_input_async() -> str:
+async def _read_interactive_input_async(room_id: str = "general") -> str:
     """Read user input using prompt_toolkit (handles paste, history, display).
 
     prompt_toolkit natively handles:
     - Multiline paste (bracketed paste mode)
     - History navigation (up/down arrows)
     - Clean display (no ghost characters or artifacts)
+    
+    Args:
+        room_id: Current room identifier to display in prompt
     """
     if _PROMPT_SESSION is None:
         raise RuntimeError("Call _init_prompt_session() first")
     try:
         with patch_stdout():
+            room_indicator = f"[#{room_id}]" if room_id else ""
             return await _PROMPT_SESSION.prompt_async(
-                HTML("<b fg='ansiblue'>You:</b> "),
+                HTML(f"<b fg='ansigreen'>{room_indicator}</b> <b fg='ansiblue'>You:</b> "),
             )
     except EOFError as exc:
         raise KeyboardInterrupt from exc
@@ -697,7 +732,7 @@ def gateway(
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             theme_manager=theme_manager,
-            custom_name=appearance_config.get_custom_name("nanobot")
+            custom_name=appearance_config.get_custom_name("leader")
         )
         
         # Initialize multi-heartbeat manager
@@ -823,21 +858,332 @@ def gateway(
 # Agent Commands
 # ============================================================================
 
+def _format_room_status(room) -> str:
+    """Format room status for display."""
+    return f"[dim]Room:[/dim] [bold cyan]#{room.id}[/bold cyan] • [dim]Type:[/dim] [green]{room.type.value}[/green]"
+
+
+def _render_team_roster(current_participants: list, theme_manager) -> str:
+    """Render team roster with themed character names.
+    
+    Args:
+        current_participants: List of bot names in current room
+        theme_manager: ThemeManager instance for themed names
+        
+    Returns:
+        Formatted team roster string
+    """
+    from nanobot.themes import ThemeManager
+    
+    if theme_manager is None:
+        theme_manager = ThemeManager()
+    
+    all_bots = [
+        ("leader", "Leader"),
+        ("researcher", "Research"),
+        ("coder", "Code"),
+        ("creative", "Design"),
+        ("social", "Community"),
+        ("auditor", "Quality"),
+    ]
+    
+    output = "[bold cyan]TEAM[/bold cyan]\n"
+    
+    for bot_name, role in all_bots:
+        theming = theme_manager.get_bot_theming(bot_name)
+        
+        if theming and isinstance(theming, dict):
+            char_name = theming.get('default_name') or theming.get('title', bot_name)
+            emoji = theming.get('emoji', '•')
+            title = theming.get('title', role)
+        else:
+            char_name = bot_name
+            emoji = "•"
+            title = role
+        
+        # Check if in current room
+        if bot_name in current_participants:
+            output += f"→ {emoji} [green]{char_name:12}[/green] ({title})\n"
+        else:
+            output += f"  {emoji} {char_name:12} ({title})\n"
+    
+    return output
+
+
+def _render_room_list(room_manager, current_room_id: str) -> str:
+    """Render room list with current room highlighted.
+    
+    Args:
+        room_manager: RoomManager instance
+        current_room_id: ID of current room
+        
+    Returns:
+        Formatted room list string
+    """
+    rooms = room_manager.list_rooms()
+    
+    room_icons = {
+        "open": "🌐",
+        "project": "📁",
+        "direct": "💬",
+        "coordination": "🤖"
+    }
+    
+    output = "\n[bold cyan]ROOMS[/bold cyan]\n"
+    
+    for room_info in rooms:
+        room_id = room_info['id']
+        room_type = room_info['type']
+        participant_count = room_info['participant_count']
+        
+        icon = room_icons.get(room_type, "📌")
+        
+        if room_id == current_room_id:
+            output += f"→ [bold green]{icon} {room_id:15}[/bold green] ({participant_count})\n"
+        else:
+            output += f"  {icon} {room_id:15} ({participant_count})\n"
+    
+    return output
+
+
+def _render_status_bar(room_id: str, participants: list, theme_manager) -> str:
+    """Render status bar with current room and team.
+    
+    Args:
+        room_id: Current room ID
+        participants: List of participant bot names
+        theme_manager: ThemeManager instance
+        
+    Returns:
+        Formatted status bar string
+    """
+    if theme_manager is None:
+        from nanobot.themes import ThemeManager
+        theme_manager = ThemeManager()
+    
+    # Get emojis for actual participants
+    emojis = []
+    if participants and isinstance(participants, list):
+        for bot in participants:
+            theming = theme_manager.get_bot_theming(bot)
+            if theming and isinstance(theming, dict):
+                emojis.append(theming.get('emoji', '•'))
+    
+    emoji_str = " ".join(emojis) if emojis else ""
+    count = len(participants) if isinstance(participants, list) else 0
+    
+    status = f"[dim]Room:[/dim] [bold cyan]#{room_id}[/bold cyan]"
+    status += f" • [dim]Team:[/dim] [green]{count}[/green]"
+    if emoji_str:
+        status += f" {emoji_str}"
+    
+    return status
+
+
+def _looks_like_room_creation_request(user_message: str) -> bool:
+    """Quick check if message might be a room creation request (no LLM needed)."""
+    message_lower = user_message.lower().strip()
+    
+    # Direct patterns that clearly indicate room creation
+    create_patterns = [
+        "create a room",
+        "create room",
+        "start a room",
+        "make a room",
+        "new room",
+        "new project",
+        "start a project",
+        "create a project",
+        "build a website",
+        "work on a",
+    ]
+    
+    return any(pattern in message_lower for pattern in create_patterns)
+
+
+async def _detect_room_creation_intent(user_message: str, config) -> Optional[dict]:
+    """Use LLM to detect if user wants to create a room and recommend bots.
+    
+    Args:
+        user_message: The user's message
+        config: Nanobot config for provider setup
+        
+    Returns:
+        Dict with room creation intent or None
+    """
+    from nanobot.providers.litellm_provider import LiteLLMProvider
+    
+    if not _looks_like_room_creation_request(user_message):
+        return None
+    
+    try:
+        model = config.agents.defaults.model
+        provider = LiteLLMProvider(
+            api_key=config.providers.default.api_key if config.providers else None,
+            api_base=config.get_api_base(),
+            default_model=model,
+        )
+        
+        response = await provider.chat(
+            messages=[
+                {"role": "system", "content": ROOM_CREATION_PROMPT},
+                {"role": "user", "content": user_message}
+            ],
+        )
+        
+        import json
+        import re
+        
+        # Extract JSON from response
+        content = response.content if hasattr(response, 'content') else str(response)
+        
+        # Find JSON in the response
+        json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            if data.get("should_create_room"):
+                return data
+        
+        return None
+        
+    except Exception as e:
+        logger.debug(f"Room intent detection failed: {e}")
+        return None
+
+
+async def _handle_room_creation_intent(
+    intent: dict, 
+    current_room_id: str,
+    config
+) -> Optional[tuple]:
+    """Handle room creation with bot recommendations.
+    
+    Args:
+        intent: The room creation intent from LLM
+        current_room_id: Current room ID (for switching)
+        config: Nanobot config
+        
+    Returns:
+        Tuple of (new_room, switched) or None if user declined
+    """
+    from nanobot.bots.room_manager import get_room_manager
+    from nanobot.models.room import RoomType
+    from nanobot.themes import ThemeManager
+    from rich.prompt import Confirm
+    from rich.panel import Panel
+    from rich.text import Text
+    
+    room_manager = get_room_manager()
+    
+    # Get themed bot names
+    theme_manager = ThemeManager()
+    roster = TeamRoster()
+    
+    # Display the recommendation
+    console.print()
+    
+    # Summary
+    summary_text = Text(f"{intent.get('summary', '')}\n", style="dim")
+    console.print(Panel(summary_text, title="🔍 Analysis", border_style="blue"))
+    
+    # Show recommended bots with themed names
+    console.print("\n[bold]Recommended team:[/bold]")
+    
+    for bot in intent.get("recommended_bots", []):
+        bot_name = bot.get("name", "")
+        reason = bot.get("reason", "")
+        
+        # Get themed info (returns dict, not object)
+        theming = theme_manager.get_bot_theming(bot_name)
+        if theming and isinstance(theming, dict):
+            display_name = theming.get('default_name') or theming.get('title', bot_name)
+            emoji = theming.get('emoji', '•')
+            title = theming.get('title', '')
+            console.print(f"  {emoji} @{display_name:12} ({title} - {reason})")
+        else:
+            # Fallback to roster
+            info = roster.get_bot_info(bot_name)
+            if info:
+                console.print(f"  {info['emoji']} @{bot_name:12} ({reason})")
+            else:
+                console.print(f"  • @{bot_name:12} ({reason})")
+    
+    console.print()
+    
+    # Get confirmation
+    room_name = intent.get("room_name", "new-project")
+    room_type = intent.get("room_type", "project")
+    
+    confirmed = Confirm.ask(
+        f"Create room [bold cyan]#{room_name}[/bold cyan] ({room_type}) and invite these bots?",
+        default=True
+    )
+    
+    if not confirmed:
+        console.print("[yellow]Room creation cancelled.[/yellow]\n")
+        return None
+    
+    # Create room
+    try:
+        new_room = room_manager.create_room(
+            name=room_name,
+            room_type=RoomType(room_type),
+            participants=["leader"]
+        )
+        console.print(f"\n✅ Created room [bold cyan]#{new_room.id}[/bold cyan] ({room_type})")
+        
+        # Invite recommended bots with themed names
+        invited = []
+        for bot in intent.get("recommended_bots", []):
+            bot_name = bot.get("name", "")
+            if room_manager.invite_bot(new_room.id, bot_name):
+                # Get themed info (returns dict)
+                theming = theme_manager.get_bot_theming(bot_name)
+                if theming and isinstance(theming, dict):
+                    display_name = theming.get('default_name') or theming.get('title', bot_name)
+                    emoji = theming.get('emoji', '•')
+                    console.print(f"  {emoji} Invited @{display_name}")
+                    invited.append(display_name)
+                else:
+                    info = roster.get_bot_info(bot_name)
+                    emoji = info['emoji'] if info else "•"
+                    console.print(f"  {emoji} Invited @{bot_name}")
+                    invited.append(bot_name)
+        
+        if invited:
+            console.print(f"\n[green]Team assembled: {', '.join(['@' + n for n in invited])}[/green]")
+        
+        return (new_room, True)
+        
+    except ValueError as e:
+        console.print(f"\n[red]❌ Failed to create room: {e}[/red]\n")
+        return None
+
 
 @app.command()
 def agent(
     message: str = typer.Option(None, "--message", "-m", help="Message to send to the agent"),
     session_id: str = typer.Option("cli:default", "--session", "-s", help="Session ID"),
+    room: str = typer.Option("general", "--room", "-r", help="Room to join (general, project-alpha, etc.)"),
     markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render assistant output as Markdown"),
     logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanobot runtime logs during chat"),
 ):
-    """Interact with the agent directly."""
+    """Interact with the agent directly in a room context."""
     from nanobot.config.loader import load_config
     from nanobot.bus.queue import MessageBus
     from nanobot.agent.loop import AgentLoop
+    from nanobot.bots.room_manager import get_room_manager
     from loguru import logger
     
     config = load_config()
+    
+    # Load room context
+    room_manager = get_room_manager()
+    current_room = room_manager.get_room(room)
+    if not current_room:
+        console.print(f"[yellow]Room '{room}' not found. Using 'general' room.[/yellow]")
+        current_room = room_manager.default_room
+        room = current_room.id
     
     bus = MessageBus()
     provider = _make_provider(config)
@@ -876,14 +1222,45 @@ def agent(
         # Single message mode
         async def run_once():
             with _thinking_ctx():
-                response = await agent_loop.process_direct(message, session_id)
+                response = await agent_loop.process_direct(message, session_id, room_id=room)
             _print_agent_response(response, render_markdown=markdown)
         
         asyncio.run(run_once())
     else:
         # Interactive mode
         _init_prompt_session()
-        console.print(f"{__logo__} Interactive mode (type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit)\n")
+        
+        # Get theme manager for themed names
+        from nanobot.themes import ThemeManager
+        from nanobot.bots.room_manager import get_room_manager
+        
+        theme_manager = ThemeManager()
+        room_manager = get_room_manager()
+        
+        # Display enhanced UI with team roster and room list
+        console.print(f"{__logo__} Interactive mode\n")
+        
+        # Team roster with themed character names
+        console.print(_render_team_roster(current_room.participants, theme_manager))
+        
+        # Room list
+        console.print(_render_room_list(room_manager, room))
+        
+        # Status bar
+        console.print(_render_status_bar(room, current_room.participants, theme_manager))
+        
+        console.print()
+        console.print("[dim]Commands:[/dim]")
+        console.print("  [bold]/room[/bold]              Show room details")
+        console.print("  [bold]/create <name> [type][/bold]  Create a new room")
+        console.print("  [bold]/invite <bot>[/bold]       Invite bot to current room")
+        console.print("  [bold]/switch <room>[/bold]      Switch to a different room")
+        console.print("  [bold]/list-rooms[/bold]         Show all available rooms")
+        console.print("  [bold]/explain[/bold]            Show how last decision was made")
+        console.print("  [bold]/logs[/bold]               Show work log summary")
+        console.print("  [bold]/how <topic>[/bold]        Search work log for specific topic")
+        console.print("  [bold]exit[/bold]                Exit conversation")
+        console.print()
 
         def _exit_on_sigint(signum, frame):
             _restore_terminal()
@@ -893,10 +1270,11 @@ def agent(
         signal.signal(signal.SIGINT, _exit_on_sigint)
         
         async def run_interactive():
+            nonlocal current_room  # Allow updating current_room
             while True:
                 try:
                     _flush_pending_tty_input()
-                    user_input = await _read_interactive_input_async()
+                    user_input = await _read_interactive_input_async(room)
                     command = user_input.strip()
                     if not command:
                         continue
@@ -954,8 +1332,138 @@ def agent(
                             console.print("\n[yellow]No work log found.[/yellow]\n")
                         continue
                     
+                    if command == "/room":
+                        # Show current room info
+                        console.print(f"\n[bold cyan]📁 Room: #{current_room.id}[/bold cyan]")
+                        console.print(f"   Type: {current_room.type.value}")
+                        console.print(f"   Participants ({len(current_room.participants)}):")
+                        for bot in current_room.participants:
+                            console.print(f"   • {bot}")
+                        console.print(f"\n[dim]Use 'nanobot room invite {current_room.id} <bot>' to add bots[/dim]\n")
+                        continue
+                    
+                    # Handle /create command
+                    if command.startswith("/create "):
+                        from nanobot.bots.room_manager import get_room_manager
+                        from nanobot.models.room import RoomType
+                        
+                        parts = command[8:].split()
+                        room_name = parts[0] if parts else None
+                        room_type = parts[1] if len(parts) > 1 else "project"
+                        
+                        if not room_name:
+                            console.print("[yellow]Usage: /create <name> [type][/yellow]")
+                            continue
+                        
+                        try:
+                            room_manager = get_room_manager()
+                            new_room = room_manager.create_room(
+                                name=room_name,
+                                room_type=RoomType(room_type),
+                                participants=["leader"]
+                            )
+                            console.print(f"\n✅ Created room #{new_room.id} ({room_type})")
+                            console.print(f"   Use: /invite <bot> to add bots")
+                            console.print(f"   Use: /switch {new_room.id} to join\n")
+                        except ValueError as e:
+                            console.print(f"\n[red]❌ {e}[/red]\n")
+                        continue
+                    
+                    # Handle /invite command
+                    if command.startswith("/invite "):
+                        from nanobot.bots.room_manager import get_room_manager
+                        
+                        parts = command[8:].split(maxsplit=1)
+                        bot_name = parts[0].lower() if parts else None
+                        reason = parts[1] if len(parts) > 1 else "Team member"
+                        
+                        if not bot_name:
+                            console.print("[yellow]Usage: /invite <bot> [reason][/yellow]")
+                            continue
+                        
+                        room_manager = get_room_manager()
+                        if room_manager.invite_bot(room, bot_name):
+                            updated_room = room_manager.get_room(room)
+                            console.print(f"\n✅ {bot_name} invited to #{room}")
+                            console.print(f"   Participants ({len(updated_room.participants)}): " + 
+                                         ", ".join(updated_room.participants) + "\n")
+                            current_room = updated_room
+                        else:
+                            console.print(f"\n[yellow]⚠ Could not invite {bot_name}[/yellow]\n")
+                        continue
+                    
+                    # Handle /switch command
+                    if command.startswith("/switch "):
+                        from nanobot.bots.room_manager import get_room_manager
+                        
+                        new_room_id = command[8:].strip().lower()
+                        
+                        if not new_room_id:
+                            console.print("[yellow]Usage: /switch <room>[/yellow]")
+                            continue
+                        
+                        room_manager = get_room_manager()
+                        new_room = room_manager.get_room(new_room_id)
+                        
+                        if not new_room:
+                            console.print(f"\n[red]❌ Room '{new_room_id}' not found[/red]\n")
+                            continue
+                        
+                        # Switch context
+                        room = new_room_id
+                        current_room = new_room
+                        
+                        console.print(f"\n🔀 Switched to #{new_room_id}\n")
+                        console.print(_format_room_status(current_room))
+                        console.print(f"\nParticipants: {', '.join(current_room.participants)}\n")
+                        continue
+                    
+                    # Handle /list-rooms command
+                    if command in ["/list-rooms", "/rooms"]:
+                        from nanobot.bots.room_manager import get_room_manager
+                        
+                        room_manager = get_room_manager()
+                        rooms = room_manager.list_rooms()
+                        
+                        table = Table(title="Available Rooms")
+                        table.add_column("Room", style="cyan")
+                        table.add_column("Type", style="blue")
+                        table.add_column("Bots", style="green")
+                        table.add_column("Status", style="yellow")
+                        
+                        for room_info in rooms:
+                            status = "🟢 Active" if room_info['is_default'] else "🔵 Idle"
+                            table.add_row(
+                                f"#{room_info['id']}",
+                                room_info['type'],
+                                str(room_info['participant_count']),
+                                status
+                            )
+                        
+                        console.print(f"\n{table}\n")
+                        console.print("[dim]Use /switch <room> to join a room[/dim]\n")
+                        continue
+                    
+                    # AI-assisted room creation detection
+                    # Only for regular messages (not commands)
+                    if not command.startswith("/"):
+                        intent = await _detect_room_creation_intent(user_input, config)
+                        if intent:
+                            result = await _handle_room_creation_intent(intent, room, config)
+                            if result:
+                                new_room, switched = result
+                                if switched:
+                                    room = new_room.id
+                                    current_room = new_room
+                                    console.print(f"\n🔀 Switched to [bold cyan]#{room}[/bold cyan]\n")
+                            # After handling room creation (or cancellation), 
+                            # either continue to agent or ask user what to do next
+                            # For now, we ask the user what they want to do
+                            console.print("[dim]What would you like to do next?[/dim]\n")
+                            continue
+                    
                     with _thinking_ctx():
-                        response = await agent_loop.process_direct(user_input, session_id)
+                        response = await agent_loop.process_direct(user_input, session_id, room_id=room)
                     _print_agent_response(response, render_markdown=markdown)
                 except KeyboardInterrupt:
                     _restore_terminal()
@@ -1136,7 +1644,7 @@ def how_did_you_decide(
         else:
             console.print(f"{icon} [bold]Step {entry.step}[/bold] - {entry.category}")
         
-        if entry.bot_name != "nanobot":
+        if entry.bot_name != "leader":
             console.print(f"   [cyan]@{entry.bot_name}:[/cyan] {entry.message}")
         else:
             console.print(f"   {entry.message}")
@@ -2348,7 +2856,7 @@ def theme_set(
     table.add_column("Emoji", justify="center")
     
     bot_mappings = [
-        ("nanobot", "Leader"),
+        ("leader", "Leader"),
         ("researcher", "Researcher"),
         ("coder", "Coder"),
         ("social", "Social"),
@@ -2404,7 +2912,7 @@ def theme_show():
     table.add_column("Greeting")
     
     bot_roles = [
-        ("nanobot", "Leader"),
+        ("leader", "Leader"),
         ("researcher", "Researcher"),
         ("coder", "Coder"),
         ("social", "Social"),
@@ -2487,7 +2995,7 @@ def bot_rename(
     import json
     
     # Validate bot name
-    valid_bots = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+    valid_bots = ["leader", "researcher", "coder", "social", "creative", "auditor"]
     if bot_name.lower() not in valid_bots:
         console.print(f"[red]❌ Unknown bot: {bot_name}[/red]")
         console.print(f"[dim]Valid bots: {', '.join(valid_bots)}[/dim]")
@@ -2604,7 +3112,7 @@ def room_create(
     if bots:
         participant_list = [b.strip() for b in bots.split(",")]
     else:
-        participant_list = ["nanobot"]  # Default to just Leader
+        participant_list = ["leader"]  # Default to just Leader
     
     try:
         room = manager.create_room(
@@ -2631,7 +3139,7 @@ def room_invite(
     manager = get_room_manager()
     
     # Validate bot name
-    valid_bots = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+    valid_bots = ["leader", "researcher", "coder", "social", "creative", "auditor"]
     if bot_name.lower() not in valid_bots:
         console.print(f"[red]❌ Invalid bot name: {bot_name}[/red]")
         console.print(f"[dim]Valid bots: {', '.join(valid_bots)}[/dim]")

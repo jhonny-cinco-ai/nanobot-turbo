@@ -173,8 +173,8 @@ Skills with available="false" need dependencies installed first - you can try in
         """
         from nanobot.models import get_role_card
         
-        safe_bot_name = bot_name or "nanobot"
-        is_leader = safe_bot_name == "nanobot"
+        safe_bot_name = bot_name or "leader"
+        is_leader = safe_bot_name == "leader"
         
         # Try to load IDENTITY.md for this bot
         identity_content = self._load_identity_for_bot(safe_bot_name)
@@ -630,6 +630,9 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
         channel: str | None = None,
         chat_id: str | None = None,
         memory_context: str | None = None,
+        room_id: str | None = None,
+        room_type: str | None = None,
+        participants: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
@@ -643,6 +646,9 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
             channel: Current channel (telegram, feishu, etc.).
             chat_id: Current chat/user ID.
             memory_context: Optional memory context from previous conversations.
+            room_id: Current room identifier (e.g., "general", "project-alpha").
+            room_type: Type of room (open, project, direct, coordination).
+            participants: List of bots participating in the room.
 
         Returns:
             List of messages including system prompt.
@@ -656,6 +662,15 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
         )
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
+        
+        # Add room context if provided
+        if room_id and room_id != "default":
+            system_prompt += f"\n\n## Room Context\nRoom: #{room_id}"
+            if room_type:
+                system_prompt += f"\nType: {room_type}"
+            if participants:
+                system_prompt += f"\nParticipants: {', '.join(participants)}"
+            system_prompt += "\n\nYou are collaborating in this room with other bots. Use @botname to mention specific bots when you need their expertise."
         
         # Add memory context if provided
         if memory_context:

@@ -22,7 +22,7 @@ class NanobotLeader(SpecialistBot):
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
         """
-        super().__init__(get_role_card("nanobot"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
+        super().__init__(get_role_card("leader"), bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
         self.authority_level = "high"
         self.can_create_workspaces = True
         self.can_recruit_bots = True

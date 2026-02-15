@@ -86,7 +86,7 @@ class MigrationManager:
         columns = {row[1] for row in cursor.fetchall()}
         
         if "bot_name" not in columns:
-            conn.execute("ALTER TABLE events ADD COLUMN bot_name TEXT DEFAULT 'nanobot'")
+            conn.execute("ALTER TABLE events ADD COLUMN bot_name TEXT DEFAULT 'leader'")
             logger.debug("Added bot_name column to events table")
         
         if "bot_role" not in columns:
@@ -110,7 +110,7 @@ class MigrationManager:
         columns = {row[1] for row in cursor.fetchall()}
         
         if "bot_id" not in columns:
-            conn.execute("ALTER TABLE learnings ADD COLUMN bot_id TEXT DEFAULT 'nanobot'")
+            conn.execute("ALTER TABLE learnings ADD COLUMN bot_id TEXT DEFAULT 'leader'")
             logger.debug("Added bot_id column to learnings table")
         
         if "is_private" not in columns:
@@ -136,7 +136,7 @@ class MigrationManager:
         columns = {row[1] for row in cursor.fetchall()}
         
         if "bot_id" not in columns:
-            conn.execute("ALTER TABLE summary_nodes ADD COLUMN bot_id TEXT DEFAULT 'nanobot'")
+            conn.execute("ALTER TABLE summary_nodes ADD COLUMN bot_id TEXT DEFAULT 'leader'")
             logger.debug("Added bot_id column to summary_nodes table")
         
         if "domain" not in columns:
