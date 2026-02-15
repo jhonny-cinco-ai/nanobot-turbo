@@ -388,6 +388,169 @@ Not ready for a full crew? Nanofolks works perfectly as a single assistant:
 
 ---
 
+## 🏠 Rooms & Collaboration
+
+Nanofolks uses **rooms** as collaboration spaces where your crew works together. Think of rooms as dedicated spaces for different projects, topics, or conversation types.
+
+### What Are Rooms?
+
+A **room** is a conversation context where:
+- Multiple bots can participate together
+- Context is shared among all participants
+- Bots can @mention each other to collaborate
+- Work gets coordinated through the Leader
+
+### Room Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **OPEN** | General discussion room | Casual chat, #general |
+| **PROJECT** | Focused team workspace | Specific projects with deadlines |
+| **DIRECT** | 1-on-1 with a bot | Private DM with @researcher |
+| **COORDINATION** | Leader-managed room | Autonomous coordination mode |
+
+### Creating and Managing Rooms
+
+Create rooms for different projects or contexts:
+
+```bash
+# Create a new project room
+nanobot room create project-alpha
+
+# Invite bots to the room
+nanobot room invite project-alpha researcher
+nanobot room invite project-alpha coder
+nanobot room invite project-alpha creative
+
+# See who's in the room
+nanobot room show project-alpha
+
+# List all your rooms
+nanobot room list
+```
+
+### The @ Mention System
+
+Use **@** to direct messages to specific bots or the entire crew:
+
+#### Direct to a Bot
+```
+@researcher analyze market trends for Q3
+→ ResearcherBot responds with analysis
+
+@coder implement user authentication
+→ CoderBot writes the code
+
+@creative design a landing page hero
+→ CreativeBot creates concepts
+```
+
+#### Broadcast to All
+```
+@all review this architecture proposal
+→ All bots in the room respond with feedback
+
+@crew brainstorm marketing ideas
+→ Entire crew collaborates on ideas
+```
+
+#### Leader Coordination (Default)
+```
+I need help planning the product launch
+→ Leader coordinates which bots should help
+→ May involve researcher (market), creative (branding), coder (landing page)
+```
+
+### How @ Routing Works
+
+When you send a message, Nanofolks intelligently routes it:
+
+1. **@botname mentioned?** → Goes directly to that bot
+2. **@all or @crew mentioned?** → Broadcast to all room participants
+3. **No mention?** → Leader analyzes and coordinates response
+
+```
+You: @researcher find competitors in the AI space
+    ↓
+ResearcherBot: Here's what I found...
+
+You: @all what do you think of this strategy?
+    ↓
+ResearcherBot: From a data perspective...
+CreativeBot: The branding approach should be...
+CoderBot: Technically, we could implement...
+Leader: Let me synthesize these perspectives...
+```
+
+### Direct Messages (DMs)
+
+Chat with a single bot privately without room context:
+
+```bash
+# DM a specific bot
+nanobot agent -m "@researcher analyze this data privately"
+
+# Or enter interactive mode and use @ mentions
+nanobot agent
+> @researcher what are the latest trends?
+```
+
+**DMs vs Rooms:**
+- **DMs** → Private 1-on-1, bot's individual expertise
+- **Rooms** → Collaborative, shared context, multiple perspectives
+
+### Room Creation by Leader
+
+The Leader can create rooms automatically when you ask:
+
+```
+You: Create a room for the website redesign project
+Leader: Created room 'website-redesign' with appropriate team members
+
+You: Set up a space for the Q4 planning
+Leader: Created 'q4-planning' room with researcher and creative
+```
+
+### Shared Context
+
+Rooms maintain shared context across the conversation:
+
+```
+You: @researcher find data on renewable energy
+ResearcherBot: [shares findings]
+
+You: @creative use that data for an infographic
+CreativeBot: [accesses the same research context]
+
+You: @coder build a dashboard with those stats
+CoderBot: [references previous findings]
+```
+
+### CLI Commands for Rooms
+
+| Command | Description |
+|---------|-------------|
+| `nanobot room list` | Show all rooms |
+| `nanobot room create <name>` | Create new room |
+| `nanobot room invite <room> <bot>` | Add bot to room |
+| `nanobot room remove <room> <bot>` | Remove bot from room |
+| `nanobot room show <room>` | Show room details |
+
+### Best Practices
+
+**When to use @mentions:**
+- ✅ Use `@botname` when you know exactly who should help
+- ✅ Use `@all` for brainstorming or decisions needing multiple perspectives
+- ✅ No mention for general questions (Leader coordinates)
+
+**Room organization:**
+- Create PROJECT rooms for specific initiatives
+- Keep #general as OPEN for casual chat
+- Use DIRECT when you need a bot's specific expertise privately
+- Leader can auto-create rooms when you describe a project
+
+---
+
 # Quick Start
 
 ## Installation
