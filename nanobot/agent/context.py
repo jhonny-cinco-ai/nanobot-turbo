@@ -3,10 +3,14 @@
 import base64
 import mimetypes
 import platform
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from loguru import logger
+
 from nanobot.memory.store import TurboMemoryStore
+from nanobot.memory.embeddings import EmbeddingProvider
 from nanobot.agent.skills import SkillsLoader
 from nanobot.config.loader import load_config
 from nanobot.soul import SoulManager
@@ -30,8 +34,11 @@ class ContextBuilder:
         config = load_config()
         if config.memory.enabled:
             self.memory = TurboMemoryStore(config.memory, workspace)
+            # Initialize embedding provider for semantic search
+            self.embedding_provider = EmbeddingProvider(config.memory.embedding)
         else:
             self.memory = None
+            self.embedding_provider = None
             
         self.skills = SkillsLoader(workspace)
         self.soul_manager = SoulManager(workspace)
@@ -345,6 +352,149 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         
         return None
     
+    def get_semantic_memory_context(
+        self, 
+        query: str, 
+        limit: int = 10, 
+        threshold: float = 0.5,
+        include_recent: bool = True,
+        recent_limit: int = 5
+    ) -> str:
+        """Get memory context using semantic search for relevance.
+        
+        This method retrieves memories based on semantic similarity to the query,
+        rather than just recency. It combines:
+        1. Semantically relevant events (via embedding similarity)
+        2. Important entities related to the query
+        3. Recent activity (optional, for context continuity)
+        
+        Args:
+            query: The user's query to search for relevant memories
+            limit: Maximum number of semantically relevant events to retrieve
+            threshold: Minimum similarity score (0-1) for semantic search
+            include_recent: Whether to also include recent events
+            recent_limit: Number of recent events to include if include_recent is True
+            
+        Returns:
+            Formatted memory context string with relevant information
+        """
+        if not self.memory or not self.embedding_provider:
+            return ""
+        
+        parts = []
+        
+        try:
+            # Generate embedding for the query
+            query_embedding = self.embedding_provider.embed(query)
+            
+            # Search for semantically relevant events
+            relevant_events = self.memory.search_events(
+                query_embedding=query_embedding,
+                limit=limit,
+                threshold=threshold
+            )
+            
+            if relevant_events:
+                parts.append("## Relevant Past Activity")
+                for event, similarity in relevant_events:
+                    relevance = "high" if similarity > 0.7 else "medium" if similarity > 0.5 else "low"
+                    parts.append(
+                        f"- [{event.timestamp.strftime('%Y-%m-%d %H:%M')}] "
+                        f"({relevance} relevance) {event.event_type}: {event.content[:150]}"
+                    )
+            
+            # Search for relevant entities using semantic similarity
+            entities = self.memory.get_all_entities()
+            if entities and query_embedding:
+                # Get embeddings for entity names and calculate similarity
+                from nanobot.memory.embeddings import cosine_similarity
+                
+                relevant_entities = []
+                for entity in entities:
+                    if entity.name:
+                        # Simple text matching for now (could be enhanced with entity embeddings)
+                        entity_text = f"{entity.name} {entity.description or ''}"
+                        entity_lower = entity_text.lower()
+                        query_lower = query.lower()
+                        
+                        # Check if entity is mentioned in query or vice versa
+                        if (entity.name.lower() in query_lower or 
+                            any(word in entity_lower for word in query_lower.split()[:5])):
+                            relevant_entities.append(entity)
+                
+                # Sort by event count (importance) and take top 5
+                relevant_entities.sort(key=lambda e: e.event_count, reverse=True)
+                relevant_entities = relevant_entities[:5]
+                
+                if relevant_entities:
+                    parts.append("\n## Related Entities")
+                    for entity in relevant_entities:
+                        parts.append(
+                            f"- {entity.name} ({entity.entity_type}): "
+                            f"{entity.description or 'No description'} "
+                            f"[{entity.event_count} interactions]"
+                        )
+            
+            # Optionally include recent activity for context continuity
+            if include_recent:
+                # Get recent events from the default session or all events
+                recent_events = []
+                try:
+                    # Try to get events by session (default session)
+                    recent_events = self.memory.get_events_by_session(session_key="default", limit=recent_limit)
+                except:
+                    # Fallback to getting all events
+                    recent_events = []
+                
+                # Filter out events already included in semantic search
+                relevant_event_ids = {e[0].id for e in relevant_events}
+                new_recent = [e for e in recent_events if e.id not in relevant_event_ids]
+                
+                if new_recent:
+                    parts.append("\n## Recent Activity")
+                    for event in new_recent:
+                        parts.append(
+                            f"- [{event.timestamp.strftime('%Y-%m-%d %H:%M')}] "
+                            f"{event.event_type}: {event.content[:100]}"
+                        )
+            
+            # Get relevant learnings
+            learnings = self.memory.get_all_learnings(active_only=True)
+            if learnings:
+                # Filter learnings by relevance to query
+                query_words = set(query.lower().split())
+                relevant_learnings = []
+                
+                for learning in learnings[:20]:  # Limit to first 20 for performance
+                    learning_text = learning.content.lower()
+                    if any(word in learning_text for word in query_words):
+                        relevant_learnings.append(learning)
+                
+                if relevant_learnings:
+                    parts.append("\n## Relevant Learned Preferences")
+                    for learning in relevant_learnings[:3]:
+                        parts.append(f"- {learning.content}")
+            
+            # Get latest summary if available
+            summaries = self.memory.get_all_summary_nodes()
+            if summaries:
+                latest = max(summaries, key=lambda s: s.last_updated or datetime.min)
+                parts.append(f"\n## Conversation Summary\n{latest.summary}")
+            
+        except Exception as e:
+            # Fall back to recent events if semantic search fails
+            logger.warning(f"Semantic memory search failed: {e}. Falling back to recent events.")
+            return self._get_fallback_memory_context()
+        
+        return "\n".join(parts) if parts else ""
+    
+    def _get_fallback_memory_context(self) -> str:
+        """Fallback to time-based memory context if semantic search fails."""
+        if not self.memory:
+            return ""
+        
+        return self.memory.get_memory_context(limit=20)
+    
     def build_messages(
         self,
         history: list[dict[str, Any]],
@@ -385,6 +535,20 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         # Add memory context if provided
         if memory_context:
             system_prompt += f"\n\n## Memory Context\n{memory_context}"
+        elif self.memory and self.embedding_provider:
+            # Generate semantic memory context based on current message
+            try:
+                semantic_memory = self.get_semantic_memory_context(
+                    query=current_message,
+                    limit=10,
+                    threshold=0.5,
+                    include_recent=True,
+                    recent_limit=3
+                )
+                if semantic_memory:
+                    system_prompt += f"\n\n## Memory Context\n{semantic_memory}"
+            except Exception as e:
+                logger.warning(f"Failed to generate semantic memory context: {e}")
         
         messages.append({"role": "system", "content": system_prompt})
 
