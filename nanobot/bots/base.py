@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Optional
 from loguru import logger
 
 from nanobot.models.role_card import RoleCard
-from nanobot.models.workspace import Workspace
+from nanobot.models.room import Room
 from nanobot.themes import ThemeManager, get_theme
 
 
