@@ -230,7 +230,7 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
 - If a task is outside your expertise, suggest invoking another bot"""
     
     def _load_bootstrap_files(self, bot_name: Optional[str] = None) -> str:
-        """Load bootstrap files with bot-specific SOUL and AGENTS if available.
+        """Load bootstrap files with bot-specific SOUL, AGENTS, and IDENTITY if available.
         
         Args:
             bot_name: Optional bot name for personality injection.
@@ -253,6 +253,13 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
                 agents_content = self._load_agents_for_bot(bot_name)
                 if agents_content:
                     parts.append(agents_content)
+                continue
+            
+            # Special handling for IDENTITY.md with bot-specific support
+            if filename == "IDENTITY.md":
+                identity_content = self._load_identity_for_bot(bot_name)
+                if identity_content:
+                    parts.append(identity_content)
                 continue
             
             # Other bootstrap files
@@ -304,6 +311,37 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         soul_content = self.soul_manager.get_bot_soul(bot_name)
         if soul_content:
             return f"## SOUL.md (Bot: {bot_name})\n\n{soul_content}"
+        
+        return None
+    
+    def _load_identity_for_bot(self, bot_name: Optional[str] = None) -> Optional[str]:
+        """Load IDENTITY.md for a bot.
+        
+        Args:
+            bot_name: Bot name to load specific IDENTITY
+        
+        Returns:
+            Formatted IDENTITY content or None
+        """
+        # If no bot specified, try workspace-level IDENTITY
+        if not bot_name:
+            identity_file = self.workspace / "IDENTITY.md"
+            if identity_file.exists():
+                content = identity_file.read_text(encoding="utf-8")
+                return f"## IDENTITY.md\n\n{content}"
+            return None
+        
+        # Load bot-specific IDENTITY.md if it exists in workspace
+        bot_identity_file = self.workspace / "bots" / bot_name / "IDENTITY.md"
+        if bot_identity_file.exists():
+            content = bot_identity_file.read_text(encoding="utf-8")
+            return f"## IDENTITY.md (Bot: {bot_name})\n\n{content}"
+        
+        # Fall back to template IDENTITY.md from theme
+        from nanobot.templates import get_identity_template_for_bot
+        template_content = get_identity_template_for_bot(bot_name)
+        if template_content:
+            return f"## IDENTITY.md (Bot: {bot_name})\n\n{template_content}"
         
         return None
     

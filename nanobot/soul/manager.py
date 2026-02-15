@@ -211,16 +211,26 @@ Custom edits to this file persist until the theme is reapplied with `force=True`
     def get_bot_soul(self, bot_name: str) -> Optional[str]:
         """Load a bot's SOUL.md content.
         
+        Loading hierarchy:
+        1. Workspace bot-specific: /bots/{bot_name}/SOUL.md
+        2. Template from detected theme: /templates/soul/{theme}/{bot_name}_SOUL.md
+        3. Returns None if none found
+        
         Args:
             bot_name: Name of the bot
         
         Returns:
             SOUL.md content or None if not found
         """
+        # 1. Check workspace bot-specific first
         soul_file = self.bots_dir / bot_name / "SOUL.md"
-        
         if soul_file.exists():
             return soul_file.read_text(encoding="utf-8")
+        
+        # 2. Check template directories for themes
+        template_soul = self._load_soul_from_templates(bot_name)
+        if template_soul:
+            return template_soul
         
         return None
     
@@ -247,6 +257,23 @@ Custom edits to this file persist until the theme is reapplied with `force=True`
             return default_content
         
         return self._get_default_soul(bot_name)
+    
+    def _load_soul_from_templates(self, bot_name: str) -> Optional[str]:
+        """Load SOUL.md from template directories.
+        
+        Tries to find SOUL templates from installed themes.
+        
+        Args:
+            bot_name: Name of the bot
+        
+        Returns:
+            SOUL.md content from template or None if not found
+        """
+        try:
+            from nanobot.templates import get_soul_template_for_bot
+            return get_soul_template_for_bot(bot_name)
+        except (ImportError, Exception):
+            return None
     
     def _get_default_soul(self, bot_name: str) -> str:
         """Get default soul for bot without theme applied.
