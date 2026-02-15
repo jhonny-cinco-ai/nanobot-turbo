@@ -42,6 +42,9 @@ class ContextBuilder:
             
         self.skills = SkillsLoader(workspace)
         self.soul_manager = SoulManager(workspace)
+        
+        # Cache for cleaned file content: {file_path: (mtime, cleaned_content)}
+        self._content_cache: dict[str, tuple[float, str]] = {}
     
     def build_system_prompt(
         self,
@@ -271,12 +274,13 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
             
             # Other bootstrap files (USER.md, TOOLS.md)
             file_path = self.workspace / filename
-            if file_path.exists():
-                from nanobot.utils.markdown_cleaner import clean_markdown_content
-                content = file_path.read_text(encoding="utf-8")
-                # Clean markdown to reduce tokens while preserving meaning
-                cleaned_content = clean_markdown_content(content, aggressive=False)
-                parts.append(f"## {filename}\n\n{cleaned_content}")
+            try:
+                cleaned_content = self._get_cached_or_clean_file(file_path, filename)
+                if cleaned_content:
+                    parts.append(f"## {filename}\n\n{cleaned_content}")
+            except Exception as e:
+                logger.warning(f"Failed to load {filename}: {e}")
+                continue
         
         return "\n\n".join(parts) if parts else ""
     
@@ -289,21 +293,23 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         Returns:
             Formatted AGENTS content or None
         """
-        from nanobot.soul import SoulManager
-        from nanobot.utils.markdown_cleaner import compact_agents_content
-        
         # If no bot specified, no AGENTS content (workspace-level is deprecated)
         if not bot_name:
             return None
         
         # Load bot-specific AGENTS.md
-        soul_manager = SoulManager(self.workspace)
-        agents_content = soul_manager.get_bot_agents(bot_name)
-        
-        if agents_content:
-            # Clean markdown to reduce tokens while preserving meaning
-            cleaned_content = compact_agents_content(agents_content)
-            return f"## AGENTS.md (Bot: {bot_name})\n\n{cleaned_content}"
+        try:
+            agents_content = self.soul_manager.get_bot_agents(bot_name)
+            
+            if agents_content:
+                # Use caching method to clean markdown
+                # Create a temporary file path for cache key
+                temp_path = self.workspace / "bots" / bot_name / "AGENTS.md"
+                cleaned_content = self._get_cached_or_clean_file(temp_path, "AGENTS.md")
+                if cleaned_content:
+                    return f"## AGENTS.md (Bot: {bot_name})\n\n{cleaned_content}"
+        except Exception as e:
+            logger.warning(f"Failed to load AGENTS.md for {bot_name}: {e}")
         
         return None
     
@@ -316,18 +322,22 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         Returns:
             Formatted SOUL content or None
         """
-        from nanobot.utils.markdown_cleaner import compact_soul_content
-        
         # If no bot specified, no SOUL content (workspace-level is deprecated)
         if not bot_name:
             return None
         
         # Load bot-specific SOUL.md
-        soul_content = self.soul_manager.get_bot_soul(bot_name)
-        if soul_content:
-            # Clean markdown to reduce tokens while preserving meaning
-            cleaned_content = compact_soul_content(soul_content)
-            return f"## SOUL.md (Bot: {bot_name})\n\n{cleaned_content}"
+        try:
+            soul_content = self.soul_manager.get_bot_soul(bot_name)
+            
+            if soul_content:
+                # Use caching method to clean markdown
+                temp_path = self.workspace / "bots" / bot_name / "SOUL.md"
+                cleaned_content = self._get_cached_or_clean_file(temp_path, "SOUL.md")
+                if cleaned_content:
+                    return f"## SOUL.md (Bot: {bot_name})\n\n{cleaned_content}"
+        except Exception as e:
+            logger.warning(f"Failed to load SOUL.md for {bot_name}: {e}")
         
         return None
     
@@ -340,35 +350,113 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
         Returns:
             Formatted IDENTITY content or None
         """
-        from nanobot.utils.markdown_cleaner import compact_soul_content
-        
         # If no bot specified, try workspace-level IDENTITY
         if not bot_name:
             identity_file = self.workspace / "IDENTITY.md"
-            if identity_file.exists():
-                content = identity_file.read_text(encoding="utf-8")
-                # Clean markdown to reduce tokens while preserving meaning
-                cleaned_content = compact_soul_content(content)
-                return f"## IDENTITY.md\n\n{cleaned_content}"
+            try:
+                cleaned_content = self._get_cached_or_clean_file(identity_file, "IDENTITY.md")
+                if cleaned_content:
+                    return f"## IDENTITY.md\n\n{cleaned_content}"
+            except Exception as e:
+                logger.warning(f"Failed to load workspace IDENTITY.md: {e}")
             return None
         
         # Load bot-specific IDENTITY.md if it exists in workspace
         bot_identity_file = self.workspace / "bots" / bot_name / "IDENTITY.md"
-        if bot_identity_file.exists():
-            content = bot_identity_file.read_text(encoding="utf-8")
-            # Clean markdown to reduce tokens while preserving meaning
-            cleaned_content = compact_soul_content(content)
-            return f"## IDENTITY.md (Bot: {bot_name})\n\n{cleaned_content}"
+        try:
+            if bot_identity_file.exists():
+                cleaned_content = self._get_cached_or_clean_file(bot_identity_file, "IDENTITY.md")
+                if cleaned_content:
+                    return f"## IDENTITY.md (Bot: {bot_name})\n\n{cleaned_content}"
+        except Exception as e:
+            logger.warning(f"Failed to load IDENTITY.md for {bot_name}: {e}")
         
         # Fall back to template IDENTITY.md from theme
-        from nanobot.templates import get_identity_template_for_bot
-        template_content = get_identity_template_for_bot(bot_name)
-        if template_content:
-            # Clean markdown to reduce tokens while preserving meaning
-            cleaned_content = compact_soul_content(template_content)
-            return f"## IDENTITY.md (Bot: {bot_name})\n\n{cleaned_content}"
+        try:
+            from nanobot.templates import get_identity_template_for_bot
+            template_content = get_identity_template_for_bot(bot_name)
+            if template_content:
+                # For templates, create a temp path for caching
+                temp_path = self.workspace / ".cache" / f"identity_template_{bot_name}.md"
+                temp_path.parent.mkdir(parents=True, exist_ok=True)
+                temp_path.write_text(template_content)
+                cleaned_content = self._get_cached_or_clean_file(temp_path, "IDENTITY.md")
+                if cleaned_content:
+                    return f"## IDENTITY.md (Bot: {bot_name})\n\n{cleaned_content}"
+        except Exception as e:
+            logger.warning(f"Failed to load IDENTITY.md template for {bot_name}: {e}")
         
         return None
+    
+    def _get_cached_or_clean_file(self, file_path: Path, filename: str) -> Optional[str]:
+        """Get cleaned file content with caching based on modification time.
+        
+        This method caches cleaned markdown content to avoid re-cleaning
+        files that haven't changed, significantly improving performance
+        for long conversations.
+        
+        Args:
+            file_path: Path to the markdown file
+            filename: Name of the file (for cleaner selection)
+            
+        Returns:
+            Cleaned content string or None if file can't be read
+        """
+        from nanobot.utils.markdown_cleaner import (
+            clean_markdown_content, 
+            compact_agents_content,
+            compact_soul_content
+        )
+        
+        try:
+            # Get current file modification time
+            mtime = file_path.stat().st_mtime
+            cache_key = str(file_path.resolve())
+            
+            # Check if we have cached content and it's still valid
+            if cache_key in self._content_cache:
+                cached_mtime, cached_content = self._content_cache[cache_key]
+                if cached_mtime == mtime:
+                    logger.debug(f"Using cached content for {filename}")
+                    return cached_content
+            
+            # File is new or modified, need to clean it
+            content = file_path.read_text(encoding="utf-8")
+            
+            # Select appropriate cleaner based on file type
+            if "AGENTS" in filename.upper():
+                cleaned_content = compact_agents_content(content)
+            elif "SOUL" in filename.upper() or "IDENTITY" in filename.upper():
+                cleaned_content = compact_soul_content(content)
+            else:
+                cleaned_content = clean_markdown_content(content, aggressive=False)
+            
+            # Validate: warn if cleaned content is <50% of original
+            original_len = len(content)
+            cleaned_len = len(cleaned_content)
+            if cleaned_len < original_len * 0.5:
+                logger.warning(
+                    f"File {filename} was reduced to {cleaned_len/original_len:.1%} of original size. "
+                    "May have lost important content."
+                )
+            
+            # Cache the cleaned content with current mtime
+            self._content_cache[cache_key] = (mtime, cleaned_content)
+            
+            return cleaned_content
+            
+        except FileNotFoundError:
+            logger.warning(f"File not found: {file_path}")
+            return None
+        except PermissionError:
+            logger.warning(f"Permission denied reading: {file_path}")
+            return None
+        except UnicodeDecodeError as e:
+            logger.warning(f"Failed to decode {file_path}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error reading {file_path}: {e}")
+            return None
     
     def get_semantic_memory_context(
         self, 
