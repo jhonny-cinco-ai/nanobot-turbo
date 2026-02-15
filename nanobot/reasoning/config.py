@@ -60,6 +60,32 @@ class ReasoningConfig:
     # Token budget for reflection
     max_reflection_tokens: int = 150
     
+    # LLM settings for heartbeat
+    temperature: float = 0.7
+    max_tokens: Optional[int] = None
+    
+    def get_heartbeat_prompt(self) -> str:
+        """Get reasoning guidance for heartbeat tasks.
+        
+        Returns:
+            Prompt segment with reasoning instructions for heartbeat
+        """
+        if self.cot_level == CoTLevel.NONE:
+            return ""
+        
+        level_name = get_cot_level_name(self.cot_level)
+        
+        base = f"[{level_name} reasoning mode]"
+        
+        # Add reflection guidance based on level
+        if self.cot_level in (CoTLevel.STANDARD, CoTLevel.FULL):
+            base += " Think step-by-step through each checklist item."
+        
+        if self.cot_level == CoTLevel.FULL:
+            base += " Consider alternatives and edge cases."
+        
+        return base
+    
     def should_use_cot(self, tier: str, tool_name: str) -> bool:
         """Determine if CoT should be used for this context.
         

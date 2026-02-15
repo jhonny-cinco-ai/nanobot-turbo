@@ -232,6 +232,12 @@ class SpecialistBot(ABC):
     def initialize_heartbeat(
         self,
         config=None,
+        workspace=None,
+        provider=None,
+        routing_config=None,
+        reasoning_config=None,
+        work_log_manager=None,
+        on_heartbeat=None,
         on_tick_complete: Optional[Callable] = None,
         on_check_complete: Optional[Callable] = None
     ) -> None:
@@ -239,6 +245,12 @@ class SpecialistBot(ABC):
         
         Args:
             config: Heartbeat configuration (uses default if None)
+            workspace: Path to bot's workspace (for HEARTBEAT.md)
+            provider: LLM provider for heartbeat execution
+            routing_config: Smart routing config for model selection
+            reasoning_config: Reasoning/CoT settings for this bot
+            work_log_manager: Work log manager for logging heartbeat events
+            on_heartbeat: Callback to execute HEARTBEAT.md tasks via LLM
             on_tick_complete: Callback when tick completes
             on_check_complete: Callback when individual check completes
         """
@@ -266,6 +278,12 @@ class SpecialistBot(ABC):
         self._heartbeat = BotHeartbeatService(
             bot_instance=self,
             config=config,
+            workspace=workspace,
+            provider=provider,
+            routing_config=routing_config,
+            reasoning_config=reasoning_config,
+            work_log_manager=work_log_manager,
+            on_heartbeat=on_heartbeat,
             on_tick_complete=tick_callback,
             on_check_complete=check_callback
         )

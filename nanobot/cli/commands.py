@@ -606,36 +606,42 @@ def gateway(
         researcher = ResearcherBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("researcher")
         )
         coder = CoderBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("coder")
         )
         social = SocialBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("social")
         )
         auditor = AuditorBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("auditor")
         )
         creative = CreativeBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("creative")
         )
         nanobot = NanobotLeader(
             bus=bus,
             workspace_id=str(config.workspace_path),
+            workspace=config.workspace_path,
             theme_manager=theme_manager,
             custom_name=appearance_config.get_custom_name("nanobot")
         )
@@ -648,6 +654,25 @@ def gateway(
         multi_manager.register_bot(auditor)
         multi_manager.register_bot(creative)
         multi_manager.register_bot(nanobot)
+        
+        # Re-initialize heartbeats with provider, routing, and reasoning config
+        # This enables HEARTBEAT.md execution with smart model selection
+        from nanobot.reasoning.config import get_reasoning_config
+        from nanobot.agent.work_log_manager import get_work_log_manager
+        
+        # Get work log manager for heartbeat logging
+        work_log_manager = get_work_log_manager()
+        
+        bots_list = [researcher, coder, social, auditor, creative, nanobot]
+        for bot in bots_list:
+            bot_reasoning_config = get_reasoning_config(bot.name)
+            bot.initialize_heartbeat(
+                workspace=config.workspace_path,
+                provider=provider,
+                routing_config=config.routing,
+                reasoning_config=bot_reasoning_config,
+                work_log_manager=work_log_manager,
+            )
         
         # Wire manager into CLI commands
         from nanobot.cli.heartbeat_commands import set_heartbeat_manager

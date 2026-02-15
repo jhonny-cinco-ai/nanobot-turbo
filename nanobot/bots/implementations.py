@@ -18,12 +18,13 @@ class NanobotLeader(SpecialistBot):
     Your personalized companion that coordinates the team.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize nanobot leader.
 
         Args:
             bus: InterBotBus for communication with team
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
@@ -36,7 +37,7 @@ class NanobotLeader(SpecialistBot):
         # Auto-initialize heartbeat with coordinator-specific config (30min interval)
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import COORDINATOR_CONFIG
-            self.initialize_heartbeat(config=COORDINATOR_CONFIG)
+            self.initialize_heartbeat(config=COORDINATOR_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process a message as the coordinator."""
@@ -59,12 +60,13 @@ class ResearcherBot(SpecialistBot):
     Deep analysis and knowledge synthesis specialist.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize researcher bot.
 
         Args:
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
@@ -76,7 +78,7 @@ class ResearcherBot(SpecialistBot):
         # Auto-initialize heartbeat with researcher-specific config
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import RESEARCHER_CONFIG
-            self.initialize_heartbeat(config=RESEARCHER_CONFIG)
+            self.initialize_heartbeat(config=RESEARCHER_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process research request."""
@@ -100,12 +102,13 @@ class CoderBot(SpecialistBot):
     Code implementation and technical solutions.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize coder bot.
 
         Args:
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
@@ -118,7 +121,7 @@ class CoderBot(SpecialistBot):
         # Auto-initialize heartbeat with coder-specific config
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import CODER_CONFIG
-            self.initialize_heartbeat(config=CODER_CONFIG)
+            self.initialize_heartbeat(config=CODER_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process code request."""
@@ -142,12 +145,13 @@ class SocialBot(SpecialistBot):
     Community engagement and social media specialist.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize social bot.
 
         Args:
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
         super().__init__(SOCIAL_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
@@ -157,7 +161,7 @@ class SocialBot(SpecialistBot):
         # Auto-initialize heartbeat with social-specific config
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import SOCIAL_CONFIG
-            self.initialize_heartbeat(config=SOCIAL_CONFIG)
+            self.initialize_heartbeat(config=SOCIAL_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process community request."""
@@ -181,12 +185,13 @@ class CreativeBot(SpecialistBot):
     Design and content creation specialist.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize creative bot.
 
         Args:
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
         super().__init__(CREATIVE_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
@@ -196,7 +201,7 @@ class CreativeBot(SpecialistBot):
         # Auto-initialize heartbeat with creative-specific config
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import CREATIVE_CONFIG
-            self.initialize_heartbeat(config=CREATIVE_CONFIG)
+            self.initialize_heartbeat(config=CREATIVE_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process creative request."""
@@ -220,12 +225,13 @@ class AuditorBot(SpecialistBot):
     Quality review and compliance specialist.
     """
 
-    def __init__(self, bus=None, workspace_id=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
+    def __init__(self, bus=None, workspace_id=None, workspace=None, auto_init_heartbeat: bool = True, theme_manager=None, custom_name=None):
         """Initialize auditor bot.
 
         Args:
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
+            workspace: Path to workspace (for HEARTBEAT.md)
             auto_init_heartbeat: Whether to auto-initialize heartbeat on creation
         """
         super().__init__(AUDITOR_ROLE, bus, workspace_id, theme_manager=theme_manager, custom_name=custom_name)
@@ -235,7 +241,7 @@ class AuditorBot(SpecialistBot):
         # Auto-initialize heartbeat with auditor-specific config
         if auto_init_heartbeat:
             from nanobot.bots.heartbeat_configs import AUDITOR_CONFIG
-            self.initialize_heartbeat(config=AUDITOR_CONFIG)
+            self.initialize_heartbeat(config=AUDITOR_CONFIG, workspace=workspace)
 
     async def process_message(self, message: str, workspace: Workspace) -> str:
         """Process audit request."""
