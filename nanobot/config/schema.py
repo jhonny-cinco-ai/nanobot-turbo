@@ -260,6 +260,141 @@ class RoutingTiersConfig(BaseModel):
     ))
 
 
+# Provider-specific routing tier mappings
+# Maps each provider to equivalent models for each tier
+# These are selected to match OpenRouter's tier capabilities as closely as possible
+ROUTING_TIER_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
+    # OpenRouter - gateway, can route anywhere (keep original defaults)
+    "openrouter": {
+        "simple": {"model": "deepseek/deepseek-chat-v3-0324", "secondary": "deepseek/deepseek-chat-v3.1"},
+        "medium": {"model": "openai/gpt-4.1-mini", "secondary": "openai/gpt-4o-mini"},
+        "complex": {"model": "anthropic/claude-sonnet-4.5", "secondary": "anthropic/claude-sonnet-4"},
+        "reasoning": {"model": "openai/o3", "secondary": "openai/gpt-4o"},
+        "coding": {"model": "moonshotai/kimi-k2.5", "secondary": "anthropic/claude-sonnet-4"},
+    },
+    # Anthropic - Claude models
+    "anthropic": {
+        "simple": {"model": "claude-3-haiku-20240307", "secondary": "claude-3-5-haiku-20241022"},
+        "medium": {"model": "claude-3-5-sonnet-20241022", "secondary": "claude-3-opus-20240229"},
+        "complex": {"model": "claude-3-opus-20240229", "secondary": "claude-3-5-sonnet-20241022"},
+        "reasoning": {"model": "claude-sonnet-4-20250514", "secondary": "claude-3-opus-20240229"},
+        "coding": {"model": "claude-sonnet-4-20250514", "secondary": "claude-3-5-sonnet-20241022"},
+    },
+    # OpenAI - GPT models
+    "openai": {
+        "simple": {"model": "gpt-4o-mini", "secondary": "gpt-4-turbo"},
+        "medium": {"model": "gpt-4-turbo", "secondary": "gpt-4o"},
+        "complex": {"model": "gpt-4o", "secondary": "gpt-4-turbo"},
+        "reasoning": {"model": "o3", "secondary": "gpt-4o"},
+        "coding": {"model": "o3", "secondary": "gpt-4o"},
+    },
+    # DeepSeek - DeepSeek models
+    "deepseek": {
+        "simple": {"model": "deepseek-chat", "secondary": "deepseek-chat"},
+        "medium": {"model": "deepseek-chat", "secondary": "deepseek-coder"},
+        "complex": {"model": "deepseek-chat", "secondary": "deepseek-coder"},
+        "reasoning": {"model": "deepseek-reasoner", "secondary": "deepseek-chat"},
+        "coding": {"model": "deepseek-coder", "secondary": "deepseek-chat"},
+    },
+    # Google Gemini models
+    "gemini": {
+        "simple": {"model": "gemini-2.0-flash", "secondary": "gemini-1.5-flash"},
+        "medium": {"model": "gemini-1.5-flash", "secondary": "gemini-2.0-flash"},
+        "complex": {"model": "gemini-2.0-pro", "secondary": "gemini-1.5-pro"},
+        "reasoning": {"model": "gemini-2.0-pro", "secondary": "gemini-1.5-pro"},
+        "coding": {"model": "gemini-2.0-flash", "secondary": "gemini-1.5-flash"},
+    },
+    # Moonshot - Kimi models
+    "moonshot": {
+        "simple": {"model": "kimi-k2.5", "secondary": "kimi-k2"},
+        "medium": {"model": "kimi-k2.5", "secondary": "kimi-k2"},
+        "complex": {"model": "kimi-k2", "secondary": "kimi-k2.5"},
+        "reasoning": {"model": "kimi-k2", "secondary": "kimi-k2.5"},
+        "coding": {"model": "kimi-k2.5", "secondary": "kimi-k2"},
+    },
+    # DashScope - Qwen models
+    "dashscope": {
+        "simple": {"model": "qwen-turbo", "secondary": "qwen-plus"},
+        "medium": {"model": "qwen-plus", "secondary": "qwen-max"},
+        "complex": {"model": "qwen-max", "secondary": "qwen-plus"},
+        "reasoning": {"model": "qwen-max", "secondary": "qwen-plus"},
+        "coding": {"model": "qwen-coder-turbo", "secondary": "qwen-plus"},
+    },
+    # Zhipu - GLM models
+    "zhipu": {
+        "simple": {"model": "glm-4-flash", "secondary": "glm-4"},
+        "medium": {"model": "glm-4", "secondary": "glm-4-flash"},
+        "complex": {"model": "glm-4", "secondary": "glm-4-plus"},
+        "reasoning": {"model": "glm-4", "secondary": "glm-4-plus"},
+        "coding": {"model": "glm-4", "secondary": "glm-4-flash"},
+    },
+    # MiniMax - MiniMax models
+    "minimax": {
+        "simple": {"model": "MiniMax-Text-01", "secondary": "abab6.5s-chat"},
+        "medium": {"model": "abab6.5s-chat", "secondary": "MiniMax-Text-01"},
+        "complex": {"model": "MiniMax-Text-01", "secondary": "abab6.5s-chat"},
+        "reasoning": {"model": "MiniMax-Text-01", "secondary": "abab6.5s-chat"},
+        "coding": {"model": "MiniMax-Text-01", "secondary": "abab6.5s-chat"},
+    },
+    # Groq - Fast inference models
+    "groq": {
+        "simple": {"model": "llama-3.1-8b-instant", "secondary": "mixtral-8x7b-32768"},
+        "medium": {"model": "llama-3.1-70b-versatile", "secondary": "llama-3.1-8b-instant"},
+        "complex": {"model": "llama-3.1-70b-versatile", "secondary": "mixtral-8x7b-32768"},
+        "reasoning": {"model": "llama-3.1-70b-versatile", "secondary": "llama-3.1-8b-instant"},
+        "coding": {"model": "llama-3.1-70b-versatile", "secondary": "mixtral-8x7b-32768"},
+    },
+    # AiHubMix - Gateway, can route to OpenAI-compatible models
+    "aihubmix": {
+        "simple": {"model": "gpt-4o-mini", "secondary": "claude-3-haiku"},
+        "medium": {"model": "gpt-4o", "secondary": "claude-3-sonnet"},
+        "complex": {"model": "claude-3-opus", "secondary": "gpt-4o"},
+        "reasoning": {"model": "gpt-4o", "secondary": "claude-3-opus"},
+        "coding": {"model": "claude-3-sonnet", "secondary": "gpt-4o"},
+    },
+}
+
+
+def get_routing_tiers_for_provider(provider: str) -> RoutingTiersConfig:
+    """Get routing tier configuration for a specific provider.
+    
+    Args:
+        provider: Provider name (e.g., "openrouter", "anthropic", "openai")
+        
+    Returns:
+        RoutingTiersConfig with provider-specific models
+    """
+    mapping = ROUTING_TIER_MAPPINGS.get(provider, ROUTING_TIER_MAPPINGS["openrouter"])
+    
+    return RoutingTiersConfig(
+        simple=RoutingTierConfig(
+            model=mapping["simple"]["model"],
+            cost_per_mtok=0.3,
+            secondary_model=mapping["simple"].get("secondary")
+        ),
+        medium=RoutingTierConfig(
+            model=mapping["medium"]["model"],
+            cost_per_mtok=0.5,
+            secondary_model=mapping["medium"].get("secondary")
+        ),
+        complex=RoutingTierConfig(
+            model=mapping["complex"]["model"],
+            cost_per_mtok=2.0,
+            secondary_model=mapping["complex"].get("secondary")
+        ),
+        reasoning=RoutingTierConfig(
+            model=mapping["reasoning"]["model"],
+            cost_per_mtok=2.0,
+            secondary_model=mapping["reasoning"].get("secondary")
+        ),
+        coding=RoutingTierConfig(
+            model=mapping["coding"]["model"],
+            cost_per_mtok=1.0,
+            secondary_model=mapping["coding"].get("secondary")
+        ),
+    )
+
+
 class ClientClassifierConfig(BaseModel):
     """Configuration for client-side classifier."""
     min_confidence: float = 0.85

@@ -193,9 +193,10 @@ class OnboardingWizard:
         enable_routing = Confirm.ask("Enable smart routing?", default=True)
         
         if enable_routing:
-            asyncio.run(self._save_routing_config(True))
+            provider = self.config_result.get("provider", "openrouter")
+            asyncio.run(self._save_routing_config(True, provider))
             console.print("[green]✓ Smart routing enabled![/green]\n")
-            console.print("[dim]Models will be auto-configured based on your provider.[/dim]")
+            console.print("[dim]Models auto-configured for your provider.[/dim]")
             console.print("[dim]Customize later: nanobot configure[/dim]\n")
         else:
             console.print("[dim]Smart routing disabled. Will use primary model for all queries.[/dim]\n")
@@ -220,12 +221,41 @@ class OnboardingWizard:
         else:
             console.print("[dim]Evolutionary mode disabled. Bots restricted to workspace only.[/dim]\n")
     
-    async def _save_routing_config(self, enabled: bool) -> None:
-        """Save routing configuration."""
+    async def _save_routing_config(self, enabled: bool, provider: str = "openrouter") -> None:
+        """Save routing configuration with provider-specific tiers.
+        
+        Args:
+            enabled: Whether to enable routing
+            provider: Provider name for selecting appropriate models
+        """
         try:
             from nanobot.agent.tools.update_config import UpdateConfigTool
+            from nanobot.config.schema import get_routing_tiers_for_provider
+            
             tool = UpdateConfigTool()
+            
+            # Enable routing
             await tool.execute(path="routing.enabled", value=enabled)
+            
+            # Get provider-specific tiers
+            tiers = get_routing_tiers_for_provider(provider)
+            
+            # Save each tier's model
+            await tool.execute(path="routing.tiers.simple.model", value=tiers.simple.model)
+            await tool.execute(path="routing.tiers.simple.secondary_model", value=tiers.simple.secondary_model)
+            
+            await tool.execute(path="routing.tiers.medium.model", value=tiers.medium.model)
+            await tool.execute(path="routing.tiers.medium.secondary_model", value=tiers.medium.secondary_model)
+            
+            await tool.execute(path="routing.tiers.complex.model", value=tiers.complex.model)
+            await tool.execute(path="routing.tiers.complex.secondary_model", value=tiers.complex.secondary_model)
+            
+            await tool.execute(path="routing.tiers.reasoning.model", value=tiers.reasoning.model)
+            await tool.execute(path="routing.tiers.reasoning.secondary_model", value=tiers.reasoning.secondary_model)
+            
+            await tool.execute(path="routing.tiers.coding.model", value=tiers.coding.model)
+            await tool.execute(path="routing.tiers.coding.secondary_model", value=tiers.coding.secondary_model)
+            
         except Exception as e:
             console.print(f"[yellow]⚠ Could not save routing config: {e}[/yellow]")
     
@@ -483,9 +513,65 @@ class OnboardingWizard:
                     theming = theme.get_bot_theming(bot_name)
                     if theming:
                         console.print(f"  {theming.emoji} {theming.title} ({bot_name})")
-        
+            
+            # Always create HEARTBEAT.md files for each bot
+            self._create_heartbeat_files(workspace_path)
+            
         except Exception as e:
             console.print(f"[yellow]⚠ Could not apply theme: {e}[/yellow]")
+    
+    def _create_heartbeat_files(self, workspace_path: Path) -> None:
+        """Create empty HEARTBEAT.md files for each bot.
+        
+        Args:
+            workspace_path: Path to workspace
+        """
+        try:
+            bots_dir = workspace_path / "bots"
+            bots_dir.mkdir(parents=True, exist_ok=True)
+            
+            team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
+            
+            console.print("\n[cyan]Creating heartbeat files...[/cyan]")
+            
+            for bot_name in team:
+                bot_dir = bots_dir / bot_name
+                bot_dir.mkdir(parents=True, exist_ok=True)
+                
+                heartbeat_file = bot_dir / "HEARTBEAT.md"
+                
+                if not heartbeat_file.exists():
+                    # Create template HEARTBEAT.md
+                    template = f"""# Heartbeat for @{bot_name}
+
+This file defines periodic tasks for @{bot_name}.
+
+## Format
+Use markdown with checkboxes:
+- [ ] Task description
+
+## Examples
+
+### Every 30 minutes
+- [ ] Check for new updates
+
+### Every hour
+- [ ] Monitor system status
+
+### Daily
+- [ ] Generate daily summary
+"""
+                    heartbeat_file.write_text(template)
+                    console.print(f"  [green]✓[/green] Created HEARTBEAT.md for @{bot_name}")
+                else:
+                    console.print(f"  [dim]•[/dim] HEARTBEAT.md for @{bot_name} already exists")
+            
+            console.print(f"\n[green]✓ Heartbeat files ready![/green]")
+            console.print("[dim]  Edit these files to add periodic tasks for each bot.[/dim]")
+            console.print("[dim]  Leave empty if no periodic tasks needed.[/dim]")
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠ Could not create heartbeat files: {e}[/yellow]")
 
 
 def run_onboarding():
