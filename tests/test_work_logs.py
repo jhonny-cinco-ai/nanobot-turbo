@@ -7,7 +7,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel, WorkspaceType
+from nanobot.agent.work_log import WorkLog, WorkLogEntry, LogLevel, RoomType, WorkspaceType
 from nanobot.agent.work_log_manager import WorkLogManager, get_work_log_manager, reset_work_log_manager
 
 
@@ -661,7 +661,7 @@ class TestMultiAgentFields:
         )
         
         assert entry.workspace_id == "default"
-        assert entry.workspace_type == WorkspaceType.OPEN
+        assert entry.workspace_type == RoomType.OPEN
         assert entry.participants == ["nanobot"]
         assert entry.bot_name == "nanobot"
         assert entry.bot_role == "primary"
@@ -682,7 +682,7 @@ class TestMultiAgentFields:
             category="test",
             message="Test message",
             workspace_id="#project-refactor",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher", "coder"],
             bot_name="researcher",
             bot_role="specialist",
@@ -690,7 +690,7 @@ class TestMultiAgentFields:
         )
         
         assert entry.workspace_id == "#project-refactor"
-        assert entry.workspace_type == WorkspaceType.PROJECT
+        assert entry.workspace_type == RoomType.PROJECT
         assert entry.participants == ["nanobot", "researcher", "coder"]
         assert entry.bot_name == "researcher"
         assert entry.bot_role == "specialist"
@@ -762,13 +762,13 @@ class TestMultiAgentFields:
             query="Refactor auth module",
             start_time=datetime.now(),
             workspace_id="#project-refactor",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher", "coder"],
             coordinator="nanobot"
         )
         
         assert log.workspace_id == "#project-refactor"
-        assert log.workspace_type == WorkspaceType.PROJECT
+        assert log.workspace_type == RoomType.PROJECT
         assert log.coordinator == "nanobot"
         assert "researcher" in log.participants
     
@@ -779,7 +779,7 @@ class TestMultiAgentFields:
             query="test",
             start_time=datetime.now(),
             workspace_id="#project-alpha",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "coder"],
             coordinator="nanobot"
         )
@@ -793,7 +793,7 @@ class TestMultiAgentFields:
         )
         
         assert entry.workspace_id == "#project-alpha"
-        assert entry.workspace_type == WorkspaceType.PROJECT
+        assert entry.workspace_type == RoomType.PROJECT
         assert "coder" in entry.participants
         assert entry.coordinator_mode is True
     
@@ -804,7 +804,7 @@ class TestMultiAgentFields:
             query="test",
             start_time=datetime.now(),
             workspace_id="#project-refactor",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher", "coder"],
             coordinator="nanobot"
         )
@@ -841,7 +841,7 @@ class TestMultiAgentFields:
             query="test",
             start_time=datetime.now(),
             workspace_id="#coordination-website",
-            workspace_type=WorkspaceType.COORDINATION,
+            workspace_type=RoomType.COORDINATION,
             participants=["nanobot", "researcher", "coder", "creative"],
             coordinator="nanobot"
         )
@@ -863,7 +863,7 @@ class TestMultiAgentFields:
             query="test",
             start_time=datetime.now(),
             workspace_id="#project-alpha",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher"]
         )
         
@@ -884,7 +884,7 @@ class TestMultiAgentFields:
             query="test",
             start_time=datetime.now(),
             workspace_id="#project-alpha",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher"],
             coordinator="nanobot"
         )
@@ -912,7 +912,7 @@ class TestMultiAgentFields:
             category="routing",
             message="Delegated to specialist",
             workspace_id="#project-alpha",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher"],
             bot_name="researcher",
             bot_role="specialist",
@@ -964,7 +964,7 @@ class TestMultiAgentPersistence:
             query="Build website",
             start_time=datetime.now(),
             workspace_id="#project-website",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher", "coder", "creative"],
             coordinator="nanobot"
         )
@@ -1004,7 +1004,7 @@ class TestMultiAgentPersistence:
         
         assert loaded is not None
         assert loaded.workspace_id == "#project-website"
-        assert loaded.workspace_type == WorkspaceType.PROJECT
+        assert loaded.workspace_type == RoomType.PROJECT
         assert loaded.coordinator == "nanobot"
         assert "researcher" in loaded.participants
         assert len(loaded.entries) == 4
@@ -1043,7 +1043,7 @@ class TestMultiAgentPersistence:
             query="Complex project",
             start_time=datetime.now(),
             workspace_id="#project-alpha",
-            workspace_type=WorkspaceType.PROJECT,
+            workspace_type=RoomType.PROJECT,
             participants=["nanobot", "researcher"],
             coordinator="nanobot"
         )
