@@ -163,28 +163,71 @@ Skills with available="false" need dependencies installed first - you can try in
         workspace_path: str,
         runtime: str,
     ) -> str:
-        """Build identity section customized for the bot."""
-        is_leader = bot_name == "nanobot" or bot_name is None
+        """Build identity section customized for the bot using IDENTITY.md files.
         
-        if is_leader:
-            # Leader (nanobot) - full capabilities
-            return f"""# nanobot 🐈
+        This method loads the bot's personality from IDENTITY.md (workspace-specific
+        or theme template), NOT from hardcoded templates. This enables the multi-bot
+        architecture where each bot has unique personality, relationships, and quirks.
+        
+        Falls back to generic template only if no IDENTITY.md exists.
+        """
+        from nanobot.models import get_role_card
+        
+        safe_bot_name = bot_name or "nanobot"
+        is_leader = safe_bot_name == "nanobot"
+        
+        # Try to load IDENTITY.md for this bot
+        identity_content = self._load_identity_for_bot(safe_bot_name)
+        
+        if identity_content:
+            # Use the loaded identity (from workspace or theme template)
+            # Remove the "## IDENTITY.md" header to get just the content
+            if identity_content.startswith("## IDENTITY.md"):
+                identity_body = identity_content.split("\n\n", 1)[1] if "\n\n" in identity_content else ""
+            else:
+                identity_body = identity_content
+            
+            # Add runtime context after the identity
+            runtime_context = f"""
+## Current Context
+Time: {now} ({tz})
+Runtime: {runtime}
+Workspace: {workspace_path}
+Bot Path: {workspace_path}/bots/{safe_bot_name}/"""
+            
+            return identity_body + runtime_context
+        
+        # Fallback: Generate from role_card if no IDENTITY.md
+        role_card = get_role_card(safe_bot_name)
+        
+        if role_card:
+            # Build identity from role card + generic structure
+            domain = role_card.domain.value if role_card.domain else "specialist"
+            capabilities = role_card.capabilities
+            
+            tools_list = []
+            if capabilities.can_read_files:
+                tools_list.append("file operations")
+            if capabilities.can_execute_code:
+                tools_list.append("code execution")
+            if capabilities.can_use_shell:
+                tools_list.append("shell commands")
+            if capabilities.can_browse_web:
+                tools_list.append("web access")
+            
+            tools_str = ", ".join(tools_list) if tools_list else "specialized tools"
+            
+            return f"""# @{safe_bot_name}
 
-You are nanobot, the team leader and coordinator. You help users by orchestrating specialist bots when needed.
+You are @{safe_bot_name}, a {domain} specialist on the nanobot team.
 
 ## Your Role
-You are the main interface for the user. You can:
-- Handle user requests directly for simple tasks
-- Delegate complex tasks to specialist bots (@researcher, @coder, @social, @creative, @auditor)
-- Synthesize results from multiple bots into coherent responses
+Your domain is {domain}. You have expertise in: {tools_str}
+Focus on your area of specialization and provide expert responses.
 
 ## Tools
-You have access to:
-- File operations (read, write, edit, list)
-- Shell commands (exec)
-- Web access (search, fetch)
-- Messaging (message)
-- Invoke specialist bots (invoke)
+You have access to: {tools_str}
+Use them to accomplish tasks within your domain.
 
 ## Current Time
 {now} ({tz})
@@ -193,51 +236,27 @@ You have access to:
 {runtime}
 
 ## Workspace
-Your workspace is at: {workspace_path}
-- Team configurations: {workspace_path}/bots/
-- SQLite memory: {workspace_path}/memory/memory.db
-- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
 
 ## Guidelines
-- For simple tasks, respond directly
-- For complex tasks, use `invoke` to delegate to specialist bots
-- Always synthesize results when multiple bots are involved
-- Be helpful, accurate, and concise"""
+- Stay focused on {domain} expertise
+- Provide detailed, expert responses in your area
+- Use available tools to accomplish tasks
+- Suggest invoking another bot if task is outside your expertise"""
         
-        else:
-            # Specialist bot
-            bot_titles = {
-                "researcher": "Navigator",
-                "coder": "Gunner",
-                "social": "Lookout",
-                "creative": "Artist",
-                "auditor": "Quartermaster",
-            }
-            safe_bot_name = bot_name or "specialist"
-            title = bot_titles.get(safe_bot_name, safe_bot_name.title())
-            
-            return f"""# @{safe_bot_name} ({title})
+        # Ultimate fallback: generic bot
+        return f"""# @{safe_bot_name}
 
 You are @{safe_bot_name}, a specialist bot on the nanobot team.
-
-## Your Role
-You are a domain specialist. Focus on your area of expertise and provide expert responses.
-
-## Tools
-You have access to tools relevant to your role. Use them to accomplish your tasks.
 
 ## Current Time
 {now} ({tz})
 
-## Workspace
-Your workspace is at: {workspace_path}/bots/{safe_bot_name}/
-- HEARTBEAT.md: Your periodic tasks
+## Runtime
+{runtime}
 
-## Guidelines
-- Stay focused on your domain expertise
-- Provide detailed, expert responses in your area
-- Use available tools to gather information and take actions
-- If a task is outside your expertise, suggest invoking another bot"""
+## Workspace
+Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
     
     def _load_bootstrap_files(self, bot_name: Optional[str] = None) -> str:
         """Load bootstrap files with bot-specific SOUL, AGENTS, and IDENTITY if available.
