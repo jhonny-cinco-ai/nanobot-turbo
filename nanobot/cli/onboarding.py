@@ -480,7 +480,7 @@ class OnboardingWizard:
     def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
         """Apply selected theme to all team members in workspace.
         
-        Creates SOUL.md personality files for the entire team so all bots are ready.
+        Creates SOUL.md and IDENTITY.md personality files for the entire team so all bots are ready.
         
         Args:
             workspace_path: Path to workspace
@@ -495,17 +495,32 @@ class OnboardingWizard:
                 
                 # Apply theme to entire team
                 team = ["nanobot", "researcher", "coder", "social", "creative", "auditor"]
-                results = soul_manager.apply_theme_to_team(
+                
+                # Apply SOUL.md theme
+                soul_results = soul_manager.apply_theme_to_team(
                     theme,
                     team,
                     force=True
                 )
                 
-                # Show results
-                successful = sum(1 for v in results.values() if v)
-                console.print(
-                    f"[green]✓ Initialized {successful}/{len(team)} team members[/green]"
+                # Apply IDENTITY.md theme
+                identity_results = soul_manager.apply_identity_to_team(
+                    team,
+                    theme=self.selected_theme,
+                    force=True
                 )
+                
+                # Show results
+                soul_successful = sum(1 for v in soul_results.values() if v)
+                identity_successful = sum(1 for v in identity_results.values() if v)
+                
+                if soul_successful > 0 or identity_successful > 0:
+                    console.print(
+                        f"[green]✓ Initialized {soul_successful}/{len(team)} SOUL files[/green]"
+                    )
+                    console.print(
+                        f"[green]✓ Initialized {identity_successful}/{len(team)} IDENTITY files[/green]"
+                    )
                 
                 # Show team personalities
                 console.print("\n[bold]Team personalities configured:[/bold]")
@@ -514,14 +529,14 @@ class OnboardingWizard:
                     if theming:
                         console.print(f"  {theming.emoji} {theming.title} ({bot_name})")
             
-            # Create per-bot files (HEARTBEAT.md and AGENTS.md)
+            # Create per-bot files (AGENTS.md, IDENTITY.md if not already created, and HEARTBEAT.md)
             self._create_bot_files(workspace_path)
             
         except Exception as e:
             console.print(f"[yellow]⚠ Could not apply theme: {e}[/yellow]")
     
     def _create_bot_files(self, workspace_path: Path) -> None:
-        """Create per-bot HEARTBEAT.md and AGENTS.md files.
+        """Create per-bot AGENTS.md, IDENTITY.md, and HEARTBEAT.md files.
         
         Args:
             workspace_path: Path to workspace
@@ -540,6 +555,17 @@ class OnboardingWizard:
             
             if agents_count > 0:
                 console.print(f"  [green]✓[/green] Created AGENTS.md for {agents_count} bots")
+            
+            # Create IDENTITY.md for each bot from selected theme
+            identity_results = soul_manager.apply_identity_to_team(
+                team, 
+                theme=self.selected_theme,
+                force=True
+            )
+            identity_count = sum(1 for v in identity_results.values() if v)
+            
+            if identity_count > 0:
+                console.print(f"  [green]✓[/green] Created IDENTITY.md for {identity_count} bots")
             
             # Create HEARTBEAT.md for each bot
             bots_dir = workspace_path / "bots"
@@ -580,6 +606,7 @@ Use markdown with checkboxes:
             
             console.print(f"\n[green]✓ Bot configuration files ready![/green]")
             console.print("[dim]  - AGENTS.md: Role-specific instructions for each bot[/dim]")
+            console.print("[dim]  - IDENTITY.md: Character definition and relationships (from theme)[/dim]")
             console.print("[dim]  - HEARTBEAT.md: Periodic tasks (leave empty if not needed)[/dim]")
             
         except Exception as e:

@@ -480,6 +480,57 @@ I am the {bot_name} specialist on the team.
         agents_file.write_text(template, encoding="utf-8")
         return True
     
+    def apply_identity_to_team(self, team: List[str], theme: Optional[str] = None, force: bool = False) -> Dict[str, bool]:
+        """Apply IDENTITY.md templates to all team members.
+        
+        Args:
+            team: List of bot names in team
+            theme: Optional theme name. If provided, applies identity from that theme
+            force: If True, overwrite existing files
+        
+        Returns:
+            Dict mapping bot_name -> success (bool)
+        """
+        results = {}
+        
+        for bot_name in team:
+            try:
+                success = self.apply_identity_to_bot(bot_name, theme=theme, force=force)
+                results[bot_name] = success
+            except Exception as e:
+                results[bot_name] = False
+        
+        return results
+    
+    def apply_identity_to_bot(self, bot_name: str, theme: Optional[str] = None, force: bool = False) -> bool:
+        """Create a bot's IDENTITY.md from template.
+        
+        Args:
+            bot_name: Name of the bot
+            theme: Optional theme name. If provided, loads from that specific theme
+            force: If True, overwrite existing file
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        identity_dir = self.bots_dir / bot_name
+        identity_dir.mkdir(parents=True, exist_ok=True)
+        
+        identity_file = identity_dir / "IDENTITY.md"
+        
+        if identity_file.exists() and not force:
+            return False
+        
+        # Load IDENTITY template from theme or templates
+        from nanobot.templates import get_identity_template_for_bot
+        template = get_identity_template_for_bot(bot_name, theme=theme)
+        
+        if not template:
+            return False
+        
+        identity_file.write_text(template, encoding="utf-8")
+        return True
+    
     def agents_exists(self, bot_name: str) -> bool:
         """Check if a bot has an AGENTS.md file.
         
