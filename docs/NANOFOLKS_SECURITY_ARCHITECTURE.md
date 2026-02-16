@@ -1,6 +1,6 @@
 # Nanofolks Go Security Architecture
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-02-16  
 **Focus:** API Key Protection & Deterministic LLM Access
 
@@ -12,11 +12,66 @@ This document outlines a defense-in-depth security architecture for Nanofolks Go
 3. **Configuration file theft**
 4. **Malicious code execution** by LLM agents
 
-The architecture uses multiple layers: encrypted storage, process isolation, strict access controls, and audit logging.
+**Key Innovation: Symbolic Key References**
+
+Unlike traditional approaches where API keys are sanitized after exposure, Nanofolks Go uses **symbolic key references**. LLMs never see actual keys—only symbolic names like `{{openrouter_key}}`. Keys are resolved at execution time and never appear in context, logs, or memory accessible to the LLM.
+
+The architecture uses multiple layers: symbolic references, encrypted storage, secure execution, and audit logging.
 
 ---
 
-## 1. Threat Model
+## 1. Core Security Innovation: Symbolic Key References
+
+### 1.1 The Problem with Traditional Approaches
+
+**Current approaches (like Python nanobot):**
+```
+Config: api_key = "sk-or-v1-abc123..."
+   ↓
+AgentLoop stores in memory
+   ↓
+WebSearchTool(api_key="sk-or-v1-abc123...") receives actual key
+   ↓
+LLM context might see key if logged/output
+   ↓
+Sanitizer masks it reactively
+```
+
+**Problems:**
+- Keys exposed throughout the system
+- Sanitizers can miss edge cases
+- Keys visible in memory dumps
+- Audit logs need complex masking
+
+### 1.2 Symbolic Reference Architecture
+
+**Nanofolks Go approach:**
+```
+Config: api_key = "sk-or-v1-abc123..." stored in KeyVault
+   ↓
+LLM Context sees: "Available keys: {{openrouter_key}}, {{brave_key}}"
+   ↓
+LLM wants to use tool with: key="{{openrouter_key}}"
+   ↓
+ToolExecutor resolves {{openrouter_key}} → actual value at execution time
+   ↓
+Key never exposed to LLM, logs, or context
+```
+
+### 1.3 Benefits
+
+| Aspect | Traditional | Symbolic References |
+|--------|-------------|---------------------|
+| **Key in context** | Actual value, then masked | Never present |
+| **Tool parameters** | Receive key strings | Receive symbolic names |
+| **Execution** | Direct usage | Resolved at last moment |
+| **Audit logs** | Must sanitize | Naturally safe |
+| **Memory exposure** | Keys in process memory | Isolated in vault |
+| **Rotation tracking** | Hard to track | Easy by reference |
+
+---
+
+## 2. Threat Model
 
 ### 1.1 Threats We're Protecting Against
 
@@ -37,39 +92,262 @@ The architecture uses multiple layers: encrypted storage, process isolation, str
 
 ---
 
-## 2. Security Architecture Overview
+## 3. Security Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    NANOFOLKS SECURITY ZONES                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ZONE 1: UNTRUSTED                                          │
+│  ZONE 1: UNTRUSTED (LLM Accessible)                         │
 │  ├─ LLM Agents                                              │
-│  ├─ User Prompts/Context                                    │
+│  ├─ System Prompts / Context                                │
+│  ├─ Tool Descriptions (with {{key_refs}})                  │
 │  ├─ Logs & UI                                               │
-│  ├─ Configuration Files                                     │
-│  └─ Chat History                                            │
+│  ├─ Chat History                                            │
+│  └─ Audit Trail (references only)                           │
 │                                                             │
-│  ZONE 2: RESTRICTED (Walled Garden)                        │
-│  ├─ Secure Enclave / Memory Protection                      │
-│  ├─ Encrypted Key Storage                                   │
+│  ZONE 2: RESTRICTED (Execution Only)                        │
+│  ├─ KeyVault with symbolic resolution                       │
+│  ├─ ToolExecutor (resolves keys at runtime)                 │
+│  ├─ Secure Memory Buffers                                   │
 │  ├─ Rate-Limited API Client                                 │
-│  └─ Audit Logger                                            │
+│  └─ Audit Logger (references only)                          │
 │                                                             │
-│  ZONE 3: TRUSTED                                            │
+│  ZONE 3: TRUSTED (Isolated Storage)                         │
 │  ├─ OS Keyring                                              │
+│  ├─ Encrypted Key Store                                     │
 │  ├─ Hardware Security (TPM/Secure Enclave)                 │
 │  └─ User Authentication                                     │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
+
+Key Flow:
+  ZONE 1 sees: {{openrouter_key}} (symbolic reference)
+       ↓
+  ZONE 2 resolves: {{openrouter_key}} → SecureString("sk-or-v1-...")
+       ↓
+  ZONE 2 uses: SecureString for API call
+       ↓
+  ZONE 2 wipes: SecureString.Destroy()
+       ↓
+  ZONE 1 audit: "Used key: openrouter_key" (reference only)
 ```
 
 ---
 
-## 3. Layer 1: Encrypted Storage
+## 4. Layer 0: Symbolic Key References (Core Innovation)
 
-### 3.1 OS Keyring Integration
+### 4.1 KeyVault Implementation
+
+The KeyVault is the central secure storage that never exposes actual keys to the LLM context.
+
+```go
+package security
+
+import (
+    "fmt"
+    "strings"
+    "sync"
+)
+
+// KeyVault holds all secrets, never exposes to LLM
+type KeyVault struct {
+    keys map[string]*SecureString  // "openrouter" -> SecureString
+    mu   sync.RWMutex
+}
+
+// NewKeyVault creates a new key vault
+func NewKeyVault() *KeyVault {
+    return &KeyVault{
+        keys: make(map[string]*SecureString),
+    }
+}
+
+// Register adds a key to the vault
+func (kv *KeyVault) Register(name string, key *SecureString) {
+    kv.mu.Lock()
+    defer kv.mu.Unlock()
+    kv.keys[name] = key
+}
+
+// GetForExecution returns key for tool execution only
+// This is the ONLY way to access actual key values
+func (kv *KeyVault) GetForExecution(keyRef string) (*SecureString, error) {
+    // Normalize: remove {{ and }}
+    keyName := strings.Trim(keyRef, "{}")
+    
+    kv.mu.RLock()
+    defer kv.mu.RUnlock()
+    
+    if key, exists := kv.keys[keyName]; exists {
+        return key, nil
+    }
+    return nil, fmt.Errorf("key reference '%s' not found", keyName)
+}
+
+// GetPublicView returns what LLM sees (symbolic names only)
+func (kv *KeyVault) GetPublicView() map[string]string {
+    kv.mu.RLock()
+    defer kv.mu.RUnlock()
+    
+    view := make(map[string]string)
+    for name := range kv.keys {
+        view[name] = fmt.Sprintf("{{%s}}", name)
+    }
+    return view
+}
+
+// ListKeyReferences returns list of available key references
+func (kv *KeyVault) ListKeyReferences() []string {
+    kv.mu.RLock()
+    defer kv.mu.RUnlock()
+    
+    refs := make([]string, 0, len(kv.keys))
+    for name := range kv.keys {
+        refs = append(refs, fmt.Sprintf("{{%s}}", name))
+    }
+    return refs
+}
+```
+
+### 4.2 ToolContext with Symbolic Resolution
+
+Tools receive symbolic references and resolve them at execution time.
+
+```go
+// ToolContext provides secure access to keys during execution
+type ToolContext struct {
+    KeyVault *KeyVault
+    Params   map[string]interface{}
+}
+
+// ResolveKey takes a parameter value and resolves symbolic references
+func (tc *ToolContext) ResolveKey(value string) (*SecureString, error) {
+    // Check if it's a symbolic reference {{key_name}}
+    if strings.HasPrefix(value, "{{") && strings.HasSuffix(value, "}}") {
+        return tc.KeyVault.GetForExecution(value)
+    }
+    
+    // If not symbolic, treat as literal (for testing/debugging)
+    // In production, this path should be disabled
+    return NewSecureString(value), nil
+}
+
+// Example: WebSearchTool using symbolic keys
+type WebSearchTool struct {
+    KeyVault *KeyVault
+}
+
+func (t *WebSearchTool) Execute(ctx context.Context, params ToolParams) (ToolResult, error) {
+    // LLM passes: api_key = "{{brave_key}}"
+    keyRef := params.GetString("api_key")
+    
+    // Resolve at execution time - this is when the actual key is accessed
+    apiKey, err := t.KeyVault.GetForExecution(keyRef)
+    if err != nil {
+        return ToolResult{}, fmt.Errorf("API key not configured: %s", keyRef)
+    }
+    defer apiKey.Destroy() // Ensure cleanup
+    
+    // Make actual API call with real key
+    // Key is only in memory for this brief period
+    resp, err := makeAPIRequest("https://api.brave.com/search", 
+        header("Authorization", "Bearer "+apiKey.String()))
+    
+    return ToolResult{Data: resp}, nil
+}
+```
+
+### 4.3 Context Building with Symbolic References
+
+System prompts include symbolic references, not actual keys.
+
+```go
+// SecureContextBuilder builds context without exposing keys
+type SecureContextBuilder struct {
+    KeyVault *KeyVault
+    sanitizer *SecretSanitizer  // Defense in depth
+}
+
+func (cb *SecureContextBuilder) BuildSystemPrompt() string {
+    var parts []string
+    
+    // Tool descriptions show key requirements symbolically
+    parts = append(parts, "# Available Tools")
+    parts = append(parts, cb.getToolDescriptions())
+    
+    // Available API keys section
+    parts = append(parts, "# Available API Keys")
+    parts = append(parts, "When calling tools that require API keys, use these symbolic references:")
+    parts = append(parts, "")
+    
+    for name, ref := range cb.KeyVault.GetPublicView() {
+        parts = append(parts, fmt.Sprintf("- %s: %s (configured)", name, ref))
+    }
+    
+    parts = append(parts, "")
+    parts = append(parts, "Example: To use web search, pass api_key=\"{{brave_key}}\"")
+    
+    return strings.Join(parts, "\n")
+}
+
+// Example output to LLM:
+// # Available API Keys
+// When calling tools that require API keys, use these symbolic references:
+//
+// - openrouter: {{openrouter_key}} (configured)
+// - brave: {{brave_key}} (configured)
+// - anthropic: {{anthropic_key}} (configured)
+//
+// Example: To use web search, pass api_key="{{brave_key}}"
+```
+
+### 4.4 Audit Logging with References
+
+Audit logs never contain actual keys—only symbolic references.
+
+```go
+// SecureAuditLogger tracks usage without exposing keys
+type SecureAuditLogger struct {
+    db *sql.DB
+}
+
+type AuditEntry struct {
+    Timestamp   time.Time
+    Operation   string
+    KeyRef      string    // "{{openrouter_key}}" - never the actual key
+    Endpoint    string
+    Success     bool
+}
+
+func (al *SecureAuditLogger) LogToolExecution(toolName string, keyRef string, success bool) error {
+    entry := AuditEntry{
+        Timestamp: time.Now(),
+        Operation: toolName,
+        KeyRef:    keyRef,  // Symbolic reference only
+        Success:   success,
+    }
+    
+    // Store in database
+    _, err := al.db.Exec(`
+        INSERT INTO audit_log (timestamp, operation, key_ref, success)
+        VALUES (?, ?, ?, ?)
+    `, entry.Timestamp, entry.Operation, entry.KeyRef, entry.Success)
+    
+    return err
+}
+
+// Example log output:
+// [2026-02-16T10:30:00Z] Tool: web_search, Key: {{brave_key}}, Success: true
+// Notice: Actual API key never appears in logs
+```
+
+---
+
+## 5. Layer 1: Encrypted Storage
+
+### 5.1 OS Keyring Integration
 
 **Recommendation:** Use platform-native keyrings with fallbacks.
 
@@ -144,7 +422,7 @@ func (s *FileBasedKeyStorage) Store(provider, key string) error {
 }
 ```
 
-### 3.2 Master Key Derivation
+### 5.2 Master Key Derivation
 
 ```go
 // DeriveMasterKey creates encryption key from user password
@@ -165,9 +443,9 @@ func DeriveMasterKey(password string, salt []byte) []byte {
 
 ---
 
-## 4. Layer 2: Memory Protection
+## 6. Layer 2: Memory Protection
 
-### 4.1 Secure Memory Allocation
+### 6.1 Secure Memory Allocation
 
 ```go
 package security
@@ -235,7 +513,7 @@ defer apiKey.Destroy()
 // Use apiKey.Bytes() when calling APIs
 ```
 
-### 4.2 Memory Sanitization
+### 6.2 Memory Sanitization
 
 ```go
 // SecureProvider wraps an LLM provider with protected keys
@@ -262,9 +540,9 @@ func (sp *SecureProvider) DoRequest(ctx context.Context, req *http.Request) (*ht
 
 ---
 
-## 5. Layer 3: Process Isolation
+## 7. Layer 3: Process Isolation
 
-### 5.1 Separate Key Service (Microservice Pattern)
+### 7.1 Separate Key Service (Microservice Pattern)
 
 ```go
 // key_service.go - Runs as separate process
@@ -316,7 +594,7 @@ func main() {
 - If main process is compromised, keys are isolated
 - Can use seccomp, AppArmor, or SELinux for hardening
 
-### 5.2 IPC Communication
+### 7.2 IPC Communication
 
 ```go
 // SecureIPC handles communication with key service
@@ -340,9 +618,9 @@ func (ipc *SecureIPC) GetAPIKey(provider string) (*SecureString, error) {
 
 ---
 
-## 6. Layer 4: Deterministic Access Control
+## 8. Layer 4: Deterministic Access Control
 
-### 6.1 Usage Policies
+### 8.1 Usage Policies
 
 ```go
 // KeyUsagePolicy defines when/how keys can be used
@@ -378,7 +656,7 @@ var DefaultPolicies = map[string]*KeyUsagePolicy{
 }
 ```
 
-### 6.2 Rate Limiter
+### 8.2 Rate Limiter
 
 ```go
 // SecureRateLimiter enforces usage policies
@@ -426,7 +704,7 @@ func (rl *SecureRateLimiter) AllowRequest(provider string) error {
 }
 ```
 
-### 6.3 Endpoint Validation
+### 8.3 Endpoint Validation
 
 ```go
 // ValidateEndpoint ensures request goes to allowed URL
@@ -452,9 +730,9 @@ func (rl *SecureRateLimiter) ValidateEndpoint(provider, url string) error {
 
 ---
 
-## 7. Layer 5: Audit Logging
+## 9. Layer 5: Audit Logging
 
-### 7.1 Immutable Audit Trail
+### 9.1 Immutable Audit Trail
 
 ```go
 // AuditLogger tracks all key usage
@@ -493,7 +771,7 @@ func (al *AuditLogger) Log(entry *AuditEntry) error {
 }
 ```
 
-### 7.2 Real-Time Monitoring
+### 9.2 Real-Time Monitoring
 
 ```go
 // SuspiciousActivityDetector monitors for abuse
@@ -522,9 +800,9 @@ func (sd *SuspiciousActivityDetector) Analyze() {
 
 ---
 
-## 8. Layer 6: Context Sanitization
+## 10. Layer 6: Context Sanitization (Defense in Depth)
 
-### 8.1 Automatic Secret Masking
+### 10.1 Automatic Secret Masking
 
 ```go
 // Sanitizer removes secrets from all output
@@ -558,7 +836,7 @@ func (s *Sanitizer) Sanitize(text string) string {
 }
 ```
 
-### 8.2 Context Builder Security
+### 10.2 Context Builder Security
 
 ```go
 // SecureContextBuilder builds context without exposing keys
@@ -591,7 +869,7 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
 
 ---
 
-## 9. Recommended Libraries
+## 11. Recommended Libraries
 
 | Purpose | Library | Notes |
 |---------|---------|-------|
@@ -607,7 +885,7 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
 
 ---
 
-## 10. Implementation Roadmap
+## 12. Implementation Roadmap
 
 ### Phase 1: Basic Protection (Week 1)
 - [ ] OS keyring integration
@@ -635,7 +913,7 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
 
 ---
 
-## 11. Configuration Example
+## 13. Configuration Example
 
 ```json
 {
@@ -650,6 +928,10 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
       "autoWipe": true,
       "wipeInterval": 300
     },
+    "symbolicKeys": {
+      "enabled": true,
+      "exposeToLLM": true
+    },
     "rateLimiting": {
       "enabled": true,
       "defaultPolicy": "standard"
@@ -657,7 +939,8 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
     "audit": {
       "enabled": true,
       "logFile": "~/.nanofolks/audit.log",
-      "retentionDays": 90
+      "retentionDays": 90,
+      "logKeyReferencesOnly": true
     },
     "isolation": {
       "separateKeyProcess": false,
@@ -669,15 +952,16 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
 
 ---
 
-## 12. Best Practices
+## 14. Best Practices
 
 ### For Developers
 
-1. **Never log API keys** — Use sanitizer on all output
-2. **Use SecureString** — For all sensitive data in memory
-3. **Defer Destroy()** — Always cleanup sensitive memory
-4. **Validate endpoints** — Before making API calls
-5. **Audit everything** — Log all key usage
+1. **Use symbolic key references** — Never expose actual keys to LLM context
+2. **Never log API keys** — Use references only: "Used key: {{openrouter_key}}"
+3. **Use SecureString** — For all sensitive data in memory
+4. **Defer Destroy()** — Always cleanup sensitive memory after use
+5. **Validate endpoints** — Before making API calls
+6. **Audit everything** — Log all key usage with references
 
 ### For Users
 
@@ -689,23 +973,29 @@ func (scb *SecureContextBuilder) buildFromMessages(messages []Message) string {
 
 ---
 
-## 13. Summary
+## 15. Summary
 
 This multi-layer security architecture ensures:
 
-✅ **Keys never exposed to LLMs** — Through sanitization and context isolation  
+✅ **Keys never exposed to LLMs** — Symbolic references only (`{{openrouter_key}}`)  
+✅ **Late resolution** — Keys resolved only at execution time  
 ✅ **Deterministic usage** — Rate limits and endpoint validation  
 ✅ **Memory protection** — Locked pages and secure cleanup  
-✅ **Audit trail** — Immutable logs of all access  
+✅ **Audit trail** — References only, never actual keys  
 ✅ **Defense in depth** — Multiple security layers  
 
-**Recommended starting point:**
-1. OS keyring integration
-2. Secure memory allocation  
-3. Context sanitization
-4. Basic audit logging
+**Core Innovation: Symbolic Key References**
 
-This provides 80% of the security benefits with minimal complexity.
+Unlike traditional approaches that sanitize keys after exposure, Nanofolks Go ensures keys are **never exposed in the first place**. The LLM only sees symbolic names like `{{openrouter_key}}`, and the actual values are resolved at the last possible moment during tool execution.
+
+**Recommended Implementation Priority:**
+
+1. **Symbolic KeyVault** — Core innovation (highest impact)
+2. **OS keyring integration** — Secure storage
+3. **Secure memory allocation** — Memory protection
+4. **Audit logging with references** — Usage tracking
+
+This provides 90% of the security benefits with the symbolic reference system alone.
 
 ---
 
