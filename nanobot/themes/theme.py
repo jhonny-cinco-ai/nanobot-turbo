@@ -42,7 +42,7 @@ class Theme:
 
     name: ThemeName  # Theme identifier
     description: str  # Theme description
-    nanobot: BotTheming  # nanobot theming
+    leader: BotTheming  # leader theming
     researcher: BotTheming  # @researcher theming
     coder: BotTheming  # @coder theming
     social: BotTheming  # @social theming
@@ -58,13 +58,13 @@ class Theme:
         """Get theming for a specific bot.
 
         Args:
-            bot_name: Name of bot (nanobot, researcher, coder, social, creative, auditor)
+            bot_name: Name of bot (leader, researcher, coder, social, creative, auditor)
 
         Returns:
             BotTheming or None if bot not found
         """
         bot_map = {
-            "leader": self.nanobot,
+            "leader": self.leader,
             "researcher": self.researcher,
             "coder": self.coder,
             "social": self.social,
@@ -80,7 +80,7 @@ class Theme:
             Dictionary mapping bot names to their theming
         """
         return {
-            "leader": self.nanobot,
+            "leader": self.leader,
             "researcher": self.researcher,
             "coder": self.coder,
             "social": self.social,
@@ -99,11 +99,11 @@ class Theme:
             "description": self.description,
             "bots": {
                 "leader": {
-                    "title": self.nanobot.title,
-                    "personality": self.nanobot.personality,
-                    "greeting": self.nanobot.greeting,
-                    "voice": self.nanobot.voice_directive,
-                    "emoji": self.nanobot.emoji,
+                    "title": self.leader.title,
+                    "personality": self.leader.personality,
+                    "greeting": self.leader.greeting,
+                    "voice": self.leader.voice_directive,
+                    "emoji": self.leader.emoji,
                 },
                 "researcher": {
                     "title": self.researcher.title,

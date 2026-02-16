@@ -190,10 +190,10 @@ class UpdateConfigTool(Tool):
                 },
                 'whatsapp': {
                     'difficulty': 'Medium',
-                    'setup_note': 'Requires Node.js bridge. Run: nanobot channels login',
+                    'setup_note': 'Requires Node.js bridge. Run: nanobot channels login. Leave bridgeUrl empty for auto-config (Tailscale IP + random port)',
                     'fields': {
                         'enabled': {'type': 'boolean', 'default': False},
-                        'bridgeUrl': {'type': 'url', 'default': 'ws://localhost:3001'},
+                        'bridgeUrl': {'type': 'url', 'default': '', 'help': 'Leave empty for auto-config (recommended)'},
                         'allowFrom': {'type': 'array', 'item_type': 'string', 'help': 'Allowed phone numbers (comma-separated, e.g.: +1234567890, +0987654321)'},
                     },
                 },

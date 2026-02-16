@@ -104,8 +104,9 @@ class OnboardingWizard:
             "This wizard will guide you through:\n"
             "  1. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"
             "  2. [bold]Evolutionary Mode[/bold] (optional)\n"
-            "  3. [bold]Team Theme[/bold] - Choose your crew's personality\n"
-            "  4. [bold]Launch[/bold] - Create your workspace and crew",
+            "  3. [bold]Network Security[/bold] (Tailscale + secure ports)\n"
+            "  4. [bold]Team Theme[/bold] - Choose your crew's personality\n"
+            "  5. [bold]Launch[/bold] - Create your workspace and crew",
             title="🎉",
             border_style="cyan"
         ))
@@ -176,6 +177,9 @@ class OnboardingWizard:
         
         # Evolutionary Mode configuration
         self._configure_evolutionary_mode()
+        
+        # Network & Security configuration
+        self._configure_network_security()
     
     def _configure_smart_routing(self, provider: str, primary_model: str) -> None:
         """Step 1b: Configure Smart Routing."""
@@ -220,6 +224,77 @@ class OnboardingWizard:
             console.print("[green]✓ Evolutionary mode enabled![/green]\n")
         else:
             console.print("[dim]Evolutionary mode disabled. Bots restricted to workspace only.[/dim]\n")
+    
+    def _configure_network_security(self) -> None:
+        """Step 1d: Configure Network & Security."""
+        console.print("[bold cyan]Step 1d: Network & Security[/bold cyan]\n")
+        console.print("""
+[dim]Configure how nanobot services are accessed:[/dim]
+  • Dashboard & bridge will use secure defaults
+  • Random ports (8000-9000) to avoid detection
+  • Tailscale IP if available for private access
+        """)
+        
+        # Detect current network status
+        try:
+            from nanobot.utils.network import get_tailscale_ip, get_best_ip, find_free_port
+            
+            tailscale_ip = get_tailscale_ip()
+            best_ip = get_best_ip()
+            
+            if tailscale_ip:
+                console.print(f"\n[green]✓ Tailscale detected: {tailscale_ip}[/green]")
+                console.print("[dim]Services will be accessible via your Tailscale network[/dim]")
+            else:
+                console.print(f"\n[dim]Using private IP: {best_ip}[/dim]")
+                console.print("[dim]For better security, consider installing Tailscale[/dim]")
+            
+            # Show what ports will be used
+            dashboard_port = find_free_port()
+            bridge_port = find_free_port()
+            
+            console.print(f"\n[dim]Secure defaults configured:[/dim]")
+            console.print(f"  • Dashboard: http://{tailscale_ip or best_ip}:{dashboard_port}")
+            console.print(f"  • WhatsApp bridge: ws://{tailscale_ip or best_ip}:{bridge_port}")
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠ Could not detect network: {e}[/yellow]")
+        
+        console.print("\n[dim]Network auto-configured on first run.[/dim]")
+        
+        # Ask about Tailscale installation
+        console.print()
+        if not tailscale_ip:
+            install_tailscale = Confirm.ask(
+                "Install Tailscale for private network access?",
+                default=False
+            )
+            if install_tailscale:
+                self._install_tailscale_guide()
+    
+    def _install_tailscale_guide(self) -> None:
+        """Show guide for installing Tailscale."""
+        console.print(Panel.fit(
+            """
+[bold cyan]Install Tailscale:[/bold cyan]
+
+[bold]macOS:[/bold]
+  brew install tailscale
+  tailscale up
+
+[bold]Linux:[/bold]
+  curl -fsSL https://tailscale.com/install.sh | sh
+  tailscale up
+
+[bold]Windows:[/bold]
+  Download from https://tailscale.com/download
+
+After install, run: [bold]tailscale up[/bold]
+Then restart nanobot for secure access.
+            """,
+            title="Tailscale Setup Guide",
+            border_style="cyan"
+        ))
     
     async def _save_routing_config(self, enabled: bool, provider: str = "openrouter") -> None:
         """Save routing configuration with provider-specific tiers.

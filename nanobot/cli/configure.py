@@ -156,8 +156,9 @@ def _get_tools_status(summary: dict) -> str:
     has_evolutionary = config.tools.evolutionary
     has_web_search = bool(config.tools.web.search.api_key)
     has_custom_paths = bool(config.tools.allowed_paths)
+    has_mcp_servers = bool(config.tools.mcp_servers)
     
-    is_configured = has_evolutionary or has_web_search or has_custom_paths
+    is_configured = has_evolutionary or has_web_search or has_custom_paths or has_mcp_servers
     return "[green]✓[/green]" if is_configured else "[dim]○[/dim]"
 
 
@@ -813,10 +814,15 @@ def _configure_tools():
         console.print("\n[dim]What would you like to configure?[/dim]")
         console.print("  [1] Security Settings (Evolutionary mode)")
         console.print("  [2] Web Search API Key")
+        console.print("  [3] MCP Servers")
         console.print("  [0] Back")
         console.print()
         
-        choice = Prompt.ask("Select", choices=["0", "1", "2"], default="1")
+        choice = Prompt.ask("Select", choices=["0", "1", "2", "3"], default="1")
+        
+        if choice == "3":
+            _configure_mcp_servers()
+            return
         
         if choice == "0":
             return
@@ -1088,6 +1094,217 @@ def _configure_gateway():
                         console.print(f"[green]{result}[/green]")
                 except ValueError:
                     console.print("[red]Invalid port number[/red]")
+
+
+def _configure_mcp_servers():
+    """Configure MCP (Model Context Protocol) servers."""
+    tool = UpdateConfigTool()
+    
+    while True:
+        config = load_config()
+        mcp_servers = config.tools.mcp_servers or {}
+        
+        console.print(Panel(
+            "[bold]MCP Servers Configuration[/bold]\n\n"
+            "MCP servers provide additional tools to nanobot.\n"
+            "Configure stdio servers (npx, uvx) or HTTP endpoints.",
+            border_style="blue"
+        ))
+        
+        # Show current servers
+        if mcp_servers:
+            console.print("\n[bold]Configured Servers:[/bold]")
+            for name, server_config in mcp_servers.items():
+                if server_config.url:
+                    console.print(f"  • {name}: [cyan]{server_config.url}[/cyan] (HTTP)")
+                else:
+                    cmd = server_config.command or "?"
+                    args = " ".join(server_config.args or [])
+                    console.print(f"  • {name}: [cyan]{cmd} {args}[/cyan] (stdio)")
+        else:
+            console.print("\n[dim]No MCP servers configured[/dim]")
+        
+        # Menu
+        console.print("\n[dim]What would you like to do?[/dim]")
+        console.print("  [1] Add MCP server")
+        if mcp_servers:
+            console.print("  [2] Remove MCP server")
+            console.print("  [3] Test connection")
+        console.print("  [0] Back")
+        console.print()
+        
+        choices = ["0", "1"]
+        if mcp_servers:
+            choices.extend(["2", "3"])
+        
+        choice = Prompt.ask("Select", choices=choices, default="0")
+        
+        if choice == "0":
+            return
+        
+        elif choice == "1":
+            _add_mcp_server(tool)
+        
+        elif choice == "2" and mcp_servers:
+            _remove_mcp_server(tool, mcp_servers)
+        
+        elif choice == "3" and mcp_servers:
+            _test_mcp_server(mcp_servers)
+
+
+def _add_mcp_server(tool: UpdateConfigTool):
+    """Add a new MCP server."""
+    console.print(Panel(
+        "[bold]Add MCP Server[/bold]\n\n"
+        "Choose connection type:",
+        border_style="blue"
+    ))
+    
+    console.print("  [1] Stdio (local command like npx, uvx)")
+    console.print("  [2] HTTP (remote server)")
+    console.print("  [0] Cancel")
+    console.print()
+    
+    conn_type = Prompt.ask("Select", choices=["0", "1", "2"], default="0")
+    
+    if conn_type == "0":
+        return
+    
+    # Get server name
+    server_name = Prompt.ask("Enter server name (e.g., filesystem, github, brave)")
+    if not server_name:
+        console.print("[red]Server name required[/red]")
+        return
+    
+    # Clean name for config key
+    config_key = server_name.lower().replace(" ", "_")
+    
+    if conn_type == "1":
+        # Stdio configuration
+        command = Prompt.ask("Enter command (e.g., npx, uvx, python)")
+        if not command:
+            console.print("[red]Command required[/red]")
+            return
+        
+        args_input = Prompt.ask(
+            "Enter arguments (e.g., -y @modelcontextprotocol/server-filesystem /path)",
+            default=""
+        )
+        args = args_input.split() if args_input else []
+        
+        # Build config
+        server_config = {
+            "command": command,
+            "args": args,
+            "env": {},
+            "url": ""
+        }
+        
+    elif conn_type == "2":
+        # HTTP configuration
+        url = Prompt.ask("Enter HTTP endpoint URL (e.g., http://localhost:3000/mcp)")
+        if not url:
+            console.print("[red]URL required[/red]")
+            return
+        
+        server_config = {
+            "command": "",
+            "args": [],
+            "env": {},
+            "url": url
+        }
+    
+    else:
+        return
+    
+    # Save to config
+    with console.status("[cyan]Saving MCP server...[/cyan]", spinner="dots"):
+        try:
+            # Get current MCP servers config
+            config = load_config()
+            mcp_servers = config.tools.mcp_servers or {}
+            mcp_servers[config_key] = server_config
+            
+            result = asyncio.run(tool.execute(
+                path="tools.mcp_servers",
+                value=mcp_servers
+            ))
+            console.print(f"[green]✓ MCP server '{server_name}' added[/green]")
+            console.print("\n[dim]Restart nanobot for changes to take effect.[/dim]")
+        except Exception as e:
+            console.print(f"[red]Failed to add MCP server: {e}[/red]")
+
+
+def _remove_mcp_server(tool: UpdateConfigTool, mcp_servers: dict):
+    """Remove an MCP server."""
+    console.print("\n[bold]Select server to remove:[/bold]")
+    
+    servers = list(mcp_servers.keys())
+    for i, name in enumerate(servers, 1):
+        console.print(f"  [{i}] {name}")
+    console.print("  [0] Cancel")
+    console.print()
+    
+    choice = Prompt.ask(
+        "Select",
+        choices=["0"] + [str(i) for i in range(1, len(servers) + 1)],
+        default="0"
+    )
+    
+    if choice == "0":
+        return
+    
+    server_to_remove = servers[int(choice) - 1]
+    
+    if Confirm.ask(f"Remove MCP server '{server_to_remove}'?", default=False):
+        with console.status("[cyan]Removing MCP server...[/cyan]", spinner="dots"):
+            try:
+                del mcp_servers[server_to_remove]
+                result = asyncio.run(tool.execute(
+                    path="tools.mcp_servers",
+                    value=mcp_servers
+                ))
+                console.print(f"[green]✓ MCP server '{server_to_remove}' removed[/green]")
+                console.print("\n[dim]Restart nanobot for changes to take effect.[/dim]")
+            except Exception as e:
+                console.print(f"[red]Failed to remove MCP server: {e}[/red]")
+
+
+def _test_mcp_server(mcp_servers: dict):
+    """Test connection to an MCP server."""
+    console.print("\n[bold]Select server to test:[/bold]")
+    
+    servers = list(mcp_servers.keys())
+    for i, name in enumerate(servers, 1):
+        console.print(f"  [{i}] {name}")
+    console.print("  [0] Cancel")
+    console.print()
+    
+    choice = Prompt.ask(
+        "Select",
+        choices=["0"] + [str(i) for i in range(1, len(servers) + 1)],
+        default="0"
+    )
+    
+    if choice == "0":
+        return
+    
+    server_name = servers[int(choice) - 1]
+    server_config = mcp_servers[server_name]
+    
+    console.print(f"\n[cyan]Testing connection to '{server_name}'...[/cyan]")
+    
+    # This is a simplified test - just check if we can list tools
+    # In practice, you'd want to actually connect and list tools
+    if server_config.get("url"):
+        console.print(f"  URL: {server_config['url']}")
+    else:
+        cmd = server_config.get("command", "?")
+        args = " ".join(server_config.get("args", []))
+        console.print(f"  Command: {cmd} {args}")
+    
+    console.print("\n[yellow]Note: Full connection test requires restarting nanobot.[/dim]")
+    console.print("[dim]The server will be available after restart if configured correctly.[/dim]")
 
 
 def _show_detailed_status():

@@ -223,10 +223,40 @@ class AgentLoop:
             )
             
             # Initialize session compactor (Phase 8) - Long conversation support
-            from nanobot.memory.session_compactor import SessionCompactor, SessionCompactionConfig
+            from nanobot.memory.session_compactor import SessionCompactionConfig, SessionCompactor, SUMMARY_PROMPT
+            
+            async def summarize_messages(messages: list[dict[str, Any]]) -> str:
+                """LLM-based summarization for session compaction."""
+                # Format messages for the prompt
+                formatted = []
+                for msg in messages:
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    if isinstance(content, list):
+                        content_str = "".join(
+                            b.get("text", "") for b in content if isinstance(b, dict)
+                        )
+                    else:
+                        content_str = str(content)[:200]  # Truncate long content
+                    formatted.append(f"{role}: {content_str}")
+                
+                prompt = SUMMARY_PROMPT.format(messages="\n".join(formatted[-10:]))  # Last 10 msgs
+                
+                try:
+                    response = await self.provider.chat(
+                        messages=[{"role": "user", "content": prompt}],
+                        model=self.model,
+                        temperature=0.3,
+                        max_tokens=150,
+                    )
+                    return response.content or ""
+                except Exception as e:
+                    logger.warning(f"Summarization failed: {e}")
+                    return ""
             
             self.session_compactor = SessionCompactor(
-                memory_config.session_compaction
+                memory_config.session_compaction,
+                summarizer=summarize_messages
             )
             
             logger.info(
@@ -317,12 +347,17 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
+        # Always protect config file (defense in depth)
+        # If protected_paths is empty, at least protect the config file
+        default_protected = [str(Path.home() / ".nanobot" / "config.json")]
+        all_protected = list(set(self.protected_paths + default_protected))
+        protected_dirs = [Path(p).expanduser().resolve() for p in all_protected]
+        
         # Determine tool restrictions based on evolutionary mode
         if self.evolutionary and self.allowed_paths:
             # Evolutionary mode: use allowed_paths whitelist
             logger.info(f"Evolutionary mode enabled with allowed paths: {self.allowed_paths}")
             allowed_dirs = [Path(p).expanduser().resolve() for p in self.allowed_paths]
-            protected_dirs = [Path(p).expanduser().resolve() for p in self.protected_paths]
             self.tools.register(ReadFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
             self.tools.register(WriteFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
             self.tools.register(EditFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
@@ -337,10 +372,10 @@ class AgentLoop:
         else:
             # Standard mode: use restrict_to_workspace behavior
             allowed_dir = self.workspace if self.restrict_to_workspace else None
-            self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
-            self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
-            self.tools.register(EditFileTool(allowed_dir=allowed_dir))
-            self.tools.register(ListDirTool(allowed_dir=allowed_dir))
+            self.tools.register(ReadFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
+            self.tools.register(WriteFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
+            self.tools.register(EditFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
+            self.tools.register(ListDirTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
             
             # Shell tool
             self.tools.register(ExecTool(
@@ -748,9 +783,14 @@ class AgentLoop:
                 
                 # Check if compaction needed
                 if self.session_compactor.should_compact(session.messages, max_tokens):
+                    # Get strategy recommendation
+                    strategy = self.session_compactor.get_compaction_strategy(
+                        session.messages, max_tokens
+                    )
+                    
                     logger.info(
                         f"🧹 Compaction triggered: {current_tokens} tokens approaching "
-                        f"{max_tokens} limit"
+                        f"{max_tokens} limit - {strategy['reason']}"
                     )
                     
                     # Pre-compaction memory flush hook
@@ -760,6 +800,18 @@ class AgentLoop:
                     # Compact the session
                     result = await self.session_compactor.compact_session(session, max_tokens)
                     
+                    # Validate compaction
+                    validation = self.session_compactor.validate_compaction(
+                        session.messages, result.messages
+                    )
+                    
+                    if not validation["is_valid"]:
+                        for issue in validation["issues"]:
+                            logger.error(f"Compaction validation failed: {issue}")
+                    elif validation["warnings"]:
+                        for warning in validation["warnings"]:
+                            logger.warning(f"Compaction warning: {warning}")
+                    
                     # Update session with compacted messages
                     session.messages = result.messages
                     
@@ -767,7 +819,8 @@ class AgentLoop:
                     logger.info(
                         f"🧹 Compaction complete: {result.original_count} → {result.compacted_count} messages, "
                         f"{result.tokens_before} → {result.tokens_after} tokens "
-                        f"({result.compaction_ratio:.1%})"
+                        f"({result.compaction_ratio:.1%}), "
+                        f"validation: {'passed' if validation['is_valid'] else 'failed'}"
                     )
                     
                     # Show compaction notice in response metadata
@@ -776,7 +829,9 @@ class AgentLoop:
                         "compacted_count": result.compacted_count,
                         "tokens_before": result.tokens_before,
                         "tokens_after": result.tokens_after,
-                        "mode": result.mode
+                        "mode": result.mode,
+                        "strategy": strategy["strategy"],
+                        "validation_passed": validation["is_valid"]
                     }
             except Exception as e:
                 logger.error(f"Session compaction failed: {e}")
@@ -839,6 +894,19 @@ class AgentLoop:
                 else:
                     raise e
             
+            # Log reasoning content from CoT models (DeepSeek-R1, Kimi, etc.)
+            if response.reasoning_content:
+                tier = self._get_tier_for_logging()
+                self.work_log_manager.log(
+                    level=LogLevel.THINKING,
+                    category="reasoning",
+                    message=f"CoT reasoning content (tier: {tier})",
+                    details={
+                        "thinking": response.reasoning_content[:500],
+                        "tier": tier,
+                    }
+                )
+
             # Handle tool calls
             if response.has_tool_calls:
                 # Add assistant message with tool calls
@@ -1234,8 +1302,7 @@ class AgentLoop:
         Returns:
             True if CoT reflection should be added
         """
-        # Get current tier (default to medium if not set)
-        tier = getattr(self, '_current_tier', 'medium')
+        tier = self._get_tier_for_logging()
         
         # Check if reasoning config is available
         if not hasattr(self, 'reasoning_config') or not self.reasoning_config:
@@ -1243,6 +1310,26 @@ class AgentLoop:
         
         # Use reasoning config to decide
         return self.reasoning_config.should_use_cot(tier, tool_name)
+
+    def _get_tier_for_logging(self) -> str:
+        """Get the current tier for logging purposes.
+        
+        Provides safe access to _current_tier with proper warning
+        if it's unexpectedly None.
+        
+        Returns:
+            The current tier string (always returns a valid tier)
+        """
+        tier = getattr(self, '_current_tier', None)
+        
+        if tier is None:
+            logger.warning(
+                f"Tier not set for {self.bot_name}, "
+                f"this is a bug - should be set in _select_model()"
+            )
+            return "medium"
+        
+        return tier
 
     async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
         """Send onboarding message when config is missing."""

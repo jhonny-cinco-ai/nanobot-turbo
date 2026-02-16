@@ -10,7 +10,7 @@ from nanobot.themes.theme import Theme, ThemeName, BotTheming
 PIRATE_CREW = Theme(
     name=ThemeName.PIRATE_CREW,
     description="Bold adventurers exploring uncharted territories",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="Captain",
         default_name="Blackbeard",
         personality="Commanding, bold, decisive",
@@ -68,7 +68,7 @@ PIRATE_CREW = Theme(
 ROCK_BAND = Theme(
     name=ThemeName.ROCK_BAND,
     description="Creative team making hits together",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="Lead Singer",
         default_name="Axel",
         personality="Charismatic frontman, sets the vibe",
@@ -125,7 +125,7 @@ ROCK_BAND = Theme(
 SWAT_TEAM = Theme(
     name=ThemeName.SWAT_TEAM,
     description="Elite tactical unit handling critical operations",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="Commander",
         default_name="Chief",
         personality="Tactical leader, mission-focused",
@@ -182,7 +182,7 @@ SWAT_TEAM = Theme(
 FERAL_CLOWDER = Theme(
     name=ThemeName.FERAL_CLOWDER,
     description="Scrappy street cats surviving by wit and teamwork",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="Top Cat",
         default_name="Boss",
         personality="Street-smart leader, protective of the crew",
@@ -239,7 +239,7 @@ FERAL_CLOWDER = Theme(
 EXECUTIVE_SUITE = Theme(
     name=ThemeName.EXECUTIVE_SUITE,
     description="Corporate strategists focused on growth and optimization",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="CEO",
         default_name="Victoria",
         personality="Visionary executive, decisive leader",
@@ -296,7 +296,7 @@ EXECUTIVE_SUITE = Theme(
 SPACE_CREW = Theme(
     name=ThemeName.SPACE_CREW,
     description="Exploratory team discovering new frontiers",
-    nanobot=BotTheming(
+    leader=BotTheming(
         title="Mission Commander",
         default_name="Commander",
         personality="Visionary explorer, open to possibilities",
@@ -394,7 +394,7 @@ def list_themes() -> list[dict]:
             "name": theme.name.value,
             "display_name": theme.name.value.replace("_", " ").title(),
             "description": theme.description,
-            "emoji": theme.nanobot.emoji,
+            "emoji": theme.leader.emoji,
         }
         for theme in AVAILABLE_THEMES
     ]

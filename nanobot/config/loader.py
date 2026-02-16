@@ -1,6 +1,8 @@
 """Configuration loading utilities."""
 
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Any
 from loguru import logger
@@ -51,6 +53,18 @@ def load_config(config_path: Path | None = None) -> Config:
     is_first_run = not path.exists()
     
     if path.exists():
+        # Check and fix permissions if needed
+        try:
+            current_mode = stat.S_IMODE(os.stat(path).st_mode)
+            if current_mode != 0o600:
+                logger.warning(
+                    f"Config file has insecure permissions: {oct(current_mode)}. "
+                    f"Fixing to 0o600 (owner read/write only)..."
+                )
+                os.chmod(path, 0o600)
+        except Exception as e:
+            logger.warning(f"Could not verify config permissions: {e}")
+        
         try:
             with open(path) as f:
                 data = json.load(f)
@@ -71,7 +85,7 @@ def load_config(config_path: Path | None = None) -> Config:
 
 def save_config(config: Config, config_path: Path | None = None) -> None:
     """
-    Save configuration to file.
+    Save configuration to file with secure permissions.
     
     Args:
         config: Configuration to save.
@@ -80,12 +94,19 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
     path = config_path or get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     
+    # Ensure parent directory has secure permissions (0700 = owner only)
+    os.chmod(path.parent, 0o700)
+    
     # Convert to camelCase format
     data = config.model_dump()
     data = convert_to_camel(data)
     
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
+    
+    # Enforce secure file permissions (0600 = owner read/write only)
+    os.chmod(path, 0o600)
+    logger.debug(f"Config saved with secure permissions: {path}")
 
 
 def _migrate_config(data: dict) -> dict:

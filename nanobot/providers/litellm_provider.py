@@ -28,6 +28,7 @@ class LiteLLMProvider(LLMProvider):
         default_model: str = "anthropic/claude-opus-4-5",
         extra_headers: dict[str, str] | None = None,
         provider_name: str | None = None,
+        set_env_vars: bool = False,  # Security: default to False, pass True only if needed
     ):
         super().__init__(api_key, api_base)
         self.default_model = default_model
@@ -38,8 +39,9 @@ class LiteLLMProvider(LLMProvider):
         # api_key / api_base are fallback for auto-detection.
         self._gateway = find_gateway(provider_name, api_key, api_base)
         
-        # Configure environment variables
-        if api_key:
+        # Configure environment variables only if explicitly enabled (security: off by default)
+        # API key is passed directly in kwargs to chat(), so env vars are not required
+        if set_env_vars and api_key:
             self._setup_env(api_key, api_base, default_model)
         
         if api_base:
@@ -51,7 +53,7 @@ class LiteLLMProvider(LLMProvider):
         litellm.drop_params = True
     
     def _setup_env(self, api_key: str, api_base: str | None, model: str) -> None:
-        """Set environment variables based on detected provider."""
+        """Set environment variables based on detected provider. Only called if set_env_vars=True."""
         spec = self._gateway or find_by_model(model)
         if not spec:
             return

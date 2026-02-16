@@ -32,7 +32,7 @@ class WhatsAppChannel(BaseChannel):
         """Start the WhatsApp channel by connecting to the bridge."""
         import websockets
         
-        bridge_url = self.config.bridge_url
+        bridge_url = self.config.get_bridge_url()
         
         logger.info(f"Connecting to WhatsApp bridge at {bridge_url}...")
         

@@ -177,7 +177,11 @@ RESEARCHER_REASONING = ReasoningConfig(
     cot_level=CoTLevel.STANDARD,
     always_cot_tools={"search", "analyze", "compare", "research"},
     never_cot_tools={"time", "date", "ping"},
-    reflection_prompt="Analyze the findings and determine next research steps.",
+    reflection_prompt="""Reflect on your research:
+1. What sources did you find? Are they credible?
+2. What gaps exist in the information?
+3. What's the key insight for the user?
+4. What follow-up might be valuable?""",
     max_reflection_tokens=200,
 )
 
@@ -185,7 +189,11 @@ CODER_REASONING = ReasoningConfig(
     cot_level=CoTLevel.FULL,
     always_cot_tools={"spawn", "exec", "github", "eval", "test"},
     never_cot_tools={"time", "date"},
-    reflection_prompt="Review the code execution results, check for errors, and plan the next implementation step.",
+    reflection_prompt="""Analyze this code execution:
+1. Did the code run successfully? If not, what error occurred?
+2. What does the output/outputs tell you?
+3. What's the next implementation step?
+4. Are there edge cases or issues to address?""",
     max_reflection_tokens=250,
 )
 
@@ -204,7 +212,11 @@ AUDITOR_REASONING = ReasoningConfig(
     cot_level=CoTLevel.MINIMAL,
     always_cot_tools={"audit", "review", "analyze"},
     never_cot_tools={"time", "date", "list", "ping"},
-    reflection_prompt="Verify audit results for accuracy and compliance.",
+    reflection_prompt="""Verify audit findings:
+1. What issues were identified? How severe?
+2. Are there compliance violations to address?
+3. What's the recommended remediation?
+4. Any gaps in the audit scope?""",
     max_reflection_tokens=100,
 )
 
@@ -212,7 +224,11 @@ CREATIVE_REASONING = ReasoningConfig(
     cot_level=CoTLevel.STANDARD,
     always_cot_tools={"generate", "design", "edit", "create"},
     never_cot_tools={"time", "date", "ping"},
-    reflection_prompt="Evaluate the creative output and plan refinements.",
+    reflection_prompt="""Evaluate your creative work:
+1. Does this match the user's intent?
+2. What alternatives could work?
+3. Any improvements to suggest?
+4. Is anything missing?""",
     max_reflection_tokens=180,
 )
 
@@ -220,14 +236,22 @@ COORDINATOR_REASONING = ReasoningConfig(
     cot_level=CoTLevel.FULL,
     always_cot_tools={"delegate", "coordinate", "notify", "dispatch"},
     never_cot_tools={"time", "date", "ping"},
-    reflection_prompt="Assess team status and prioritize coordination actions.",
+    reflection_prompt="""Assess coordination status:
+1. What tasks are in progress? Any blockers?
+2. Which bot is best suited for next action?
+3. Any updates needed for the user?
+4. What's the priority order?""",
     max_reflection_tokens=200,
 )
 
 # Default fallback
 DEFAULT_REASONING = ReasoningConfig(
     cot_level=CoTLevel.STANDARD,
-    reflection_prompt="Reflect on the results and decide next steps.",
+    reflection_prompt="""Reflect on the results:
+1. Did the action complete successfully?
+2. What does the output tell you?
+3. What's the next step?
+4. Any issues to address?""",
     max_reflection_tokens=150,
 )
 

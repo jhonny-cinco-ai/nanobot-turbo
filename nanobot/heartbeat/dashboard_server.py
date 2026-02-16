@@ -15,19 +15,35 @@ class DashboardHTTPServer:
     """Lightweight HTTP server for the dashboard.
     
     Attempts to use aiohttp if available, falls back to built-in solution.
+    Uses secure defaults: prefers Tailscale IP and random port.
     """
     
-    def __init__(self, dashboard_service, host: str = "localhost", port: int = 9090):
+    def __init__(self, dashboard_service, host: str | None = None, port: int | None = None):
         """Initialize HTTP server.
         
         Args:
             dashboard_service: DashboardService instance
-            host: Host to bind to
-            port: Port to listen on
+            host: Host to bind to. If None, auto-detects best IP (Tailscale > LAN > localhost)
+            port: Port to listen on. If None, finds a free random port.
         """
         self.dashboard_service = dashboard_service
-        self.host = host
-        self.port = port
+        
+        # Auto-detect secure bind address if not specified
+        if host is None or port is None:
+            from nanobot.utils.network import get_secure_bind_address
+            
+            bind_addr = get_secure_bind_address("dashboard")
+            self.host = host or bind_addr.host
+            self.port = port or bind_addr.port
+            
+            logger.info(
+                f"Auto-configured dashboard bind address: {self.host}:{self.port} "
+                f"(tailscale={bind_addr.is_tailscale}, localhost={bind_addr.is_localhost})"
+            )
+        else:
+            self.host = host
+            self.port = port
+        
         self._server: Optional[Any] = None
         self._app: Optional[Any] = None
         self._use_aiohttp = False

@@ -6,11 +6,52 @@ from pydantic_settings import BaseSettings
 
 
 class WhatsAppConfig(BaseModel):
-    """WhatsApp channel configuration."""
+    """WhatsApp channel configuration.
+    
+    For secure defaults (Tailscale IP + random port), leave bridge_url empty
+    and it will be auto-configured on first run.
+    """
     enabled: bool = False
-    bridge_url: str = "ws://localhost:3001"
+    bridge_url: str = ""  # Auto-configured if empty: uses Tailscale/LAN IP + random port
     bridge_token: str = ""  # Shared token for bridge auth (optional, recommended)
     allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
+    _auto_configured: bool = False  # Track if URL was auto-configured
+    
+    def get_bridge_url(self) -> str:
+        """Get effective bridge URL, auto-configuring if needed."""
+        if self.bridge_url:
+            return self.bridge_url
+        
+        # Auto-configure secure defaults
+        try:
+            from nanobot.utils.network import get_secure_bind_address
+            
+            bind_addr = get_secure_bind_address("bridge")
+            url = f"ws://{bind_addr.host}:{bind_addr.port}"
+            
+            # Save to config for future runs
+            self._save_auto_configured_url(url)
+            
+            return url
+        except Exception:
+            # Fallback to legacy default
+            return "ws://localhost:3001"
+    
+    def _save_auto_configured_url(self, url: str) -> None:
+        """Save auto-configured URL to config file."""
+        if self._auto_configured:
+            return  # Already saved
+        
+        try:
+            from nanobot.config.loader import load_config, save_config
+            
+            config = load_config()
+            config.channels.whatsapp.bridge_url = url
+            save_config(config)
+            self._auto_configured = True
+            logger.info(f"Saved auto-configured WhatsApp bridge URL: {url}")
+        except Exception as e:
+            logger.warning(f"Could not save auto-configured bridge URL: {e}")
 
 
 class TelegramConfig(BaseModel):

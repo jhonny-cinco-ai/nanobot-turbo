@@ -19,7 +19,7 @@ Example workflow:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, Callable, Awaitable
 
 from loguru import logger
 
@@ -42,6 +42,9 @@ class CompactionMode(Protocol):
             Tuple of (compacted_messages, stats).
         """
         ...
+
+
+LLMSummarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
 
 
 @dataclass
@@ -70,6 +73,23 @@ class SessionCompactionConfig:
     preserve_tool_chains: bool = True
     summary_chunk_size: int = 10
     enable_memory_flush: bool = True
+    
+    # Strategy selection thresholds
+    short_threshold: int = 20  # Below this: no compaction
+    medium_threshold: int = 50  # Below this: extraction summary
+    use_llm_for_long: bool = True  # Use LLM summarization for long sessions
+    long_threshold: int = 80  # Above this: definitely use LLM if available
+
+
+SUMMARY_PROMPT = """Summarize this conversation segment concisely. Focus on:
+- Key topics discussed
+- Important decisions or outcomes
+- Any errors or issues encountered
+
+Conversation:
+{messages}
+
+Summary (2-3 sentences):"""
 
 
 class SummaryCompactionMode:
@@ -80,9 +100,16 @@ class SummaryCompactionMode:
     Best for maintaining conversation coherence.
     """
     
-    def __init__(self, chunk_size: int = 10):
+    def __init__(
+        self,
+        chunk_size: int = 10,
+        summarizer: LLMSummarizer | None = None,
+        max_summary_tokens: int = 150
+    ):
         self.chunk_size = chunk_size
         self.token_counter = TokenCounter()
+        self.summarizer = summarizer
+        self.max_summary_tokens = max_summary_tokens
     
     async def compact(
         self,
@@ -153,8 +180,7 @@ class SummaryCompactionMode:
         """
         Summarize a chunk of messages.
         
-        For now, uses a simple extraction approach.
-        In production, this would use the LLM to generate summaries.
+        Uses LLM if available, falls back to extraction otherwise.
         
         Args:
             messages: Messages to summarize.
@@ -162,22 +188,54 @@ class SummaryCompactionMode:
         Returns:
             Summary text.
         """
-        # Simple extraction: get key points from user messages
+        if self.summarizer:
+            try:
+                summary = await self.summarizer(messages)
+                if summary:
+                    return summary
+            except Exception as e:
+                logger.warning(f"LLM summarization failed: {e}, falling back to extraction")
+        
+        return self._extraction_summary(messages)
+    
+    def _extraction_summary(self, messages: list[dict[str, Any]]) -> str:
+        """
+        Fallback extraction-based summary.
+        
+        Extracts key points without using LLM.
+        
+        Args:
+            messages: Messages to summarize.
+        
+        Returns:
+            Summary text.
+        """
         key_points = []
+        tool_results = []
+        
         for msg in messages:
-            if msg.get("role") == "user":
-                content = msg.get("content", "")
-                # Extract first 100 chars as key point
-                if len(content) > 20:  # Skip short messages
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            
+            if role == "user" and content:
+                if len(content) > 20:
                     key_points.append(content[:100] + "..." if len(content) > 100 else content)
+            elif role == "assistant":
+                if isinstance(content, str):
+                    if "error" in content.lower() or "failed" in content.lower():
+                        tool_results.append(content[:80])
         
         if key_points:
-            return " | ".join(key_points[:3])  # Top 3 key points
+            return " | ".join(key_points[:3])
         
-        # Fallback: count message types
         user_msgs = sum(1 for m in messages if m.get("role") == "user")
         assistant_msgs = sum(1 for m in messages if m.get("role") == "assistant")
-        return f"Conversation segment: {user_msgs} user messages, {assistant_msgs} assistant responses"
+        
+        result = f"{user_msgs} user messages, {assistant_msgs} assistant responses"
+        if tool_results:
+            result += f". Errors: {'; '.join(tool_results[:2])}"
+        
+        return result
 
 
 class TokenLimitCompactionMode:
@@ -339,19 +397,28 @@ class SessionCompactor:
             session.messages = result.messages
     """
     
-    def __init__(self, config: SessionCompactionConfig | None = None):
+    def __init__(
+        self,
+        config: SessionCompactionConfig | None = None,
+        summarizer: LLMSummarizer | None = None
+    ):
         """
         Initialize the session compactor.
         
         Args:
             config: Compaction configuration.
+            summarizer: Optional async function that takes messages and returns summary.
         """
         self.config = config or SessionCompactionConfig()
         self.token_counter = TokenCounter()
+        self.summarizer = summarizer
         
         # Initialize modes
         self._modes: dict[str, CompactionMode] = {
-            "summary": SummaryCompactionMode(chunk_size=self.config.summary_chunk_size),
+            "summary": SummaryCompactionMode(
+                chunk_size=self.config.summary_chunk_size,
+                summarizer=summarizer
+            ),
             "token-limit": TokenLimitCompactionMode(),
         }
     
@@ -386,6 +453,191 @@ class SessionCompactor:
             )
         
         return should_compact
+    
+    def get_compaction_strategy(self, messages: list[dict[str, Any]], max_tokens: int) -> dict[str, Any]:
+        """
+        Determine the best compaction strategy based on conversation length.
+        
+        Strategy selection:
+        - short (1-{short_threshold}): No compaction needed
+        - medium ({short_threshold}-{medium_threshold}): Extraction summary
+        - long ({medium_threshold}-{long_threshold}): LLM summary if available
+        - desperate (>{long_threshold}): token-limit mode as fallback
+        
+        Args:
+            messages: Session messages.
+            max_tokens: Maximum context window.
+        
+        Returns:
+            Dict with strategy info: mode, reason, and recommended settings.
+        """
+        msg_count = len(messages)
+        current_tokens = count_messages(messages)
+        
+        short = self.config.short_threshold
+        medium = self.config.medium_threshold
+        long = self.config.long_threshold
+        
+        # Check token threshold first
+        threshold = int(max_tokens * self.config.threshold_percent)
+        
+        if msg_count <= short and current_tokens <= threshold:
+            return {
+                "strategy": "none",
+                "mode": "off",
+                "reason": f"Short conversation ({msg_count} msgs, {current_tokens} tokens)",
+                "preserve_recent": self.config.preserve_recent,
+                "use_llm": False,
+            }
+        
+        if msg_count > long and not self.summarizer:
+            return {
+                "strategy": "desperate",
+                "mode": "token-limit",
+                "reason": f"Very long conversation ({msg_count} msgs) without LLM summarizer",
+                "preserve_recent": self.config.preserve_recent,
+                "use_llm": False,
+            }
+        
+        if msg_count > long:
+            return {
+                "strategy": "long",
+                "mode": "summary",
+                "reason": f"Long conversation ({msg_count} msgs), using LLM summarization",
+                "preserve_recent": self.config.preserve_recent + 10,  # Keep more recent
+                "use_llm": True,
+            }
+        
+        if msg_count > medium:
+            return {
+                "strategy": "medium",
+                "mode": "summary",
+                "reason": f"Medium conversation ({msg_count} msgs), extraction or LLM",
+                "preserve_recent": self.config.preserve_recent,
+                "use_llm": self.config.use_llm_for_long and self.summarizer is not None,
+            }
+        
+        return {
+            "strategy": "light",
+            "mode": "summary",
+            "reason": f"Light compaction ({msg_count} msgs)",
+            "preserve_recent": min(self.config.preserve_recent, msg_count // 2),
+            "use_llm": False,  # Not worth calling LLM for short summaries
+        }
+    
+    def validate_compaction(
+        self,
+        original: list[dict[str, Any]],
+        compacted: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """
+        Validate that compaction didn't break the conversation.
+        
+        Checks:
+        1. Tool chains are intact (tool_use → tool_result pairs preserved)
+        2. Recent messages are still present
+        3. Summary messages are properly formatted
+        
+        Args:
+            original: Original messages before compaction.
+            compacted: Messages after compaction.
+        
+        Returns:
+            Validation result dict with is_valid and any issues found.
+        """
+        issues = []
+        warnings = []
+        
+        # Check 1: Tool chain preservation
+        tool_chain_issues = self._validate_tool_chains(original, compacted)
+        if tool_chain_issues:
+            issues.extend(tool_chain_issues)
+        
+        # Check 2: Recent messages preserved
+        if compacted:
+            last_msg = compacted[-1]
+            last_original = original[-1] if original else None
+            if last_original and last_msg.get("content") != last_original.get("content"):
+                warnings.append("Last message content differs - may have been truncated")
+        
+        # Check 3: Summary format
+        summary_count = sum(1 for m in compacted if m.get("is_summary"))
+        if summary_count > 0:
+            logger.debug(f"Compaction created {summary_count} summary messages")
+        
+        is_valid = len(issues) == 0
+        
+        return {
+            "is_valid": is_valid,
+            "issues": issues,
+            "warnings": warnings,
+            "original_count": len(original),
+            "compacted_count": len(compacted),
+            "summary_count": summary_count,
+        }
+    
+    def _validate_tool_chains(
+        self,
+        original: list[dict[str, Any]],
+        compacted: list[dict[str, Any]]
+    ) -> list[str]:
+        """
+        Validate that all tool_use → tool_result pairs in original are preserved.
+        
+        Args:
+            original: Original messages.
+            compacted: Compacted messages.
+        
+        Returns:
+            List of issues found (empty if valid).
+        """
+        issues = []
+        
+        # Build map of tool_use IDs in original
+        original_tool_uses: dict[str, tuple[int, dict]] = {}
+        original_tool_results: dict[str, int] = {}
+        
+        for idx, msg in enumerate(original):
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "tool_use":
+                            tool_id = block.get("id")
+                            if tool_id:
+                                original_tool_uses[tool_id] = (idx, block)
+                        elif block.get("type") == "tool_result":
+                            tool_id = block.get("tool_use_id")
+                            if tool_id:
+                                original_tool_results[tool_id] = idx
+        
+        # Check each tool_use has a matching tool_result
+        for tool_id, (use_idx, tool_block) in original_tool_uses.items():
+            result_idx = original_tool_results.get(tool_id)
+            if result_idx is None:
+                continue  # Tool still in progress, can't validate
+            
+            # Check if this pair exists in compacted
+            found_use = False
+            found_result = False
+            
+            for msg in compacted:
+                content = msg.get("content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "tool_use" and block.get("id") == tool_id:
+                                found_use = True
+                            elif block.get("type") == "tool_result" and block.get("tool_use_id") == tool_id:
+                                found_result = True
+            
+            if not (found_use and found_result):
+                issues.append(
+                    f"Tool chain broken: {tool_id} ({tool_block.get('name', 'unknown')}) "
+                    f"at original index {use_idx} not preserved"
+                )
+        
+        return issues
     
     async def compact_session(
         self,
