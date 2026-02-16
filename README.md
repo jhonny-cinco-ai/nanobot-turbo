@@ -53,7 +53,7 @@ Nanofolks provides a flexible architecture for:
 **Inspired by nanobot's simplicity, Nanofolks expands the concept into a more expressive, team-oriented system.**
 
 > [!TIP]
-> Nanofolks is a fork of [nanobot](https://github.com/HKUDS/nanobot). We maintain full compatibility while adding crew-based features.
+> Nanofolks is a fork of [nanobot](https://github.com/HKUDS/nanobot). We maintain certain compatibility while adding crew-based features.
 
 ---
 
