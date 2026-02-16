@@ -3,12 +3,12 @@
 import json
 import json_repair
 import os
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import litellm
 from litellm import acompletion
 
-from nanofolks.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+from nanofolks.providers.base import LLMProvider, LLMResponse, StreamChunk, ToolCallRequest
 from nanofolks.providers.registry import find_by_model, find_gateway
 
 
@@ -159,6 +159,113 @@ class LiteLLMProvider(LLMProvider):
             return LLMResponse(
                 content=f"Error calling LLM: {str(e)}",
                 finish_reason="error",
+            )
+    
+    async def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """
+        Stream a chat completion request via LiteLLM.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+            tools: Optional list of tool definitions in OpenAI format.
+            model: Model identifier (e.g., 'anthropic/claude-sonnet-4-5').
+            max_tokens: Maximum tokens in response.
+            temperature: Sampling temperature.
+        
+        Yields:
+            StreamChunk objects as they arrive.
+        """
+        model = self._resolve_model(model or self.default_model)
+        
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+        }
+        
+        self._apply_model_overrides(model, kwargs)
+        
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+        
+        if self.extra_headers:
+            kwargs["extra_headers"] = self.extra_headers
+        
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        
+        try:
+            response = await acompletion(**kwargs)
+            
+            accumulated_content = ""
+            accumulated_reasoning = ""
+            tool_calls_buffer = []
+            
+            async for chunk in response:
+                choice = chunk.choices[0]
+                delta = choice.delta
+                
+                # Accumulate content
+                if delta.content:
+                    accumulated_content += delta.content
+                
+                # Accumulate reasoning (for models like DeepSeek-R1)
+                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                    accumulated_reasoning += delta.reasoning_content
+                
+                # Check for tool calls
+                current_tool_calls = []
+                if hasattr(delta, "tool_calls") and delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        # Parse arguments
+                        args = {}
+                        if hasattr(tc.function, "arguments") and tc.function.arguments:
+                            if isinstance(tc.function.arguments, str):
+                                try:
+                                    args = json_repair.loads(tc.function.arguments)
+                                except:
+                                    args = {"_raw": tc.function.arguments}
+                            else:
+                                args = tc.function.arguments or {}
+                        
+                        current_tool_calls.append(ToolCallRequest(
+                            id=tc.id or f"call_{len(tool_calls_buffer)}",
+                            name=tc.function.name or "",
+                            arguments=args,
+                        ))
+                    tool_calls_buffer.extend(current_tool_calls)
+                
+                finish_reason = choice.finish_reason
+                is_final = finish_reason is not None and finish_reason != "null"
+                
+                yield StreamChunk(
+                    content=accumulated_content,
+                    reasoning_content=accumulated_reasoning if accumulated_reasoning else None,
+                    tool_calls=current_tool_calls,
+                    finish_reason=finish_reason,
+                    is_final=is_final,
+                )
+                
+                if is_final:
+                    break
+                    
+        except Exception as e:
+            yield StreamChunk(
+                content=f"Error calling LLM: {str(e)}",
+                is_final=True,
             )
     
     def _parse_response(self, response: Any) -> LLMResponse:

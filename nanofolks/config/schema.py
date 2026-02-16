@@ -417,6 +417,8 @@ class RoutingConfig(BaseModel):
     llm_classifier: LLMClassifierConfig = Field(default_factory=LLMClassifierConfig)
     sticky: StickyRoutingConfig = Field(default_factory=StickyRoutingConfig)
     auto_calibration: AutoCalibrationConfig = Field(default_factory=AutoCalibrationConfig)
+    streaming_enabled: bool = True  # Stream LLM responses to CLI in real-time
+    stream_update_interval_ms: int = 100  # How often to update the streaming display (ms)
 
 
 class BackgroundConfig(BaseModel):

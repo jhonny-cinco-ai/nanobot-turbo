@@ -1043,15 +1043,33 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
             
-            # Call LLM with selected model
+            # Check if streaming is enabled and we have a callback
+            use_streaming = (
+                hasattr(self, '_stream_callback') and 
+                self._stream_callback and
+                self.routing_config and 
+                self.routing_config.streaming_enabled
+            )
+            
+            # Call LLM with selected model (streaming or regular)
             try:
-                response = await self.provider.chat(
-                    messages=messages,
-                    tools=self.tools.get_definitions(),
-                    model=selected_model,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                )
+                if use_streaming and iteration == 1:  # Only stream on first iteration
+                    # Use streaming for real-time updates
+                    response = await self.stream_response(
+                        messages=messages,
+                        tools=self.tools.get_definitions(),
+                        model=selected_model,
+                        chunk_callback=self._stream_callback,
+                        session=session,
+                    )
+                else:
+                    response = await self.provider.chat(
+                        messages=messages,
+                        tools=self.tools.get_definitions(),
+                        model=selected_model,
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                    )
             except Exception as e:
                 # Try secondary model if available
                 if secondary_model is None and self.routing_config:
@@ -1352,6 +1370,7 @@ class AgentLoop:
         room_id: str = "default",
         room_type: str = "open",
         participants: list | None = None,
+        stream_callback: callable = None,
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
@@ -1364,6 +1383,7 @@ class AgentLoop:
             room_id: Room identifier for multi-agent context.
             room_type: Type of room (open, project, direct, coordination).
             participants: List of bot participants in the room.
+            stream_callback: Optional callback for streaming chunks (content: str) -> None.
 
         Returns:
             The agent's response.
@@ -1391,9 +1411,15 @@ class AgentLoop:
                 chat_id=chat_id,
                 content=content
             )
+            
+            # Store stream callback for use in _process_message
+            self._stream_callback = stream_callback
 
             response = await self._process_message(msg)
             result = response.content if response else ""
+            
+            # Clear callback after use
+            self._stream_callback = None
             
             # End work log session
             self.work_log_manager.end_session(result)
@@ -1511,6 +1537,85 @@ class AgentLoop:
             return "medium"
         
         return tier
+
+    async def stream_response(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        model: str,
+        chunk_callback: callable,
+        session: Session,
+    ) -> LLMResponse:
+        """Stream LLM response with real-time updates.
+        
+        Args:
+            messages: Messages to send to LLM
+            tools: Available tools
+            model: Model to use
+            chunk_callback: Called with each chunk content
+            session: Current session (for logging)
+            
+        Returns:
+            Complete LLMResponse
+        """
+        accumulated_content = []
+        accumulated_reasoning = []
+        final_tool_calls = []
+        finish_reason = None
+        
+        # Log streaming start
+        self.work_log_manager.log(
+            level=LogLevel.INFO,
+            category="streaming",
+            message="Started streaming LLM response"
+        )
+        
+        async for chunk in self.provider.stream_chat(
+            messages=messages,
+            tools=tools,
+            model=model,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        ):
+            if chunk.content:
+                accumulated_content.append(chunk.content)
+            
+            if chunk.reasoning_content:
+                accumulated_reasoning.append(chunk.reasoning_content)
+            
+            if chunk.tool_calls:
+                final_tool_calls.extend(chunk.tool_calls)
+            
+            if chunk.finish_reason:
+                finish_reason = chunk.finish_reason
+            
+            # Send chunk to callback for CLI display
+            if chunk.content:
+                chunk_callback(chunk.content)
+            
+            # Log this chunk to work logs (for debugging)
+            if chunk.is_final and chunk.content:
+                self.work_log_manager.log(
+                    level=LogLevel.INFO,
+                    category="streaming",
+                    message="Streamed LLM response complete",
+                    details={
+                        "total_chunks": len(accumulated_content),
+                        "reasoning_tokens": len("".join(accumulated_reasoning)) if accumulated_reasoning else 0
+                    }
+                )
+        
+        # Build final response
+        full_content = "".join(accumulated_content)
+        full_reasoning = "".join(accumulated_reasoning) if accumulated_reasoning else None
+        
+        return LLMResponse(
+            content=full_content,
+            tool_calls=final_tool_calls,
+            finish_reason=finish_reason or "stop",
+            usage={"completion_tokens": len(full_content.split())},  # Rough estimate
+            reasoning_content=full_reasoning,
+        )
 
     async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
         """Send onboarding message when config is missing."""

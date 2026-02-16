@@ -217,14 +217,28 @@ async def _show_thinking_logs(agent_loop, bot_name: Optional[str] = None) -> Opt
     """
     from nanofolks.agent.work_log_manager import get_work_log_manager
     from nanofolks.cli.ui.thinking_display import ThinkingDisplay
+    from nanofolks.agent.work_log import LogLevel
     
     manager = get_work_log_manager()
     if not manager or not manager.current_log:
         return None
     
-    # Create and display the thinking component
+    # Create the thinking display
     display = ThinkingDisplay(manager.current_log, bot_name=bot_name)
-    console.print(display.render_collapsed())
+    
+    # Check for errors and auto-expand if present
+    errors = manager.current_log.get_errors()
+    if errors:
+        # Show error banner above thinking
+        error_count = len(errors)
+        console.print(f"[red]⚠️ {error_count} error(s) occurred during processing:[/red]")
+        for error in errors:
+            console.print(f"  [red]•[/red] {error.message[:100]}")
+        console.print()
+        display.expand()
+        console.print(display.render())
+    else:
+        console.print(display.render_collapsed())
     
     return display
 
@@ -1322,13 +1336,23 @@ def chat(
             return nullcontext()
         # Animated spinner is safe to use with prompt_toolkit input handling
         return console.status("[dim]nanofolks is thinking...[/dim]", spinner="dots")
+    
+    # Streaming callback for real-time chunk display
+    streaming_content = ""
+    def _stream_chunk(chunk: str):
+        nonlocal streaming_content
+        streaming_content += chunk
+        # Simple inline update - could be enhanced with Live display
+        # Show last 80 chars of accumulated content
+        preview = streaming_content[-80:].replace("\n", " ").replace("\r", "")
+        console.print(f"[dim]🔄 Thinking: {preview}...[/dim]\r", end="", highlight=False)
 
     if message:
         # Single message mode
         async def run_once():
             try:
                 with _thinking_ctx():
-                    response = await agent_loop.process_direct(message, session_id, room_id=room)
+                    response = await agent_loop.process_direct(message, session_id, room_id=room, stream_callback=_stream_chunk)
                 _print_agent_response(response, render_markdown=markdown)
                 
                 # NEW: Show thinking logs after response
@@ -1768,7 +1792,10 @@ def chat(
                             continue
                     
                     with _thinking_ctx():
-                        response = await agent_loop.process_direct(user_input, session_id, room_id=room)
+                        streaming_content = ""  # Reset for each message
+                        response = await agent_loop.process_direct(user_input, session_id, room_id=room, stream_callback=_stream_chunk)
+                    # Clear the streaming indicator line
+                    console.print("\r" + " " * 50 + "\r", end="", highlight=False)
                     _print_agent_response(response, render_markdown=markdown)
                     
                     # NEW: Show thinking logs after response

@@ -2,7 +2,17 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, AsyncGenerator
+
+
+@dataclass
+class StreamChunk:
+    """A chunk from a streaming LLM response."""
+    content: str = ""
+    reasoning_content: str | None = None
+    tool_calls: list = field(default_factory=list)
+    finish_reason: str | None = None
+    is_final: bool = False
 
 
 @dataclass
@@ -68,3 +78,43 @@ class LLMProvider(ABC):
     def get_default_model(self) -> str:
         """Get the default model for this provider."""
         pass
+    
+    async def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """
+        Stream a chat completion request.
+        
+        Default implementation falls back to non-streaming.
+        Override this method for actual streaming support.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+            tools: Optional list of tool definitions.
+            model: Model identifier (provider-specific).
+            max_tokens: Maximum tokens in response.
+            temperature: Sampling temperature.
+        
+        Yields:
+            StreamChunk objects as they arrive.
+        """
+        # Default: fall back to non-streaming
+        response = await self.chat(
+            messages=messages,
+            tools=tools,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        yield StreamChunk(
+            content=response.content or "",
+            reasoning_content=response.reasoning_content,
+            tool_calls=response.tool_calls,
+            finish_reason=response.finish_reason,
+            is_final=True,
+        )
