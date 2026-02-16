@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import httpx
 
 from nanofolks.agent.tools.base import Tool
+from nanofolks.security.keyvault import get_keyvault
 
 # Shared constants
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36"
@@ -58,8 +59,26 @@ class WebSearchTool(Tool):
     }
     
     def __init__(self, api_key: str | None = None, max_results: int = 5):
-        self.api_key = api_key or os.environ.get("BRAVE_API_KEY", "")
+        # Accept symbolic reference like "{{brave_key}}" or actual key
+        self._raw_api_key = api_key or os.environ.get("BRAVE_API_KEY", "")
         self.max_results = max_results
+        self._keyvault = get_keyvault()
+    
+    @property
+    def api_key(self) -> str:
+        """Get API key, resolving symbolic references if needed."""
+        if not self._raw_api_key:
+            return ""
+        
+        # Try to resolve as symbolic reference
+        if self._keyvault.is_symbolic_ref(self._raw_api_key):
+            try:
+                return self._keyvault.get_for_execution(self._raw_api_key)
+            except ValueError:
+                # Key not in vault, return as-is (might be env var)
+                return self._raw_api_key
+        
+        return self._raw_api_key
     
     async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
         if not self.api_key:

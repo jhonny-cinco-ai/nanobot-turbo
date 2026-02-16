@@ -14,6 +14,7 @@ from nanofolks.memory.embeddings import EmbeddingProvider
 from nanofolks.agent.skills import SkillsLoader
 from nanofolks.config.loader import load_config
 from nanofolks.soul import SoulManager
+from nanofolks.security.keyvault import get_keyvault
 
 
 class ContextBuilder:
@@ -102,6 +103,43 @@ Skills with available="false" need dependencies installed first - you can try in
 {skills_summary}""")
         
         return "\n\n---\n\n".join(parts)
+    
+    def build_api_keys_section(self) -> str:
+        """Build section showing available API keys (symbolic references only).
+        
+        This shows the LLM which keys are available using symbolic references
+        like {{brave_key}} instead of actual keys. The actual keys are resolved
+        at execution time.
+        
+        Returns:
+            Formatted API keys section for system prompt, or empty string
+        """
+        try:
+            keyvault = get_keyvault()
+            available_keys = keyvault.list_references()
+            
+            if not available_keys:
+                return ""
+            
+            # Build the section
+            lines = ["# Available API Keys", ""]
+            lines.append("The following API keys are available for tool execution:")
+            lines.append("")
+            
+            for key_ref in available_keys:
+                # Extract key name from {{key_name}}
+                key_name = key_ref.strip("{}")
+                lines.append(f"- {key_name}: {key_ref} (configured)")
+            
+            lines.append("")
+            lines.append("Use these symbolic references when calling tools that require API keys.")
+            lines.append("Example: To use web search, pass api_key=\"{{brave_key}}\"")
+            
+            return "\n".join(lines)
+            
+        except Exception as e:
+            logger.debug(f"Could not build API keys section: {e}")
+            return ""
     
     def _get_tool_permissions(self, bot_name: str) -> Optional[str]:
         """Get tool permissions section for a bot.
@@ -660,6 +698,12 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
             skill_names=skill_names,
             bot_name=bot_name
         )
+        
+        # Add API keys section (symbolic references only - keys never exposed to LLM)
+        api_keys_section = self.build_api_keys_section()
+        if api_keys_section:
+            system_prompt += f"\n\n{api_keys_section}"
+        
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
         

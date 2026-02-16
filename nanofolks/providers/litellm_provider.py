@@ -10,6 +10,7 @@ from litellm import acompletion
 
 from nanofolks.providers.base import LLMProvider, LLMResponse, StreamChunk, ToolCallRequest
 from nanofolks.providers.registry import find_by_model, find_gateway
+from nanofolks.security.secure_memory import SecureString
 
 
 class LiteLLMProvider(LLMProvider):
@@ -19,6 +20,8 @@ class LiteLLMProvider(LLMProvider):
     Supports OpenRouter, Anthropic, OpenAI, Gemini, MiniMax, and many other providers through
     a unified interface.  Provider-specific logic is driven by the registry
     (see providers/registry.py) — no if-elif chains needed here.
+    
+    Security: Uses SecureString for API key storage to protect against memory scraping.
     """
     
     def __init__(
@@ -33,6 +36,16 @@ class LiteLLMProvider(LLMProvider):
         super().__init__(api_key, api_base)
         self.default_model = default_model
         self.extra_headers = extra_headers or {}
+        
+        # Store API key securely using SecureString
+        # This protects against memory scraping attacks
+        self._secure_key: SecureString | None = None
+        if api_key:
+            try:
+                self._secure_key = SecureString(api_key)
+            except Exception:
+                # Fall back to plain storage if SecureString fails (e.g., no memory locking)
+                self._secure_key = None
         
         # Detect gateway / local deployment.
         # provider_name (from config key) is the primary signal;
@@ -51,6 +64,26 @@ class LiteLLMProvider(LLMProvider):
         litellm.suppress_debug_info = True
         # Drop unsupported parameters for providers (e.g., gpt-5 rejects some params)
         litellm.drop_params = True
+    
+    def _get_api_key(self) -> str | None:
+        """Get API key from secure storage."""
+        if self._secure_key:
+            return self._secure_key.get()
+        return None
+    
+    def _get_api_key_bytes(self) -> bytes | None:
+        """Get API key bytes from secure storage."""
+        if self._secure_key:
+            return self._secure_key.get_bytes()
+        return None
+    
+    def __del__(self):
+        """Clean up secure key on object destruction."""
+        if hasattr(self, '_secure_key') and self._secure_key:
+            try:
+                self._secure_key.wipe()
+            except Exception:
+                pass
     
     def _setup_env(self, api_key: str, api_base: str | None, model: str) -> None:
         """Set environment variables based on detected provider. Only called if set_env_vars=True."""
@@ -136,7 +169,12 @@ class LiteLLMProvider(LLMProvider):
         self._apply_model_overrides(model, kwargs)
         
         # Pass api_key directly — more reliable than env vars alone
-        if self.api_key:
+        # Use secure storage if available
+        secure_key = self._get_api_key()
+        if secure_key:
+            kwargs["api_key"] = secure_key
+        elif self.api_key:
+            # Fall back to plain storage (shouldn't happen often)
             kwargs["api_key"] = self.api_key
         
         # Pass api_base for custom endpoints
@@ -194,7 +232,11 @@ class LiteLLMProvider(LLMProvider):
         
         self._apply_model_overrides(model, kwargs)
         
-        if self.api_key:
+        # Use secure storage if available
+        secure_key = self._get_api_key()
+        if secure_key:
+            kwargs["api_key"] = secure_key
+        elif self.api_key:
             kwargs["api_key"] = self.api_key
         
         if self.api_base:
