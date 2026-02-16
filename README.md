@@ -84,9 +84,12 @@ Unlike simple chat histories, Nanofolks builds a persistent knowledge base that:
 
 ---
 
-## 🔐 Secret Sanitizer
+## 🔐 Secret Sanitizer (Secondary Defense)
 
-Nanofolks automatically protects sensitive information from being exposed.
+> [!NOTE]
+> The Secret Sanitizer is now a **secondary** security layer. The primary defense is the Advanced Security Architecture (KeyVault, OS Keyring, SecureMemory) which prevents keys from ever reaching the LLM.
+
+The sanitizer intercepts content as a backup defense:
 
 ### What It Detects
 
@@ -114,6 +117,70 @@ The sanitizer intercepts content at multiple points:
 Input:  "My API key is sk-or-v1-abc123..."
 Output: "My API key is sk-or-v1-ab***..." (masked)
 ```
+
+---
+
+## 🛡️ Advanced Security Architecture
+
+Nanofolks implements defense-in-depth security with multiple layers of protection for your API keys and sensitive data.
+
+### Security Layers
+
+| Layer | Protection | Implementation |
+|-------|------------|----------------|
+| **1. OS Keyring** | Keys stored in OS credential manager | macOS Keychain, Windows Credential Manager, Linux Secret Service |
+| **2. Symbolic References** | Keys never exposed to LLM | `{{openrouter_key}}` resolved at runtime |
+| **3. Secure Memory** | Memory locking and wiping | Keys protected in locked memory pages |
+| **4. Audit Logging** | Symbolic-only logging | Actual keys never written to logs |
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  LLM SEES: {{openrouter_key}}, {{brave_key}}             │
+│  (symbolic references only - no actual keys)               │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  TOOL EXECUTION: KeyVault resolves at runtime              │
+│  openrouter_key → sk-or-v1-abc123... (briefly in memory)  │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│  AUDIT LOG: "{{openrouter_key}}" (reference only)         │
+│  (actual key never appears in logs)                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### CLI Commands
+
+```bash
+# Check keyring status
+nanofolks security status
+
+# List all API keys and their storage location
+nanofolks security list
+
+# Add a key to the OS keyring
+nanofolks security add openrouter
+
+# Migrate existing keys from config to keyring
+nanofolks security migrate-to-keyring
+
+# Remove a key from keyring
+nanofolks security remove openrouter
+```
+
+### Benefits
+
+- **API keys never in config file**: Stored in OS keyring instead of plain JSON
+- **LLM never sees keys**: Only symbolic references like `{{openrouter_key}}`
+- **Memory protection**: Keys locked in memory and wiped after use
+- **Safe logging**: Audit logs contain only references, never actual keys
+- **Anomaly detection**: Monitors for suspicious usage patterns
+
+> [!NOTE]
+> The legacy Secret Sanitizer (regex-based masking) still works as a secondary layer of defense.
 
 ---
 

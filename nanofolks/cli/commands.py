@@ -3549,6 +3549,13 @@ try:
 except ImportError:
     logger.warning("Could not import heartbeat commands")
 
+# Import and wire security commands
+try:
+    from nanofolks.cli.security_commands import app as security_app
+    app.add_typer(security_app, name="security")
+except ImportError as e:
+    logger.warning(f"Could not import security commands: {e}")
+
 
 if __name__ == "__main__":
     app()
