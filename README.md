@@ -1,622 +1,652 @@
 <div align="center">
-  <img src="nanofolks_logo.png" alt="nanofolks" width="500">
-  <h1>nanofolks: Ultra-Lightweight Personal AI Assistant</h1>
+  <img src="nanofolks_logo.png" alt="Nanofolks" width="500">
+  <h1>Nanofolks - Your crew's already on it.</h1>
   <p>
     <a href="https://pypi.org/project/nanofolks-ai/"><img src="https://img.shields.io/pypi/v/nanofolks-ai" alt="PyPI"></a>
     <a href="https://pepy.tech/project/nanofolks-ai"><img src="https://static.pepy.tech/badge/nanofolks-ai" alt="Downloads"></a>
     <img src="https://img.shields.io/badge/python-≥3.11-blue" alt="Python">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-    <a href="./COMMUNICATION.md"><img src="https://img.shields.io/badge/Feishu-Group-E9DBFC?style=flat&logo=feishu&logoColor=white" alt="Feishu"></a>
-    <a href="./COMMUNICATION.md"><img src="https://img.shields.io/badge/WeChat-Group-C5EAB4?style=flat&logo=wechat&logoColor=white" alt="WeChat"></a>
-    <a href="https://discord.gg/MnCvHqpUGB"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord"></a>
+    <a href="./COMMUNICATION.md"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord"></a>
   </p>
 </div>
 
-🐈 **nanofolks** is an **ultra-lightweight** personal AI assistant inspired by [OpenClaw](https://github.com/openclaw/openclaw) 
+Nanofolks is a platform for building friendly AI crews, teams of characters that collaborate to help you think, create, plan, and build.
 
-⚡️ Delivers core agent functionality in just **~17,000** lines of code — **96% smaller** than Clawdbot's 430k+ lines.
+Instead of a single assistant, you work alongside a crew of AI specialists with distinct roles and personalities.
 
-📏 Real-time line count: **~17,000 lines** (run `bash core_agent_lines.sh` to verify anytime)
-> *Includes: agent core, memory system (TurboMemoryStore), security scanner, routing, and all core modules*
-> *Excludes: channels/, cli/, providers/, bridge/, skills/, tests/*
+From pirate captains to space explorers to creative misfits, your companions don't just respond. They work together.
 
-## 📢 News
+Pick the kind of crew that fits you.
 
-- **2026-02-13** 🧠 **Adaptive Chain-of-Thought** — Bot-level reasoning configuration that adapts to conversation complexity! CoderBot uses deep reflection for debugging, while SocialBot skips overhead for simple posts. Saves tokens while maintaining quality.
-- **2026-02-13** 🤖 **Multi-Bot Architecture** — nanofolks now runs as a team of 6 specialized bots (researcher, coder, social, auditor, creative, coordinator) with autonomous heartbeats, cross-bot coordination, CLI management, team health monitoring, and a real-time dashboard!
-- **2026-02-11** 🧠 **Production-Hardened Memory System** — Complete 10-phase memory implementation with context compaction, knowledge graphs, and semantic search! Never lose context again.
-- **2026-02-10** 🔐 Added secret sanitizer & interactive configuration wizard — secure, user-friendly setup!
-- **2026-02-10** 🧬 Added evolutionary mode — bots can now self-improve while maintaining security boundaries!
-- **2026-02-10** 🎉 Released v0.1.3.post6 with improvements! Check the updates [notes](https://github.com/HKUDS/nanofolks/releases/tag/v0.1.3.post6) and our [roadmap](https://github.com/HKUDS/nanofolks/discussions/431).
-- **2026-02-09** 🎯 Enhanced Smart Routing with CODING tier and per-tier secondary models — better model selection!
-- **2026-02-09** 💬 Added Slack, Email, and QQ support — nanofolks now supports multiple chat platforms!
-- **2026-02-08** 🔧 Refactored Providers—adding a new LLM provider now takes just 2 simple steps! Check [here](#providers).
-- **2026-02-07** 🚀 Released v0.1.3.post5 with Qwen support & several key improvements! Check [here](https://github.com/HKUDS/nanofolks/releases/tag/v0.1.3.post5) for details.
-- **2026-02-06** ✨ Added Moonshot/Kimi provider, Discord integration, and enhanced security hardening!
-- **2026-02-05** ✨ Added Feishu channel, DeepSeek provider, and enhanced scheduled tasks support!
-- **2026-02-04** 🚀 Released v0.1.3.post4 with multi-provider & Docker support! Check [here](https://github.com/HKUDS/nanofolks/releases/tag/v0.1.3.post4) for details.
-- **2026-02-03** ⚡ Integrated vLLM for local LLM support and improved natural language task scheduling!
-- **2026-02-02** 🎉 nanofolks officially launched! Welcome to try 🐈 nanofolks!
+## What Makes Nanofolks Different?
 
-## Key Features of nanofolks:
+| | |
+|---|---|
+| ✨ | **Collaboration** over automation |
+| 🎭 | **Characters** over tools |
+| 🤝 | **Companionship** over commands |
 
-🪶 **Ultra-Lightweight**: Just ~17,000 lines of core agent code — 96% smaller than Clawdbot.
+> It's not just an assistant. It's a team.
 
-🤖 **Multi-Bot Team**: Team of 6 specialized bots (researcher, coder, social, auditor, creative, coordinator) that work autonomously and coordinate together.
+One that can help with:
 
-🧠 **Production-Hardened Memory**: 10-phase memory system with SQLite storage, semantic search, knowledge graphs, and intelligent context compaction. Handles conversations of any length without losing context.
+- planning
+- creative work
+- coding
+- research
+- social media
+- everyday life
 
-🧩 **Adaptive Chain-of-Thought**: Bot-level reasoning that adapts to task complexity. CoderBot reflects deeply on code execution while SocialBot skips overhead for simple posts — optimizing token usage without sacrificing quality.
+and so much more!
 
-💓 **Autonomous Heartbeats**: Each bot runs independent heartbeats with domain-specific checks — no manual triggers needed.
+## Built to work in real life.
 
-🔬 **Research-Ready**: Clean, readable code that's easy to understand, modify, and extend for research.
+Nanofolks provides a flexible architecture for:
 
-⚡️ **Lightning Fast**: Minimal footprint means faster startup, lower resource usage, and quicker iterations.
+| | |
+|---|---|
+| 🧠 | multi-agent collaboration |
+| 🧩 | role-based personalities |
+| 🔧 | extensibility |
+| 💬 | multi-platform interaction |
 
-💎 **Easy-to-Use**: One-click to deploy and you're ready to go.
+**Inspired by nanofolks's simplicity, Nanofolks expands the concept into a more expressive, team-oriented system.**
 
-## 🏗️ Architecture
+> [!TIP]
+> Nanofolks is a fork of [nanofolks](https://github.com/HKUDS/nanofolks). We maintain full compatibility while adding crew-based features.
 
-<p align="center">
-  <img src="nanofolks_arch.png" alt="nanofolks architecture" width="800">
-</p>
+---
 
-## ✨ Features
+# Core Concepts
 
-<table align="center">
-  <tr align="center">
-    <th><p align="center">📈 24/7 Real-Time Market Analysis</p></th>
-    <th><p align="center">🚀 Full-Stack Software Engineer</p></th>
-    <th><p align="center">📅 Smart Daily Routine Manager</p></th>
-    <th><p align="center">📚 Personal Knowledge Assistant</p></th>
-  </tr>
-  <tr>
-    <td align="center"><p align="center"><img src="case/search.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/code.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/scedule.gif" width="180" height="400"></p></td>
-    <td align="center"><p align="center"><img src="case/memory.gif" width="180" height="400"></p></td>
-  </tr>
-  <tr>
-    <td align="center">Discovery • Insights • Trends</td>
-    <td align="center">Develop • Deploy • Scale</td>
-    <td align="center">Schedule • Automate • Organize</td>
-    <td align="center">Learn • Memory • Reasoning</td>
-  </tr>
-</table>
+This section explains the architectural concepts behind Nanofolks. Understanding these will help you configure and customize your crew.
 
 ## 🧠 Memory System
 
-nanofolks features a **production-hardened memory system** inspired by OpenClaw's battle-tested architecture. All 10 phases are complete — from event logging to intelligent context compaction.
+Nanofolks has a production-hardened memory system that learns from every conversation.
 
-### Core Capabilities
+### How It Works
 
-| Feature | Description |
-|---------|-------------|
-| **📊 Event Logging** | Every interaction stored in SQLite with WAL mode for reliability |
-| **🔍 Semantic Search** | BGE embeddings enable finding relevant past conversations |
-| **🕸️ Knowledge Graph** | Entities, relationships, and facts extracted automatically |
-| **📝 Hierarchical Summaries** | Multi-level summaries for efficient context assembly |
-| **🎯 Context Assembly** | Smart retrieval combines summaries + recent messages |
-| **📚 Learning System** | Detects feedback, extracts preferences, improves over time |
+| Phase | Description |
+|-------|-------------|
+| **Event Logging** | Every message (user and assistant) is stored in a local SQLite database with full conversation context |
+| **Entity Extraction** | The system automatically identifies people, places, organizations, and concepts mentioned in conversations |
+| **Knowledge Graph** | Entities are connected through relationships, creating a map of what you've discussed |
+| **Preference Learning** | Nanofolks detects feedback patterns and learns your communication style, preferences, and habits over time |
+| **Context Assembly** | When you send a message, Nanofolks retrieves relevant memories and assembles them into context |
 
-### Context Compaction (Production-Hardened)
+### Why It Matters
 
-Handles long conversations without losing context or breaking tool chains:
+Unlike simple chat histories, Nanofolks builds a persistent knowledge base that:
+- Survives restarts and new conversations
+- Connects related information across time
+- Improves the more you use it
 
-| Feature | Description |
-|---------|-------------|
-| **Token-Aware Counting** | Accurate tiktoken-based counting (not rough estimation) |
-| **Multiple Modes** | `summary` (smart), `token-limit` (emergency), `off` (manual) |
-| **Tool Chain Preservation** | Never separates `tool_use` → `tool_result` pairs |
-| **Proactive Trigger** | Compacts at 80% threshold, not reactive at 100% |
-| **Context Visibility** | Shows `context=X%` in responses (warn at 70%, compact at 80%) |
-| **Large Output Handling** | Stores large tool outputs (>10KB) to SQLite, prevents 400KB+ crashes |
+---
 
-### CLI Commands
+## 🔐 Secret Sanitizer
 
-```bash
-# Memory management
-nanofolks memory status        # Show database stats, entity count, learnings
-nanofolks memory search "api"  # Search memory content
-nanofolks memory entities      # List all entities
-nanofolks memory entity "John" # Get entity details
-nanofolks memory forget "Bob"  # Remove entity from memory
-nanofolks memory doctor        # Run health check
+Nanofolks automatically protects sensitive information from being exposed.
 
-# Session management
-nanofolks session status       # Show context=X%, message count, compaction stats
-nanofolks session compact      # Manual compaction trigger
-nanofolks session reset        # Reset all sessions
-```
+### What It Detects
 
-### Configuration
+| Pattern | Examples |
+|---------|----------|
+| API keys | OpenRouter, Anthropic, OpenAI, Groq |
+| Tokens | Bearer tokens, JWTs |
+| Credentials | Passwords, database strings |
+| Keys | Private keys, SSH credentials |
 
-```json
-{
-  "memory": {
-    "enabled": true,
-    "db_path": "memory/memory.db",
-    "session_compaction": {
-      "enabled": true,
-      "mode": "summary",
-      "threshold_percent": 0.8,
-      "target_tokens": 3000,
-      "preserve_tool_chains": true
-    },
-    "enhanced_context": {
-      "max_context_tokens": 8000,
-      "show_context_percentage": true,
-      "warning_threshold": 0.70,
-      "compaction_threshold": 0.80
-    }
-  }
-}
-```
+### Where It Applies
 
-See [MEMORY_IMPLEMENTATION_STATUS.md](docs/MEMORY_IMPLEMENTATION_STATUS.md) for complete technical details.
+The sanitizer intercepts content at multiple points:
 
-## 🤖 Multi-Bot Architecture
+| Location | Protection |
+|----------|------------|
+| **AI Messages** | Secrets masked before reaching the LLM |
+| **Log Files** | Nothing sensitive written to disk |
+| **Session History** | Stored conversations have secrets removed |
+| **Tool Outputs** | Results screened before display |
 
-nanofolks now features a **Team of 6 Specialized Bots** that work together as a coordinated team, each with domain expertise and autonomous operation capabilities.
-
-### Bot Team
-
-| Bot | Role | Expertise |
-|-----|------|-----------|
-| **ResearcherBot** | Research & Analysis | Data sources, market trends, competitor tracking |
-| **CoderBot** | Software Engineering | GitHub issues, builds, security, dependencies |
-| **SocialBot** | Social Media & Community | Scheduled posts, mentions, engagement, trends |
-| **AuditorBot** | Quality & Compliance | Code quality, compliance, audit trails, reviews |
-| **CreativeBot** | Content & Design | Assets, deadlines, brand consistency, approvals |
-| **NanobotLeader** | Coordinator | Team health, task delegation, inter-bot communication |
-
-### Why Multi-Bot?
-
-- **Specialization**: Each bot focuses on its domain, becoming an expert
-- **Autonomy**: Bots operate independently via heartbeats, no manual triggers needed
-- **Coordination**: Bots can notify and escalate to each other via the coordinator
-- **Resilience**: One bot's failure doesn't stop the entire system
-- **Scalability**: Add new bots easily for new domains
-
-### Cross-Bot Communication
-
-Bots communicate via a message bus:
-
-```python
-# Bot sends notification to coordinator
-await bot.notify_coordinator(message="Data source degraded", priority="high")
-
-# Bot escalates critical issue
-await bot.escalate_to_coordinator(message="Security vulnerability detected", priority="critical")
-```
-
-### How Bots Work Together
+### Example
 
 ```
-User Request
-     │
-     ▼
+Input:  "My API key is sk-or-v1-abc123..."
+Output: "My API key is sk-or-v1-ab***..." (masked)
+```
+
+---
+
+## 🛡️ Skill Verification Flow
+
+Skills extend Nanofolks' capabilities. Before any skill is used, it goes through security verification.
+
+### The Workflow
+
+```
 ┌─────────────────┐
-│ NanobotLeader  │ ◄── Coordinates and routes
-│  (Coordinator) │
+│ 1. Auto-Detect │
+│   New skills   │
 └────────┬────────┘
-         │
-    ┌────┼────┬──────┬──────┐
-    ▼    ▼    ▼      ▼      ▼
-┌──────┐┌────┐┌─────┐┌─────┐┌──────┐
-│Research││Code││Social││Audit││Creative│
-│  Bot  ││ Bot││  Bot ││ Bot ││  Bot  │
-└──────┘└────┘└─────┘└─────┘└──────┘
-     │    │     │     │      │
-     └────┴─────┴─────┴──────┘
-              │
-          Results back to
-          coordinator for
-          synthesis
+         ↓
+┌─────────────────┐
+│ 2. Risk Scoring │
+│   Analyze code │
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│ 3. Approval     │
+│   Block if risk │
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│ 4. Runtime      │
+│   Verification  │
+└─────────────────┘
 ```
 
-## 🧩 Adaptive Chain-of-Thought (CoT)
+### Risk Levels
 
-nanofolks features **bot-level Chain-of-Thought configuration** that adapts reasoning depth to task complexity. Each bot has domain-optimized reasoning that considers:
+| Level | Icon | Examples |
+|-------|------|----------|
+| **Critical** | 🚫 | Credential theft, malware |
+| **High** | ⚠️ | Shell injection, system mods |
+| **Medium** | ⚡ | Obfuscation, suspicious downloads |
+| **Low** | ℹ️ | Binary execution, external URLs |
 
-1. **Bot Specialization** — CoderBot needs deep reflection, SocialBot doesn't
-2. **Routing Tier** — Complex tasks get more reasoning than simple ones
-3. **Tool Context** — Error-prone tools trigger reflection
+---
 
-### CoT Levels by Bot
+## 💭 Chain of Thought
 
-| Bot | Default Level | Behavior |
-|-----|---------------|----------|
-| **CoderBot** | FULL | Always reflect after code execution (catch errors early) |
-| **NanobotLeader** | FULL | Strategic coordination needs full reasoning |
-| **ResearcherBot** | STANDARD | Analytical depth with efficiency |
-| **AuditorBot** | MINIMAL | Only on errors (sequential by nature) |
-| **CreativeBot** | STANDARD | Reflect after generation/editing |
-| **SocialBot** | NONE | No overhead for simple posts |
+Nanofolks doesn't just respond. It thinks through problems.
 
-### Tier-Aware Adaptation
-
-The system automatically adjusts based on routing tier:
+### The Pattern
 
 ```
-CoderBot (FULL) + "Debug this script" (complex tier) = Full CoT
-CoderBot (FULL) + "What time is it?" (simple tier)   = Standard CoT (downgraded)
-SocialBot (NONE) + any task                         = No CoT (saves tokens)
+Observation → Thought → Action → Observation → Thought → (repeat)
 ```
 
-### Example: Token Savings
+### Multi-Turn Reasoning
 
-```python
-# SocialBot posting "Good morning!"
-Without adaptive CoT: ~50 extra tokens per tool
-With adaptive CoT:   0 extra tokens
-Savings: 100% on simple social tasks
+For complex tasks, Nanofolks can:
+- Break down problems into steps
+- Plan before executing
+- Reflect on intermediate results
+- Correct mistakes mid-process
 
-# CoderBot debugging complex code
-Full CoT adds ~250 tokens, but catches errors early
-Prevents costly retry loops — net savings!
+### Tool Execution Loop
+
+When tools are needed, Nanofolks:
+1. Decides which tool to use
+2. Executes the tool
+3. Observes the result
+4. Incorporates results into thinking
+5. Continues or responds
+
+---
+
+## 📦 Context Compaction
+
+Long conversations can exceed AI model limits. Nanofolks intelligently manages this.
+
+### The Problem
+
+AI models have maximum context windows (typically 8K-200K tokens). Without management:
+- Conversations eventually hit the limit
+- Old context gets dropped
+- Nanofolks "forgets" earlier parts of the conversation
+
+### How Compaction Works
+
+| Step | Description |
+|------|-------------|
+| **Token Tracking** | Real-time counting using tiktoken (not estimates) |
+| **Threshold Warning** | 70% → shows warning in response |
+| **Compaction Trigger** | 80% → triggers smart compression |
+| **Tool Chain Safety** | Never separates tool calls from results |
+
+### Compaction Modes
+
+| Mode | When to Use |
+|------|-------------|
+| **Summary** | Default - AI generates smart summaries |
+| **Token-Limit** | Emergency - preserves recent messages only |
+| **Off** | Manual - you control when to compact |
+
+### Large Output Handling
+
+Tool outputs over 10KB are stored separately in SQLite to prevent:
+- API errors from oversized payloads
+- Context pollution
+- Cost overruns
+
+---
+
+## 🎯 Tier-Aware Routing
+
+Not every message needs the most powerful (and expensive) AI model. Nanofolks intelligently routes messages to appropriate models.
+
+### The Two-Layer System
+
+```
+User Message
+    ↓
+Layer 1: Client-Side Classification (~1ms)
+  → Fast heuristic analysis
+  → Handles ~85% of messages instantly
+    ↓ (if ambiguous)
+Layer 2: LLM-Assisted Classification (~200ms)
+  → More accurate edge case handling
+    ↓
+Execute with Selected Model
 ```
 
-### Configuration
+### Tiers
 
-Each bot's reasoning is configured in `nanofolks/reasoning/config.py`:
+| Tier | When Used | Example |
+|------|-----------|---------|
+| **Simple** | Quick questions | "What's the weather?" |
+| **Medium** | General tasks | "Write me an email" |
+| **Complex** | Detailed work | "Analyze this data" |
+| **Reasoning** | Logic problems | "Prove this theorem" |
+| **Coding** | Programming | "Debug this function" |
 
-```python
-CODER_REASONING = ReasoningConfig(
-    cot_level=CoTLevel.FULL,
-    always_cot_tools={"spawn", "exec", "github"},
-    reflection_prompt="Review code execution and plan next step.",
-)
+### Sticky Routing
 
-SOCIAL_REASONING = ReasoningConfig(
-    cot_level=CoTLevel.NONE,  # Skip for simple posts
-    never_cot_tools={"*"},     # Never use CoT
-)
-```
+Once a tier is selected, it "sticks" for the conversation context:
+- Consistent responses
+- Cost predictability
+- Better coherence
+
+### Cost Savings
+
+Typical usage (45% simple, 35% medium, 15% complex, 5% reasoning):
+
+| Scenario | Cost per Million Tokens |
+|----------|------------------------|
+| **Without routing** | $75.00 (always best model) |
+| **With routing** | $3.17 (blended) |
+| **Savings** | **Up to 96%** 🎉 |
+
+---
 
 ## 💓 Multi-Heartbeat System
 
-The **Multi-Heartbeat System** powers the autonomous operation of each bot. Each bot runs its own heartbeat with domain-specific periodic checks.
+Nanofolks doesn't just wait for you to message it. It can proactively act.
 
-### Core Capabilities
+### Scheduled Tasks (Cron)
 
-| Feature | Description |
+```bash
+# Every morning at 9am
+nanofolks cron add --name "morning" --message "What's on my calendar?" --cron "0 9 * * *"
+
+# Hourly health checks
+nanofolks cron add --name "hourly" --message "Check system status" --every 3600
+```
+
+### Proactive Wake-Up
+
+The heartbeat system:
+- Wakes Nanofolks at scheduled times
+- Runs background tasks
+- Can message you proactively
+- Maintains state between runs
+
+### Activity Tracking
+
+Monitors when you're active to:
+- Determine when to run background processing
+- Avoid interrupting conversations
+- Optimize memory extraction timing
+
+---
+
+## 📝 Work Logs
+
+Nanofolks maintains persistent logs of completed work for future reference.
+
+### What Gets Logged
+
+| Type | Examples |
+|------|----------|
+| Task completions | Timestamps, outcomes |
+| Tool executions | Results, errors |
+| Research | Findings, sources |
+| Artifacts | Generated files, code |
+
+### Why It Matters
+
+Work logs enable:
+- **Audit trail** - Know what was done and when
+- **Context continuity** - Pick up where you left off
+- **Reference** - Look back at previous solutions
+- **Learning** - Nanofolks improves from past work
+
+### Access
+
+Work logs are stored in the workspace and can be:
+- Searched via memory commands
+- Referenced in conversations
+- Exported for external use
+
+---
+
+## 🤖 Multi-Bot Architecture
+
+Nanofolks supports multiple AI characters working together as a crew.
+
+### The Crew Concept
+
+A "crew" is a group of 6 AI characters, each with:
+
+- **Personality** - How they respond (from the theme)
+- **Role** - What they're good at
+- **Expertise** - Specific knowledge domains
+
+### Your Team
+
+Each Nanofolks crew has 6 bots:
+
+| Bot | Role | Expertise |
+|-----|------|-----------|
+| **Leader** (@leader) | Coordinates the crew | Planning, delegation, decision-making |
+| **Researcher** (@researcher) | Deep research | Analysis, information gathering |
+| **Coder** (@coder) | Technical implementation | Code, debugging, architecture |
+| **Social** (@social) | Community engagement | Communication, user relations |
+| **Creative** (@creative) | Creative work | Design, brainstorming, content |
+| **Auditor** (@auditor) | Quality review | Validation, compliance, testing |
+
+### How It Works
+
+```
+Workspace/
+├── bots/
+│   ├── leader.yaml      # Primary bot
+│   ├── specialist.yaml # Additional bots
+│   └── creative.yaml
+├── memory/             # Shared knowledge
+├── skills/             # Crew skills
+└── config.yaml         # Crew configuration
+```
+
+### Single Bot Mode
+
+Not ready for a full crew? Nanofolks works perfectly as a single assistant:
+- Default workspace has one bot
+- Works in DM mode
+- Same memory and learning capabilities
+- Easy to add more bots later
+
+### Why Multiple Bots?
+
+| Benefit | Example |
+|---------|---------|
+| **Specialization** | Coding bot, research bot |
+| **Personality** | Different characters for moods |
+| **Collaboration** | Bots discuss and debate |
+| **Reliability** | Backup if one is unavailable |
+
+---
+
+## 🏠 Rooms & Collaboration
+
+Nanofolks uses **rooms** as collaboration spaces where your crew works together. Think of rooms as dedicated spaces for different projects, topics, or conversation types.
+
+### What Are Rooms?
+
+A **room** is a conversation context where:
+- Multiple bots can participate together
+- Context is shared among all participants
+- Bots can @mention each other to collaborate
+- Work gets coordinated through the Leader
+
+### Room Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **OPEN** | General discussion room | Casual chat, #general |
+| **PROJECT** | Focused team workspace | Specific projects with deadlines |
+| **DIRECT** | 1-on-1 with a bot | Private DM with @researcher |
+| **COORDINATION** | Leader-managed room | Autonomous coordination mode |
+
+### Creating and Managing Rooms
+
+Create rooms for different projects or contexts:
+
+```bash
+# Create a new project room
+nanofolks room create project-alpha
+
+# Invite bots to the room
+nanofolks room invite project-alpha researcher
+nanofolks room invite project-alpha coder
+nanofolks room invite project-alpha creative
+
+# See who's in the room
+nanofolks room show project-alpha
+
+# List all your rooms
+nanofolks room list
+```
+
+### The @ Mention System
+
+Use **@** to direct messages to specific bots or the entire crew:
+
+#### Direct to a Bot
+```
+@researcher analyze market trends for Q3
+→ ResearcherBot responds with analysis
+
+@coder implement user authentication
+→ CoderBot writes the code
+
+@creative design a landing page hero
+→ CreativeBot creates concepts
+```
+
+#### Broadcast to All
+```
+@all review this architecture proposal
+→ All bots in the room respond with feedback
+
+@crew brainstorm marketing ideas
+→ Entire crew collaborates on ideas
+```
+
+#### Leader Coordination (Default)
+```
+I need help planning the product launch
+→ Leader coordinates which bots should help
+→ May involve researcher (market), creative (branding), coder (landing page)
+```
+
+### How @ Routing Works
+
+When you send a message, Nanofolks intelligently routes it:
+
+1. **@botname mentioned?** → Goes directly to that bot
+2. **@all or @crew mentioned?** → Broadcast to all room participants
+3. **No mention?** → Leader analyzes and coordinates response
+
+```
+You: @researcher find competitors in the AI space
+    ↓
+ResearcherBot: Here's what I found...
+
+You: @all what do you think of this strategy?
+    ↓
+ResearcherBot: From a data perspective...
+CreativeBot: The branding approach should be...
+CoderBot: Technically, we could implement...
+Leader: Let me synthesize these perspectives...
+```
+
+### Direct Messages (DMs)
+
+Chat with a single bot privately without room context:
+
+```bash
+# DM a specific bot
+nanofolks agent -m "@researcher analyze this data privately"
+
+# Or enter interactive mode and use @ mentions
+nanofolks agent
+> @researcher what are the latest trends?
+```
+
+**DMs vs Rooms:**
+- **DMs** → Private 1-on-1, bot's individual expertise
+- **Rooms** → Collaborative, shared context, multiple perspectives
+
+### Room Creation by Leader
+
+The Leader can create rooms automatically when you ask:
+
+```
+You: Create a room for the website redesign project
+Leader: Created room 'website-redesign' with appropriate team members
+
+You: Set up a space for the Q4 planning
+Leader: Created 'q4-planning' room with researcher and creative
+```
+
+### Shared Context
+
+Rooms maintain shared context across the conversation:
+
+```
+You: @researcher find data on renewable energy
+ResearcherBot: [shares findings]
+
+You: @creative use that data for an infographic
+CreativeBot: [accesses the same research context]
+
+You: @coder build a dashboard with those stats
+CoderBot: [references previous findings]
+```
+
+### CLI Commands for Rooms
+
+| Command | Description |
 |---------|-------------|
-| **🤖 Per-Bot Autonomy** | Each bot (researcher, coder, social, auditor, creative, coordinator) runs its own heartbeat |
-| **⏱️ Configurable Intervals** | 60 minutes default for specialists, 30 minutes for coordinator (YAML/JSON configurable) |
-| **🔄 Domain-Specific Checks** | 24 built-in checks across 6 bots, registered via `@register_check` decorator |
-| **🛡️ Full Resilience** | Circuit breakers, error handling, automatic retry logic |
-| **👥 Cross-Bot Coordination** | Bots can notify/coordinate via `notify_coordinator()` and `escalate_to_coordinator()` |
-| **📊 Team Health Monitoring** | Aggregated metrics, success rates, automatic alert generation |
-| **🖥️ CLI Management** | Start/stop/trigger heartbeats from command line |
-| **📈 Real-Time Dashboard** | Live metrics visualization at http://localhost:9090 |
+| `nanofolks room list` | Show all rooms |
+| `nanofolks room create <name>` | Create new room |
+| `nanofolks room invite <room> <bot>` | Add bot to room |
+| `nanofolks room remove <room> <bot>` | Remove bot from room |
+| `nanofolks room show <room>` | Show room details |
 
-### Architecture
+### Best Practices
 
-```
-MultiHeartbeatManager
-    ├── ResearcherBot (60m) ──────► 4 domain checks
-    ├── CoderBot (60m) ───────────► 4 domain checks  
-    ├── SocialBot (60m) ───────────► 4 domain checks
-    ├── AuditorBot (60m, sequential) ──► 4 domain checks
-    ├── CreativeBot (60m) ────────► 4 domain checks
-    └── NanobotLeader (30m) ─────► 4 domain checks
-    
-DashboardService ──► WebSocket Stream ──► Dashboard UI (localhost:9090)
-```
+**When to use @mentions:**
+- ✅ Use `@botname` when you know exactly who should help
+- ✅ Use `@all` for brainstorming or decisions needing multiple perspectives
+- ✅ No mention for general questions (Leader coordinates)
 
-### Check Registry Pattern
+**Room organization:**
+- Create PROJECT rooms for specific initiatives
+- Keep #general as OPEN for casual chat
+- Use DIRECT when you need a bot's specific expertise privately
+- Leader can auto-create rooms when you describe a project
 
-Checks are defined using the `@register_check` decorator:
+---
 
-```python
-from nanofolks.heartbeat import register_check
+# Quick Start
 
-@register_check(
-    name="monitor_data_sources",
-    description="Check data source availability",
-    bot_domains=["research"],
-    priority=CheckPriority.HIGH
-)
-async def monitor_data_sources(bot, config):
-    # Check implementation
-    return {"success": True, "data": {"sources": [...]}}
-```
+## Installation
 
-### CLI Commands
+### From Source (Recommended)
 
 ```bash
-# Heartbeat management
-nanofolks heartbeat start              # Start all bot heartbeats
-nanofolks heartbeat start --bot researcher  # Start specific bot
-nanofolks heartbeat stop               # Stop all bot heartbeats
-nanofolks heartbeat status             # Show all bot statuses
-nanofolks heartbeat status --bot coder # Show specific bot status
-nanofolks heartbeat trigger --reason "Manual check"  # Trigger all bots
-nanofolks heartbeat team-health        # Show team health report
-nanofolks heartbeat logs --limit 20    # Show heartbeat logs
-```
-
-### Dashboard
-
-The dashboard provides real-time monitoring of all bot heartbeats:
-
-- **URL**: http://localhost:9090 (auto-starts with gateway)
-- **Features**:
-  - Team health bar with overall success rate
-  - Per-bot status cards (running/stopped)
-  - Metrics: ticks, checks passed/failed, success rate
-  - Real-time updates via WebSocket
-  - Alert display for issues
-
-### Configuration
-
-Heartbeats are configured per-bot via YAML or JSON:
-
-```yaml
-# heartbeat_config.yaml
-researcher:
-  interval_s: 3600        # 60 minutes
-  max_concurrent_checks: 4
-  parallel_checks: true
-  retry_attempts: 3
-
-auditor:
-  interval_s: 3600
-  max_concurrent_checks: 1  # Sequential for audit integrity
-  parallel_checks: false
-
-coordinator:
-  interval_s: 1800        # 30 minutes for faster coordination
-```
-
-### Test Coverage
-
-- **219 tests** covering:
-  - Check registry and execution
-  - Domain-specific checks (24 checks)
-  - Bot integration and lifecycle
-  - Multi-heartbeat manager
-  - CLI commands
-  - Dashboard service
-
-## 🔒 Security
-
-nanofolks includes a **comprehensive security layer** to protect users from malicious skills based on real-world AI agent attack patterns.
-
-### Skill Security Scanner
-
-Automatically scans all skills for dangerous patterns before allowing use:
-
-| Detection Level | Patterns Detected |
-|----------------|-------------------|
-| 🚫 **Critical** | Credential theft, malware indicators, security bypasses |
-| ⚠️ **High** | `curl \| bash`, sudo escalation, system modification |
-| ⚡ **Medium** | Base64 obfuscation, eval/exec, suspicious downloads |
-| ℹ️ **Low** | Binary execution, external URLs (informational) |
-
-### Skill Verification Workflow
-
-1. **Auto-Detection**: New skills in `workspace/skills/` automatically scanned on startup
-2. **Risk Scoring**: 0-100 scale based on detected patterns
-3. **Approval Required**: Suspicious skills blocked until user approval
-4. **Agent Protection**: Unverified skills never available to the agent
-
-### CLI Commands
-
-```bash
-# Security scanning
-nanofolks skills scan ./my-skill          # Detailed security analysis
-nanofolks skills scan ./my-skill --strict # Strict mode (blocks on medium)
-nanofolks skills list                     # Show all skills with status
-nanofolks skills approve x-bookmarks      # Approve skill after review
-nanofolks skills reject dangerous-skill   # Mark as dangerous
-
-# Check security configuration
-nanofolks skills security
-```
-
-### Agent Security Tools
-
-The agent can validate skills during conversations:
-
-```
-User: "Should I install this skill?"
-Agent: "Let me scan it for security issues first..."
-→ Calls scan_skill tool
-→ Reports: "🚫 Security Scan FAILED - contains credential theft code"
-```
-
-Tools available to agent:
-- `scan_skill` - Detailed security analysis with remediation advice
-- `validate_skill_safety` - Quick true/false safety check
-
-### Configuration
-
-```json
-{
-  "security": {
-    "enabled": true,
-    "strict_mode": false,
-    "scan_on_install": true,
-    "block_on_critical": true,
-    "block_on_high": true,
-    "allow_network_installs": false,
-    "sandbox_skills": false
-  }
-}
-```
-
-Based on security research: [The Tailscale Illusion - AI Agent Security](https://github.com/openclaw/openclaw)
-
-### Secret Sanitizer 🔐
-
-Automatically detects and masks sensitive information (API keys, passwords, tokens) to prevent accidental exposure:
-
-- ✅ **Before sending to LLMs** — Secrets are masked in messages
-- ✅ **In log files** — No secrets written to disk
-- ✅ **In session history** — Masked before storage
-- ✅ **Warning alerts** — Notifies when secrets are detected
-
-**Supported patterns:**
-- API keys (OpenRouter, Anthropic, OpenAI, Groq, etc.)
-- Bearer tokens and JWTs
-- Passwords
-- GitHub/Discord tokens
-- Database connection strings
-- Private keys
-
-**Example:**
-```
-Input:  "My key is sk-or-abc123..."
-Output: "My key is sk-or-abc1****..." (masked)
-```
-
-### Sandbox & Access Control 🛡️
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `tools.restrictToWorkspace` | `false` | When `true`, restricts **all** agent tools to the workspace directory only |
-| `tools.evolutionary` | `false` | Enable self-improvement mode (allows code modification) |
-| `tools.allowedPaths` | `[]` | Whitelist of paths accessible in evolutionary mode |
-| `tools.protectedPaths` | `["~/.nanofolks/config.json"]` | Always-blocked paths (e.g., config with secrets) |
-| `channels.*.allowFrom` | `[]` | Whitelist of user IDs. Empty = allow everyone |
-
-## 📦 Install
-
-**Install from source** (latest features, recommended for development)
-
-```bash
-git clone https://github.com/HKUDS/nanofolks.git
+git clone https://github.com/nanofolks/nanofolks.git
 cd nanofolks
 pip install -e .
 ```
 
-**Install with [uv](https://github.com/astral-sh/uv)** (stable, fast)
+### With uv
 
 ```bash
-uv tool install nanofolks-ai
+uv tool install nanofolks
 ```
 
-**Install from PyPI** (stable)
+### With pip
 
 ```bash
-pip install nanofolks-ai
+pip install nanofolks
 ```
 
-## 🚀 Quick Start
+### Docker
 
-> [!TIP]
-> Set your API key in `~/.nanofolks/config.json`.
-> Get API keys: [OpenRouter](https://openrouter.ai/keys) (Global) · [DashScope](https://dashscope.console.aliyun.com) (Qwen) · [Brave Search](https://brave.com/search/api/) (optional, for web search)
+```bash
+docker build -t nanofolks .
+```
 
-**1. Initialize & Configure** ⭐ NEW
+## Setup
+
+Run the onboarding wizard:
 
 ```bash
 nanofolks onboard
 ```
 
-This runs a **step-by-step onboarding wizard** that guides you through:
-- Selecting your AI model provider
-- Setting your default model  
-- Enabling smart routing (optional)
-- Configuring voice transcription for Telegram/WhatsApp
-- Setting up advanced features
+This will guide you through:
 
-No manual JSON editing required!
+| Step | Description |
+|------|-------------|
+| **1. Provider Setup** | Select your AI provider and API key |
+| **2. Model Selection** | Choose default model |
+| **3. Smart Routing** | Enable automatic model tier selection |
+| **4. Evolutionary Mode** | Optional self-improvement features |
+| **5. Team Theme** | Choose your crew's personality |
 
-**Already onboarded?** Use the **interactive menu** for advanced configuration:
-```bash
-nanofolks configure
-```
+### Your Team
 
-**Prefer manual editing?** Edit `~/.nanofolks/config.json` directly:
-```json
-{
-  "providers": {
-    "openrouter": {
-      "apiKey": "sk-or-v1-xxx"
-    }
-  },
-  "agents": {
-    "defaults": {
-      "model": "anthropic/claude-opus-4-5"
-    }
-  }
-}
-```
+Each Nanofolks crew has 6 bots:
 
-**3. Chat**
+| Bot | Role | What they do |
+|-----|------|--------------|
+| **Leader** (@nanofolks) | Coordinator | Plans, delegates, makes decisions |
+| **Researcher** (@researcher) | Research | Analyzes, gathers information |
+| **Coder** (@coder) | Development | Codes, debugs, builds |
+| **Social** (@social) | Community | Engages, communicates |
+| **Creative** (@creative) | Creative | Brainstorms, designs, creates |
+| **Auditor** (@auditor) | Quality | Reviews, validates, tests |
+
+That's it! Your crew is ready to go!
+
+## Start Chatting
 
 ```bash
-nanofolks agent -m "What is 2+2?"
+nanofolks agent -m "Hello!"
 ```
 
-That's it! You have a working AI assistant in 2 minutes.
-
-## 🖥️ Local Models (vLLM)
-
-Run nanofolks with your own local models using vLLM or any OpenAI-compatible server.
-
-**1. Start your vLLM server**
+Or enter interactive mode:
 
 ```bash
-vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8000
+nanofolks agent
 ```
 
-**2. Configure** (`~/.nanofolks/config.json`)
+---
 
-```json
-{
-  "providers": {
-    "vllm": {
-      "apiKey": "dummy",
-      "apiBase": "http://localhost:8000/v1"
-    }
-  },
-  "agents": {
-    "defaults": {
-      "model": "meta-llama/Llama-3.1-8B-Instruct"
-    }
-  }
-}
-```
+# Chat Apps
 
-**3. Chat**
+Connect Nanofolks to your favorite messaging platforms.
 
-```bash
-nanofolks agent -m "Hello from my local LLM!"
-```
-
-> [!TIP]
-> The `apiKey` can be any non-empty string for local servers that don't require authentication.
-
-## 💬 Chat Apps
-
-Talk to your nanofolks through Telegram, Discord, WhatsApp, Feishu, Mochat, DingTalk, Slack, Email, or QQ — anytime, anywhere.
-
-| Channel | Setup |
-|---------|-------|
-| **Telegram** | Easy (just a token) |
-| **Discord** | Easy (bot token + intents) |
-| **WhatsApp** | Medium (scan QR) |
-| **Feishu** | Medium (app credentials) |
-| **Mochat** | Medium (claw token + websocket) |
-| **DingTalk** | Medium (app credentials) |
-| **Slack** | Medium (bot + app tokens) |
-| **Email** | Medium (IMAP/SMTP credentials) |
-| **QQ** | Easy (app credentials) |
+| Channel | Setup | Notes |
+|---------|-------|-------|
+| **Telegram** | Easy | Bot token only |
+| **Discord** | Easy | Bot token + intents |
+| **WhatsApp** | Medium | Scan QR code |
+| **Slack** | Medium | Socket mode |
+| **Feishu** | Medium | WebSocket |
+| **QQ** | Easy | App credentials |
 
 <details>
 <summary><b>Telegram</b> (Recommended)</summary>
 
-**1. Create a bot**
-- Open Telegram, search `@BotFather`
-- Send `/newbot`, follow prompts
-- Copy the token
-
-**2. Configure**
+1. Create a bot: Search `@BotFather` on Telegram, send `/newbot`, follow prompts
+2. Copy the token
+3. Configure:
 
 ```json
 {
@@ -630,92 +660,17 @@ Talk to your nanofolks through Telegram, Discord, WhatsApp, Feishu, Mochat, Ding
 }
 ```
 
-> You can find your **User ID** in Telegram settings. It is shown as `@yourUserId`.
-> Copy this value **without the `@` symbol** and paste it into the config file.
-
-
-**3. Run**
-
-```bash
-nanofolks gateway
-```
-
-</details>
-
-<details>
-<summary><b>Mochat (Claw IM)</b></summary>
-
-Uses **Socket.IO WebSocket** by default, with HTTP polling fallback.
-
-**1. Ask nanofolks to set up Mochat for you**
-
-Simply send this message to nanofolks (replace `xxx@xxx` with your real email):
-
-```
-Read https://raw.githubusercontent.com/HKUDS/MoChat/refs/heads/main/skills/nanofolks/skill.md and register on MoChat. My Email account is xxx@xxx Bind me as your owner and DM me on MoChat.
-```
-
-nanofolks will automatically register, configure `~/.nanofolks/config.json`, and connect to Mochat.
-
-**2. Restart gateway**
-
-```bash
-nanofolks gateway
-```
-
-That's it — nanofolks handles the rest!
-
-<br>
-
-<details>
-<summary>Manual configuration (advanced)</summary>
-
-If you prefer to configure manually, add the following to `~/.nanofolks/config.json`:
-
-> Keep `claw_token` private. It should only be sent in `X-Claw-Token` header to your Mochat API endpoint.
-
-```json
-{
-  "channels": {
-    "mochat": {
-      "enabled": true,
-      "base_url": "https://mochat.io",
-      "socket_url": "https://mochat.io",
-      "socket_path": "/socket.io",
-      "claw_token": "claw_xxx",
-      "agent_user_id": "6982abcdef",
-      "sessions": ["*"],
-      "panels": ["*"],
-      "reply_delay_mode": "non-mention",
-      "reply_delay_ms": 120000
-    }
-  }
-}
-```
-
-
-
-</details>
+4. Run: `nanofolks gateway`
 
 </details>
 
 <details>
 <summary><b>Discord</b></summary>
 
-**1. Create a bot**
-- Go to https://discord.com/developers/applications
-- Create an application → Bot → Add Bot
-- Copy the bot token
-
-**2. Enable intents**
-- In the Bot settings, enable **MESSAGE CONTENT INTENT**
-- (Optional) Enable **SERVER MEMBERS INTENT** if you plan to use allow lists based on member data
-
-**3. Get your User ID**
-- Discord Settings → Advanced → enable **Developer Mode**
-- Right-click your avatar → **Copy User ID**
-
-**4. Configure**
+1. Create an app at https://discord.com/developers/applications
+2. Add a bot, enable **Message Content Intent**
+3. Copy the bot token
+4. Configure:
 
 ```json
 {
@@ -729,33 +684,23 @@ If you prefer to configure manually, add the following to `~/.nanofolks/config.j
 }
 ```
 
-**5. Invite the bot**
-- OAuth2 → URL Generator
-- Scopes: `bot`
-- Bot Permissions: `Send Messages`, `Read Message History`
-- Open the generated invite URL and add the bot to your server
-
-**6. Run**
-
-```bash
-nanofolks gateway
-```
+5. Invite the bot to your server
+6. Run: `nanofolks gateway`
 
 </details>
 
 <details>
 <summary><b>WhatsApp</b></summary>
 
-Requires **Node.js ≥18**.
+Requires Node.js ≥18.
 
-**1. Link device**
+1. Link device:
+   ```bash
+   nanofolks channels login
+   # Scan QR with WhatsApp → Settings → Linked Devices
+   ```
 
-```bash
-nanofolks channels login
-# Scan QR with WhatsApp → Settings → Linked Devices
-```
-
-**2. Configure**
+2. Configure:
 
 ```json
 {
@@ -768,162 +713,24 @@ nanofolks channels login
 }
 ```
 
-**3. Run** (two terminals)
-
-```bash
-# Terminal 1
-nanofolks channels login
-
-# Terminal 2
-nanofolks gateway
-```
-
-</details>
-
-<details>
-<summary><b>Feishu (飞书)</b></summary>
-
-Uses **WebSocket** long connection — no public IP required.
-
-**1. Create a Feishu bot**
-- Visit [Feishu Open Platform](https://open.feishu.cn/app)
-- Create a new app → Enable **Bot** capability
-- **Permissions**: Add `im:message` (send messages)
-- **Events**: Add `im.message.receive_v1` (receive messages)
-  - Select **Long Connection** mode (requires running nanofolks first to establish connection)
-- Get **App ID** and **App Secret** from "Credentials & Basic Info"
-- Publish the app
-
-**2. Configure**
-
-```json
-{
-  "channels": {
-    "feishu": {
-      "enabled": true,
-      "appId": "cli_xxx",
-      "appSecret": "xxx",
-      "encryptKey": "",
-      "verificationToken": "",
-      "allowFrom": []
-    }
-  }
-}
-```
-
-> `encryptKey` and `verificationToken` are optional for Long Connection mode.
-> `allowFrom`: Leave empty to allow all users, or add `["ou_xxx"]` to restrict access.
-
-**3. Run**
-
-```bash
-nanofolks gateway
-```
-
-> [!TIP]
-> Feishu uses WebSocket to receive messages — no webhook or public IP needed!
-
-</details>
-
-<details>
-<summary><b>QQ (QQ单聊)</b></summary>
-
-Uses **botpy SDK** with WebSocket — no public IP required. Currently supports **private messages only**.
-
-**1. Register & create bot**
-- Visit [QQ Open Platform](https://q.qq.com) → Register as a developer (personal or enterprise)
-- Create a new bot application
-- Go to **开发设置 (Developer Settings)** → copy **AppID** and **AppSecret**
-
-**2. Set up sandbox for testing**
-- In the bot management console, find **沙箱配置 (Sandbox Config)**
-- Under **在消息列表配置**, click **添加成员** and add your own QQ number
-- Once added, scan the bot's QR code with mobile QQ → open the bot profile → tap "发消息" to start chatting
-
-**3. Configure**
-
-> - `allowFrom`: Leave empty for public access, or add user openids to restrict. You can find openids in the nanofolks logs when a user messages the bot.
-> - For production: submit a review in the bot console and publish. See [QQ Bot Docs](https://bot.q.qq.com/wiki/) for the full publishing flow.
-
-```json
-{
-  "channels": {
-    "qq": {
-      "enabled": true,
-      "appId": "YOUR_APP_ID",
-      "secret": "YOUR_APP_SECRET",
-      "allowFrom": []
-    }
-  }
-}
-```
-
-**4. Run**
-
-```bash
-nanofolks gateway
-```
-
-Now send a message to the bot from QQ — it should respond!
-
-</details>
-
-<details>
-<summary><b>DingTalk (钉钉)</b></summary>
-
-Uses **Stream Mode** — no public IP required.
-
-**1. Create a DingTalk bot**
-- Visit [DingTalk Open Platform](https://open-dev.dingtalk.com/)
-- Create a new app -> Add **Robot** capability
-- **Configuration**:
-  - Toggle **Stream Mode** ON
-- **Permissions**: Add necessary permissions for sending messages
-- Get **AppKey** (Client ID) and **AppSecret** (Client Secret) from "Credentials"
-- Publish the app
-
-**2. Configure**
-
-```json
-{
-  "channels": {
-    "dingtalk": {
-      "enabled": true,
-      "clientId": "YOUR_APP_KEY",
-      "clientSecret": "YOUR_APP_SECRET",
-      "allowFrom": []
-    }
-  }
-}
-```
-
-> `allowFrom`: Leave empty to allow all users, or add `["staffId"]` to restrict access.
-
-**3. Run**
-
-```bash
-nanofolks gateway
-```
+3. Run both:
+   ```bash
+   # Terminal 1
+   nanofolks channels login
+   
+   # Terminal 2
+   nanofolks gateway
+   ```
 
 </details>
 
 <details>
 <summary><b>Slack</b></summary>
 
-Uses **Socket Mode** — no public URL required.
-
-**1. Create a Slack app**
-- Go to [Slack API](https://api.slack.com/apps) → **Create New App** → "From scratch"
-- Pick a name and select your workspace
-
-**2. Configure the app**
-- **Socket Mode**: Toggle ON → Generate an **App-Level Token** with `connections:write` scope → copy it (`xapp-...`)
-- **OAuth & Permissions**: Add bot scopes: `chat:write`, `reactions:write`, `app_mentions:read`
-- **Event Subscriptions**: Toggle ON → Subscribe to bot events: `message.im`, `message.channels`, `app_mention` → Save Changes
-- **App Home**: Scroll to **Show Tabs** → Enable **Messages Tab** → Check **"Allow users to send Slash commands and messages from the messages tab"**
-- **Install App**: Click **Install to Workspace** → Authorize → copy the **Bot Token** (`xoxb-...`)
-
-**3. Configure nanofolks**
+1. Create app at https://api.slack.com/apps
+2. Enable Socket Mode, get App-Level Token
+3. Add scopes: `chat:write`, `app_mentions:read`
+4. Configure:
 
 ```json
 {
@@ -931,603 +738,165 @@ Uses **Socket Mode** — no public URL required.
     "slack": {
       "enabled": true,
       "botToken": "xoxb-...",
-      "appToken": "xapp-...",
-      "groupPolicy": "mention"
+      "appToken": "xapp-..."
     }
   }
 }
 ```
 
-**4. Run**
-
-```bash
-nanofolks gateway
-```
-
-DM the bot directly or @mention it in a channel — it should respond!
-
-> [!TIP]
-> - `groupPolicy`: `"mention"` (default — respond only when @mentioned), `"open"` (respond to all channel messages), or `"allowlist"` (restrict to specific channels).
-> - DM policy defaults to open. Set `"dm": {"enabled": false}` to disable DMs.
+5. Run: `nanofolks gateway`
 
 </details>
 
-<details>
-<summary><b>Email</b></summary>
+---
 
-Give nanofolks its own email account. It polls **IMAP** for incoming mail and replies via **SMTP** — like a personal email assistant.
+# Configuration
 
-**1. Get credentials (Gmail example)**
-- Create a dedicated Gmail account for your bot (e.g. `my-nanofolks@gmail.com`)
-- Enable 2-Step Verification → Create an [App Password](https://myaccount.google.com/apppasswords)
-- Use this app password for both IMAP and SMTP
+## Providers
 
-**2. Configure**
+Nanofolks supports multiple AI providers:
 
-> - `consentGranted` must be `true` to allow mailbox access. This is a safety gate — set `false` to fully disable.
-> - `allowFrom`: Leave empty to accept emails from anyone, or restrict to specific senders.
-> - `smtpUseTls` and `smtpUseSsl` default to `true` / `false` respectively, which is correct for Gmail (port 587 + STARTTLS). No need to set them explicitly.
-> - Set `"autoReplyEnabled": false` if you only want to read/analyze emails without sending automatic replies.
+| Provider | Purpose | Get Key |
+|----------|---------|---------|
+| **OpenRouter** | LLM gateway (recommended) | [openrouter.ai](https://openrouter.ai) |
+| **Anthropic** | Claude direct | [console.anthropic.com](https://console.anthropic.com) |
+| **OpenAI** | GPT direct | [platform.openai.com](https://platform.openai.com) |
+| **DeepSeek** | DeepSeek direct | [platform.deepseek.com](https://platform.deepseek.com) |
+| **Groq** | Fast inference + voice | [console.groq.com](https://console.groq.com) |
+| **Gemini** | Google AI | [aistudio.google.com](https://aistudio.google.com) |
+| **vLLM** | Local models | Run your own server |
 
-```json
-{
-  "channels": {
-    "email": {
-      "enabled": true,
-      "consentGranted": true,
-      "imapHost": "imap.gmail.com",
-      "imapPort": 993,
-      "imapUsername": "my-nanofolks@gmail.com",
-      "imapPassword": "your-app-password",
-      "smtpHost": "smtp.gmail.com",
-      "smtpPort": 587,
-      "smtpUsername": "my-nanofolks@gmail.com",
-      "smtpPassword": "your-app-password",
-      "fromAddress": "my-nanofolks@gmail.com",
-      "allowFrom": ["your-real-email@gmail.com"]
-    }
-  }
-}
-```
+## Smart Routing
 
-
-**3. Run**
-
-```bash
-nanofolks gateway
-```
-
-</details>
-
-## 🌐 Agent Social Network
-
-🐈 nanofolks is capable of linking to the agent social network (agent community). **Just send one message and your nanofolks joins automatically!**
-
-| Platform | How to Join (send this message to your bot) |
-|----------|-------------|
-| [**Moltbook**](https://www.moltbook.com/) | `Read https://moltbook.com/skill.md and follow the instructions to join Moltbook` |
-| [**ClawdChat**](https://clawdchat.ai/) | `Read https://clawdchat.ai/skill.md and follow the instructions to join ClawdChat` |
-
-Simply send the command above to your nanofolks (via CLI or any chat channel), and it will handle the rest.
-
-## ⚙️ Configuration
-
-Config file: `~/.nanofolks/config.json`
-
-### Providers
-
-> [!TIP]
-> - **Groq** provides free voice transcription via Whisper. If configured, Telegram voice messages will be automatically transcribed.
-> - **Zhipu Coding Plan**: If you're on Zhipu's coding plan, set `"apiBase": "https://open.bigmodel.cn/api/coding/paas/v4"` in your zhipu provider config.
-> - **MiniMax (Mainland China)**: If your API key is from MiniMax's mainland China platform (minimaxi.com), set `"apiBase": "https://api.minimaxi.com/v1"` in your minimax provider config.
-
-| Provider | Purpose | Get API Key |
-|----------|---------|-------------|
-| `openrouter` | LLM (recommended, access to all models) | [openrouter.ai](https://openrouter.ai) |
-| `anthropic` | LLM (Claude direct) | [console.anthropic.com](https://console.anthropic.com) |
-| `openai` | LLM (GPT direct) | [platform.openai.com](https://platform.openai.com) |
-| `deepseek` | LLM (DeepSeek direct) | [platform.deepseek.com](https://platform.deepseek.com) |
-| `groq` | LLM + **Voice transcription** (Whisper) | [console.groq.com](https://console.groq.com) |
-| `gemini` | LLM (Gemini direct) | [aistudio.google.com](https://aistudio.google.com) |
-| `minimax` | LLM (MiniMax direct) | [platform.minimax.io](https://platform.minimax.io) |
-| `aihubmix` | LLM (API gateway, access to all models) | [aihubmix.com](https://aihubmix.com) |
-| `dashscope` | LLM (Qwen) | [dashscope.console.aliyun.com](https://dashscope.console.aliyun.com) |
-| `moonshot` | LLM (Moonshot/Kimi) | [platform.moonshot.cn](https://platform.moonshot.cn) |
-| `zhipu` | LLM (Zhipu GLM) | [open.bigmodel.cn](https://open.bigmodel.cn) |
-| `vllm` | LLM (local, any OpenAI-compatible server) | — |
-
-<details>
-<summary><b>Adding a New Provider (Developer Guide)</b></summary>
-
-nanofolks uses a **Provider Registry** (`nanofolks/providers/registry.py`) as the single source of truth.
-Adding a new provider only takes **2 steps** — no if-elif chains to touch.
-
-**Step 1.** Add a `ProviderSpec` entry to `PROVIDERS` in `nanofolks/providers/registry.py`:
-
-```python
-ProviderSpec(
-    name="myprovider",                   # config field name
-    keywords=("myprovider", "mymodel"),  # model-name keywords for auto-matching
-    env_key="MYPROVIDER_API_KEY",        # env var for LiteLLM
-    display_name="My Provider",          # shown in `nanofolks status`
-    litellm_prefix="myprovider",         # auto-prefix: model → myprovider/model
-    skip_prefixes=("myprovider/",),      # don't double-prefix
-)
-```
-
-**Step 2.** Add a field to `ProvidersConfig` in `nanofolks/config/schema.py`:
-
-```python
-class ProvidersConfig(BaseModel):
-    ...
-    myprovider: ProviderConfig = ProviderConfig()
-```
-
-That's it! Environment variables, model prefixing, config matching, and `nanofolks status` display will all work automatically.
-
-**Common `ProviderSpec` options:**
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| `litellm_prefix` | Auto-prefix model names for LiteLLM | `"dashscope"` → `dashscope/qwen-max` |
-| `skip_prefixes` | Don't prefix if model already starts with these | `("dashscope/", "openrouter/")` |
-| `env_extras` | Additional env vars to set | `(("ZHIPUAI_API_KEY", "{api_key}"),)` |
-| `model_overrides` | Per-model parameter overrides | `(("kimi-k2.5", {"temperature": 1.0}),)` |
-| `is_gateway` | Can route any model (like OpenRouter) | `True` |
-| `detect_by_key_prefix` | Detect gateway by API key prefix | `"sk-or-"` |
-| `detect_by_base_keyword` | Detect gateway by API base URL | `"openrouter"` |
-| `strip_model_prefix` | Strip existing prefix before re-prefixing | `True` (for AiHubMix) |
-
-</details>
-
-
-### Smart Routing 🎯
-
-**nanofolks-turbo** features an intelligent routing system that automatically selects the most cost-effective model based on message complexity.
-
-**Why Smart Routing?**
-- 💰 **Save up to 96% on API costs** by using cheap models for simple queries and powerful models only when needed
-- ⚡ **Faster responses** for simple questions (1ms classification vs 500ms+ for complex routing)
-- 🧠 **Smarter conversations** - maintains context tier across conversation, but allows downgrades when appropriate
-- 📊 **Self-improving** - learns from routing decisions and auto-calibrates over time
-
-**How It Works**
-
-```
-User Message
-    ↓
-Layer 1: Client-side Classification (~1ms)
-  - 14-dimension heuristic analysis
-  - Pattern matching with learned patterns
-  - If confidence ≥ 0.85 → Use this result
-    ↓ (if confidence < 0.85)
-Layer 2: LLM-assisted Classification (~200ms)
-  - GPT-4o-mini analyzes the query
-  - More accurate for edge cases
-    ↓
-Sticky Routing
-  - Maintains tier across conversation
-  - Smart downgrade for simple follow-ups
-    ↓
-Execute with Selected Model
-```
-
-**Quick Start**
-
-Enable smart routing in your config:
+Enable automatic model selection:
 
 ```json
 {
   "routing": {
     "enabled": true,
     "tiers": {
-      "simple": {"model": "gpt-4o-mini", "cost_per_mtok": 0.60},
-      "medium": {"model": "claude-sonnet-4", "cost_per_mtok": 15.0},
-      "complex": {"model": "claude-opus-4", "cost_per_mtok": 75.0},
-      "reasoning": {"model": "o3", "cost_per_mtok": 10.0}
+      "simple": {"model": "gpt-4o-mini"},
+      "medium": {"model": "claude-sonnet-4"},
+      "complex": {"model": "claude-opus-4"},
+      "reasoning": {"model": "o3"}
     }
   }
 }
 ```
 
-**CLI Commands**
+## Environment Variables
 
-```bash
-# Check routing status
-nanofolks routing status
+Nanofolks also respects these env vars:
 
-# Test classification on a message
-nanofolks routing test "Write a Python function to sort a list" --verbose
+- `OPENROUTER_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- And provider-specific keys for each supported provider
 
-# View learned patterns
-nanofolks routing patterns
+---
 
-# See cost savings
-nanofolks routing analytics
+# CLI Commands
 
-# Manually trigger calibration
-nanofolks routing calibrate
-```
-
-**Example Classifications**
-
-| Message | Tier | Model | Confidence |
-|---------|------|-------|------------|
-| "What is 2+2?" | SIMPLE | gpt-4o-mini | 0.92 |
-| "Write a Python function" | MEDIUM | claude-sonnet-4 | 0.88 |
-| "Debug this race condition" | COMPLEX | claude-opus-4 | 0.85 |
-| "Prove this theorem step by step" | REASONING | o3 | 0.95 |
-
-**Cost Savings Example**
-
-With typical usage (45% simple, 35% medium, 15% complex, 5% reasoning):
-- **Without routing**: $75/M tokens (always using most expensive model)
-- **With routing**: $3.17/M tokens (blended average)
-- **Savings**: **96%** 🎉
-
-See [ROUTING.md](docs/ROUTING.md) for detailed configuration and customization.
-
-</details>
-
-
-### MCP (Model Context Protocol)
-
-> [!TIP]
-> The config format is compatible with Claude Desktop / Cursor. You can copy MCP server configs directly from any MCP server's README.
-
-nanofolks supports [MCP](https://modelcontextprotocol.io/) — connect external tool servers and use them as native agent tools.
-
-Add MCP servers to your `config.json`:
-
-```json
-{
-  "tools": {
-    "mcp_servers": {
-      "filesystem": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
-      }
-    }
-  }
-}
-```
-
-Two transport modes are supported:
-
-| Mode | Config | Example |
-|------|--------|---------|
-| **Stdio** | `command` + `args` | Local process via `npx` / `uvx` |
-| **HTTP** | `url` | Remote endpoint (`https://mcp.example.com/sse`) |
-
-MCP tools are automatically discovered and registered on startup. The LLM can use them alongside built-in tools — no extra configuration needed.
-
-
-### Interactive Configuration Wizard ⭐ NEW
-
-**Two ways to configure nanofolks:**
-
-#### **1. Step-by-Step Onboarding** (First-time setup)
-
-Perfect for new users - guides you through essential configuration:
-
-```bash
-nanofolks onboard
-```
-
-**Setup Flow:**
-1. **🤖 Model Provider** — Choose from 6 providers (OpenRouter, Anthropic, OpenAI, Groq, DeepSeek, etc.)
-2. **🎯 Primary Model** — Select your default AI model
-3. **🧠 Smart Routing** — Enable automatic model selection by query complexity
-4. **🔬 Evolutionary Mode** — Optional self-improvement capabilities
-
-**Features:**
-- ✅ Progress tracking with visual indicators
-- 🔐 Secure API key input with preview
-- 🎙️ **Voice transcription setup** — Auto-offers Groq for Telegram/WhatsApp voice messages
-- 📋 Suggested tier configurations based on your provider
-- 🚪 Easy exit points with "Back" options
-
-#### **2. Interactive Menu** (Advanced configuration)
-
-For power users who want fine-grained control:
-
-```bash
-nanofolks configure
-```
-
-**Menu Options:**
-```
-🤖 nanofolks Configuration Wizard
-
-Current Status:
-  LLM Providers    ✓ openrouter
-  Channels         ○ None enabled
-
-[1] 🤖 Model Providers ✓
-[2] 💬 Chat Channels ○
-[3] ⚙️  Agent Settings ○
-[4] 🧠 Smart Routing ✓
-[5] 🛠️  Tool Settings ○
-[6] 📊 View Full Status
-[7] ✓  Done
-```
-
-**Features:**
-- 🎯 **Visual status indicators** — See what's configured (✓) vs optional (○)
-- 🔐 **Secure API key input** — Keys visible as you type with preview
-- 💬 **Channel setup** — Configure Telegram, Discord, WhatsApp, Slack, Email
-   - Auto-detects voice transcription needs
-   - Offers Groq setup for voice messages
-- 🧠 **Smart routing** — Customize tier models and confidence thresholds
-- ⚙️ **All settings** — Agents, tools, gateway, security
-- 🚪 **Back buttons** — Exit any submenu without completing
-
-## CLI Reference
+## Essential Commands
 
 | Command | Description |
 |---------|-------------|
-| `nanofolks onboard` | Initialize config, workspace & run config wizard |
-| `nanofolks configure` | ⭐ Interactive configuration wizard |
-| `nanofolks agent -m "..."` | Chat with the agent |
+| `nanofolks onboard` | First-time setup |
+| `nanofolks configure` | Interactive configuration |
+| `nanofolks agent -m "msg"` | Send a message |
 | `nanofolks agent` | Interactive chat mode |
-| `nanofolks agent --no-markdown` | Show plain-text replies |
-| `nanofolks agent --logs` | Show runtime logs during chat |
-| `nanofolks gateway` | Start the gateway |
-| `nanofolks status` | Show status |
-| `nanofolks channels login` | Link WhatsApp (scan QR) |
-| `nanofolks channels status` | Show channel status |
-| `nanofolks routing status` | Show smart routing status |
-| `nanofolks routing test "msg"` | Test classification |
-| `nanofolks routing analytics` | Show cost savings |
-| `nanofolks memory status` | Show memory statistics |
-| `nanofolks memory search "query"` | Search memory content |
-| `nanofolks memory entities` | List all entities |
-| `nanofolks session status` | Show context=X%, message count |
-| `nanofolks session compact` | Trigger compaction manually |
-| `nanofolks heartbeat start` | Start all bot heartbeats |
-| `nanofolks heartbeat stop` | Stop all bot heartbeats |
-| `nanofolks heartbeat status` | Show heartbeat status |
-| `nanofolks heartbeat trigger` | Manually trigger heartbeats |
-| `nanofolks heartbeat team-health` | Show team health report |
-| `nanofolks heartbeat logs` | Show heartbeat logs |
-| `nanofolks skills scan "path"` | Scan skill for security issues |
-| `nanofolks skills list` | List skills with verification status |
-| `nanofolks skills approve "name"` | Approve skill for use |
-| `nanofolks skills security` | Show security configuration |
+| `nanofolks gateway` | Start multi-channel gateway |
 
-<details>
-<summary><b>Smart Routing</b></summary>
+## Memory & Session
 
 ```bash
-# Show routing configuration
-nanofolks routing status
-
-# Test classification
-nanofolks routing test "Write a Python function"
-nanofolks routing test "Debug this issue" --verbose
-
-# View learned patterns
-nanofolks routing patterns
-nanofolks routing patterns --tier complex
-
-# Show cost analytics
-nanofolks routing analytics
-
-# Manual calibration
-nanofolks routing calibrate
-nanofolks routing calibrate --dry-run
+nanofolks memory status       # Show memory statistics
+nanofolks memory search "query"  # Search memories
+nanofolks session status     # Show context usage
+nanofolks session compact    # Manual compaction
 ```
 
-</details>
-
-Interactive mode exits: `exit`, `quit`, `/exit`, `/quit`, `:q`, or `Ctrl+D`.
-
-<details>
-<summary><b>Memory System</b></summary>
+## Routing
 
 ```bash
-# Memory management
-nanofolks memory init          # Initialize memory database
-nanofolks memory status        # Show memory statistics (events, entities, facts)
-nanofolks memory search "api"  # Search memory content
-nanofolks memory entities      # List all entities
-nanofolks memory entity "John" # Get entity details
-nanofolks memory forget "Bob"  # Remove entity from memory
-nanofolks memory doctor        # Run health check
-
-# Session management  
-nanofolks session status       # Show context=X%, message count, compaction stats
-nanofolks session compact      # Manual compaction trigger
-nanofolks session reset        # Reset all sessions
+nanofolks routing status     # Show routing config
+nanofolks routing test "msg" # Test classification
+nanofolks routing analytics  # Show cost savings
 ```
 
-</details>
-
-<details>
-<summary><b>Heartbeat System</b></summary>
+## Skills
 
 ```bash
-# Start/Stop heartbeats
-nanofolks heartbeat start              # Start all bot heartbeats
-nanofolks heartbeat start --bot researcher  # Start specific bot
-nanofolks heartbeat stop               # Stop all bot heartbeats
-nanofolks heartbeat stop --bot coder  # Stop specific bot
-
-# Status and Monitoring
-nanofolks heartbeat status             # Show all bot heartbeat status
-nanofolks heartbeat status --bot auditor  # Show specific bot status
-
-# Manual Triggers
-nanofolks heartbeat trigger           # Manually trigger all bots
-nanofolks heartbeat trigger --reason "Scheduled check"  # With reason
-
-# Team Health
-nanofolks heartbeat team-health        # Show team health report
-nanofolks heartbeat logs               # Show recent heartbeat logs
-nanofolks heartbeat logs --bot coder   # Show specific bot logs
-nanofolks heartbeat logs --limit 50    # Limit log entries
+nanofolks skills list        # List all skills
+nanofolks skills scan ./skill  # Security scan
+nanofolks skills approve name # Approve skill
 ```
 
-**Dashboard**: The dashboard is available at http://localhost:9090 when the gateway is running.
-
-</details>
-
-<details>
-<summary><b>Security - Skill Scanning & Verification</b></summary>
+## Scheduled Tasks
 
 ```bash
-# Scan a skill for security issues
-nanofolks skills scan ./my-skill
-nanofolks skills scan ./my-skill --strict
-nanofolks skills scan ./my-skill --ignore-security
-
-# List all skills with verification status
-nanofolks skills list
-nanofolks skills list --all
-
-# Approve or reject skills
-nanofolks skills approve x-bookmarks
-nanofolks skills approve x-bookmarks --force  # Force despite warnings
-nanofolks skills reject dangerous-skill
-
-# Check security configuration
-nanofolks skills security
-```
-
-**Verification Status:**
-- ✅ **Approved**: Passed security scan, ready to use
-- ✅ **Manually Approved**: User approved despite warnings
-- 🚫 **Rejected**: Failed security scan (dangerous patterns detected)
-- ⏳ **Pending**: Not yet scanned, awaiting verification
-
-</details>
-
-<details>
-<summary><b>Scheduled Tasks (Cron)</b></summary>
-
-```bash
-# Add a job
-nanofolks cron add --name "daily" --message "Good morning!" --cron "0 9 * * *"
-nanofolks cron add --name "hourly" --message "Check status" --every 3600
-
-# List jobs
+nanofolks cron add --name "task" --message "Do X" --cron "0 9 * * *"
 nanofolks cron list
-
-# Remove a job
-nanofolks cron remove <job_id>
+nanofolks cron remove <id>
 ```
 
-</details>
+---
 
-## 🐳 Docker
+# Docker
 
-> [!TIP]
-> The `-v ~/.nanofolks:/root/.nanofolks` flag mounts your local config directory into the container, so your config and workspace persist across container restarts.
-
-Build and run nanofolks in a container:
+## Basic Usage
 
 ```bash
-# Build the image
+# Build
 docker build -t nanofolks .
 
-# Initialize config (first time only)
+# Initialize config
 docker run -v ~/.nanofolks:/root/.nanofolks --rm nanofolks onboard
 
-# Edit config on host to add API keys
-vim ~/.nanofolks/config.json
-
-# Run gateway (connects to enabled channels, e.g. Telegram/Discord/Mochat)
+# Run gateway
 docker run -v ~/.nanofolks:/root/.nanofolks -p 18790:18790 nanofolks gateway
-
-# Or run a single command
-docker run -v ~/.nanofolks:/root/.nanofolks --rm nanofolks agent -m "Hello!"
-docker run -v ~/.nanofolks:/root/.nanofolks --rm nanofolks status
 ```
 
-## 📁 Project Structure
+## Persisting Data
 
-```
-nanofolks/
-├── agent/          # 🧠 Core agent logic
-│   ├── loop.py     #    Agent loop (LLM ↔ tool execution)
-│   ├── context.py  #    Prompt builder
-│   ├── skills.py   #    Skills loader with security verification
-│   ├── subagent.py #    Background task execution
-│   ├── router/     #    Smart routing (tiers, calibration)
-│   └── tools/      #    Built-in tools (incl. spawn, security)
-├── memory/         # 🧠 Memory system (SQLite, embeddings, knowledge graph)
-│   ├── store.py    #    TurboMemoryStore - SQLite storage layer
-│   ├── embeddings.py #  BGE semantic embeddings
-│   ├── models.py   #    Data models (Event, Entity, Edge, Fact...)
-│   ├── retrieval.py #   Memory search and retrieval
-│   ├── session_compactor.py # Context compaction
-│   └── token_counter.py     # Accurate token counting
-├── security/       # 🔒 Security scanner and skill verification
-│   ├── skill_scanner.py   # Skill security analysis
-│   └── __init__.py        # Security module exports
-├── skills/         # 🎯 Bundled skills (github, weather, tmux...)
-├── channels/       # 📱 Chat channel integrations
-├── bus/            # 🚌 Message routing
-├── cron/           # ⏰ Scheduled tasks
-├── heartbeat/      # 💓 Multi-heartbeat system (6 bots, CLI, dashboard)
-│   ├── models.py   #    Data models (CheckDefinition, HeartbeatConfig...)
-│   ├── check_registry.py  # Check registration with @register_check
-│   ├── bot_heartbeat.py   # Per-bot heartbeat service
-│   ├── multi_manager.py    # MultiHeartbeatManager
-│   ├── dashboard.py        # Dashboard service
-│   └── dashboard_server.py # HTTP/WebSocket server
-├── reasoning/      # 🧩 Adaptive Chain-of-Thought configuration
-│   └── config.py   #    Bot-level reasoning configs (CoTLevel, ReasoningConfig)
-├── bots/           # 🤖 Bot implementations (researcher, coder, etc.)
-├── providers/      # 🤖 LLM providers (OpenRouter, etc.)
-├── session/        # 💬 Conversation sessions
-├── config/         # ⚙️ Configuration
-└── cli/            # 🖥️ Commands
+> [!TIP]
+> The `-v ~/.nanofolks:/root/.nanofolks` flag mounts your config directory, so your settings and memory persist across restarts.
 
-Project Root:
-├── docs/           # 📚 Development documentation
-├── tests/          # 🧪 Test suite
-└── bridge/         # 🌉 WhatsApp Web bridge (Node.js)
-```
+---
 
-## 🤝 Contribute & Roadmap
+# Philosophy
 
-PRs welcome! The codebase is intentionally small and readable. 🤗
+Nanofolks isn't about replacing you.
 
-**Roadmap** — Pick an item and [open a PR](https://github.com/HKUDS/nanofolks/pulls)!
+It's about expanding what you can do, by surrounding you with the right crew.
 
-- [x] **Voice Transcription** — Support for Groq Whisper (Issue #13)
-- [x] **Long-term memory** — Production-hardened memory system with context compaction
-- [x] **Self-improvement** — Learning from feedback + evolutionary mode
-- [ ] **Multi-modal** — See and hear (images, voice, video)
-- [ ] **Better reasoning** — Multi-step planning and reflection
-- [ ] **More integrations** — Calendar and more
+We believe AI should:
+- Work *with* you, not *for* you
+- Have personality and character
+- Learn and improve over time
+- Feel like a team, not a tool
 
-### Contributors
+---
 
-<a href="https://github.com/HKUDS/nanofolks/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HKUDS/nanofolks&max=100&columns=12&updated=20260210" alt="Contributors" />
-</a>
+# Links & Resources
 
+| | |
+|---|---|
+| 📖 | **Documentation**: [docs/](docs/) |
+| 🐛 | **Issues**: [GitHub Issues](https://github.com/nanofolks/nanofolks/issues) |
+| 💬 | **Community**: [Discord](https://discord.gg/nanofolks) |
+| ⭐ | **Star us**: [GitHub](https://github.com/nanofolks/nanofolks) |
 
-## ⭐ Star History
+---
 
-<div align="center">
-  <a href="https://star-history.com/#HKUDS/nanofolks&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/nanofolks&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/nanofolks&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/nanofolks&type=Date" style="border-radius: 15px; box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);" />
-    </picture>
-  </a>
-</div>
+# Credits
+
+Nanofolks started as a fork of [nanofolks](https://github.com/HKUDS/nanofolks), a project by HKUDS. We're grateful for the foundation they built and continue to draw inspiration from their vision of making AI assistants accessible and fun.
+
+This project is for educational, research, and technical exchange purposes only.
+
+---
 
 <p align="center">
-  <em> Thanks for visiting ✨ nanofolks!</em><br><br>
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.nanofolks&style=for-the-badge&color=00d4ff" alt="Views">
-</p>
-
-
-<p align="center">
-  <sub>nanofolks is for educational, research, and technical exchange purposes only</sub>
+  <em>Your crew's already on it.</em>
 </p>
