@@ -465,6 +465,146 @@ class AgentLoop:
         # If onboarding completed, return None to continue with normal processing
         return None
     
+    def _check_multi_bot_dispatch(self, message: str, session: Session) -> dict | None:
+        """Check if message should trigger multi-bot response mode.
+        
+        Args:
+            message: User message content
+            session: Current session
+            
+        Returns:
+            Dispatch info dict if multi-bot mode, None otherwise
+        """
+        from nanofolks.bots.dispatch import BotDispatch, DispatchTarget
+        
+        message_lower = message.lower()
+        
+        # Check for @all / @crew / multiple mentions
+        dispatch = BotDispatch()
+        result = dispatch.dispatch_message(message, room=None, is_dm=False)
+        
+        # Only handle MULTI_BOT and CREW_CONTEXT modes
+        if result.target in [DispatchTarget.MULTI_BOT, DispatchTarget.CREW_CONTEXT]:
+            # Get all bots to respond (primary + secondary)
+            all_bots = [result.primary_bot] + result.secondary_bots
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_bots = []
+            for bot in all_bots:
+                if bot not in seen:
+                    seen.add(bot)
+                    unique_bots.append(bot)
+            
+            return {
+                'is_multi_bot': True,
+                'mode': result.target,
+                'bots': unique_bots,
+                'primary_bot': result.primary_bot,
+                'reason': result.reason,
+            }
+        
+        return None
+    
+    async def _handle_multi_bot_response(
+        self,
+        msg: InboundMessage,
+        dispatch_result: dict,
+        session: Session,
+    ) -> OutboundMessage:
+        """Handle multi-bot response generation.
+        
+        Args:
+            msg: Inbound message
+            dispatch_result: Dispatch information
+            session: Current session
+            
+        Returns:
+            Combined response from all bots
+        """
+        from nanofolks.agent.multi_bot_generator import MultiBotResponseGenerator
+        from nanofolks.bots.dispatch import DispatchTarget
+        
+        bots = dispatch_result['bots']
+        mode = dispatch_result['mode']
+        
+        logger.info(f"Multi-bot mode triggered: {mode.value} with bots: {', '.join(bots)}")
+        
+        # Log to work log
+        self.work_log_manager.log(
+            level=LogLevel.INFO,
+            category="multi_bot",
+            message=f"Multi-bot response: {mode.value} with {len(bots)} bots",
+            details={
+                'bots': bots,
+                'mode': mode.value,
+                'reason': dispatch_result['reason'],
+            }
+        )
+        
+        # Get room theme for affinity customization
+        room_theme = "default"
+        try:
+            from nanofolks.teams import TeamManager
+            team_manager = TeamManager()
+            current_team = team_manager.get_current_team()
+            if current_team:
+                room_theme = current_team.name.value
+        except Exception:
+            pass
+        
+        # Generate responses in parallel
+        generator = MultiBotResponseGenerator(
+            provider=self.provider,
+            workspace=self.workspace,
+            model=self.model,
+            temperature=self.temperature,
+            max_tokens=1024,
+            room_theme=room_theme,
+        )
+        
+        try:
+            responses = await generator.generate_responses(
+                user_message=msg.content,
+                bot_names=bots,
+                mode=mode,
+                room_context={'name': 'general'},
+            )
+            
+            # Format combined response
+            combined_content = generator.format_multi_bot_response(responses)
+            
+            # Log individual responses
+            for response in responses:
+                self.work_log_manager.log(
+                    level=LogLevel.INFO,
+                    category="bot_response",
+                    message=f"@{response.bot_name} responded",
+                    details={
+                        'bot': response.bot_name,
+                        'confidence': response.confidence,
+                        'response_time_ms': response.response_time_ms,
+                    }
+                )
+            
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=combined_content,
+                metadata={
+                    'multi_bot': True,
+                    'responding_bots': [r.bot_name for r in responses],
+                    'mode': mode.value,
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Multi-bot response generation failed: {e}")
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=f"❌ Error generating multi-bot response: {str(e)}",
+            )
+    
     def _apply_theme_if_needed(self) -> None:
         """Apply the selected theme to all team members' SOUL files on first start.
         
@@ -833,6 +973,11 @@ class AgentLoop:
         if cmd == "/help":
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
                                   content="🐈 nanofolks commands:\n/new — Start a new conversation\n/help — Show available commands")
+        
+        # Check for multi-bot triggers (@all, @crew, multiple @mentions)
+        dispatch_result = self._check_multi_bot_dispatch(msg.content, session)
+        if dispatch_result and dispatch_result.get('is_multi_bot'):
+            return await self._handle_multi_bot_response(msg, dispatch_result, session)
         
         # Update tool contexts
         message_tool = self.tools.get("message")

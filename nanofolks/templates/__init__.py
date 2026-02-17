@@ -6,6 +6,7 @@ from typing import Optional
 TEMPLATES_DIR = Path(__file__).parent / "bots"
 SOUL_TEMPLATES_DIR = Path(__file__).parent / "soul"
 IDENTITY_TEMPLATES_DIR = Path(__file__).parent / "identity"
+ROLE_TEMPLATES_DIR = Path(__file__).parent / "role"
 
 BOT_NAMES = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 THEME_NAMES = ["pirate_crew", "rock_band", "swat_team", "feral_clowder", "executive_suite", "space_crew"]
@@ -96,3 +97,34 @@ def get_identity_template_for_bot(bot_name: str, theme: Optional[str] = None) ->
             return template_file.read_text(encoding="utf-8")
     
     return None
+
+
+def get_role_template_for_bot(bot_name: str) -> Optional[str]:
+    """Get ROLE.md template for a bot.
+    
+    Loads the default ROLE.md template for the specified bot.
+    
+    Args:
+        bot_name: Name of the bot
+        
+    Returns:
+        ROLE.md template content or None if not found
+    """
+    template_file = ROLE_TEMPLATES_DIR / f"{bot_name}_ROLE.md"
+    if template_file.exists():
+        return template_file.read_text(encoding="utf-8")
+    return None
+
+
+def get_all_role_templates() -> dict[str, str]:
+    """Get all ROLE.md templates.
+    
+    Returns:
+        Dict mapping bot_name to template content
+    """
+    templates = {}
+    for bot_name in BOT_NAMES:
+        content = get_role_template_for_bot(bot_name)
+        if content:
+            templates[bot_name] = content
+    return templates

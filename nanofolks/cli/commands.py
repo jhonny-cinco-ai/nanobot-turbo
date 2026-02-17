@@ -3540,6 +3540,153 @@ def room_show(
     console.print(f"\n[dim]Use 'nanofolks room invite {room_id} <bot>' to add bots[/dim]")
 
 
+# Separate command for bot-to-bot DM room peeking
+@app.command("peek")
+def peek(
+    room_id: str = typer.Argument(..., help="Bot DM room ID (e.g., dm-leader-researcher)"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of messages to show"),
+):
+    """Peek into bot-to-bot DM room conversations.
+    
+    Examples:
+        nanofolks peek dm-leader-researcher
+        nanofolks peek dm-coder-auditor --limit 50
+        nanofolks peek dm-leader-coder --limit 10
+    """
+    from nanofolks.bots.dm_room_manager import BotDMRoomManager
+    from nanofolks.config.loader import get_data_dir
+    
+    # Get workspace/data directory
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    dm_manager = BotDMRoomManager(workspace)
+    
+    # Parse room_id: dm-bot_a-bot_b
+    if not room_id.startswith("dm-"):
+        console.print("[red]❌ Invalid room ID format.[/red]")
+        console.print("[dim]Format should be: dm-bot_a-bot_b (e.g., dm-leader-researcher)[/dim]")
+        raise typer.Exit(1)
+    
+    # Parse bots from room_id
+    parts = room_id.split("-")
+    if len(parts) < 3:
+        console.print("[red]❌ Invalid room ID format.[/red]")
+        console.print("[dim]Format should be: dm-bot_a-bot_b (e.g., dm-leader-researcher)[/dim]")
+        raise typer.Exit(1)
+    
+    bots = parts[1:]  # Remove 'dm' prefix
+    bot_a, bot_b = bots[0], bots[1]
+    
+    # Get conversation history
+    messages = dm_manager.get_conversation_history(bot_a, bot_b, limit=limit)
+    
+    if not messages:
+        console.print(f"[yellow]📭 No messages in {room_id} yet[/yellow]")
+        console.print(f"[dim]This room will be populated when bots communicate.[/dim]")
+        return
+    
+    # Display formatted conversation
+    console.print(f"\n[bold cyan]🔍 Bot-to-Bot Conversation:[/bold cyan] [yellow]@{bot_a}[/yellow] ↔ [yellow]@{bot_b}[/yellow]")
+    console.print("=" * 70)
+    
+    # Bot emoji mapping
+    bot_emojis = {
+        "leader": "👑",
+        "researcher": "📊",
+        "coder": "🤖",
+        "social": "📱",
+        "creative": "🎨",
+        "auditor": "🔍"
+    }
+    
+    for msg in messages:
+        timestamp_str = msg.timestamp.strftime("%H:%M")
+        emoji = bot_emojis.get(msg.sender_bot, "🤖")
+        
+        # Format based on message type
+        if msg.message_type.value == "query":
+            prefix = "[bold cyan]❓[/bold cyan] Query"
+        elif msg.message_type.value == "response":
+            prefix = "[bold green]💬[/bold green] Response"
+        elif msg.message_type.value == "escalation":
+            prefix = "[bold red]🚨[/bold red] Escalation"
+        elif msg.message_type.value == "coordination":
+            prefix = "[bold yellow]📋[/bold yellow] Coordination"
+        else:
+            prefix = "[dim]📝[/dim] Info"
+        
+        console.print(f"\n{emoji} [bold]{msg.sender_bot}[/bold] [{timestamp_str}] {prefix}:")
+        
+        # Word wrap the content
+        content_lines = msg.content.split("\n")
+        for line in content_lines:
+            if len(line) > 70:
+                # Simple word wrap
+                words = line.split()
+                current_line = ""
+                for word in words:
+                    if len(current_line) + len(word) + 1 > 70:
+                        console.print(f"   {current_line}")
+                        current_line = word
+                    else:
+                        current_line = (current_line + " " + word).lstrip()
+                if current_line:
+                    console.print(f"   {current_line}")
+            else:
+                console.print(f"   {line}")
+    
+    console.print("\n" + "=" * 70)
+    console.print(f"[dim]📊 Total messages: {len(messages)}[/dim]")
+    console.print(f"[dim]💡 Use 'nanofolks peek {room_id} --limit N' to see more[/dim]")
+
+
+@app.command("dm-rooms")
+def list_dm_rooms():
+    """List all bot-to-bot DM rooms."""
+    from nanofolks.bots.dm_room_manager import BotDMRoomManager
+    from nanofolks.config.loader import get_data_dir
+    
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    dm_manager = BotDMRoomManager(workspace)
+    rooms = dm_manager.list_all_rooms()
+    
+    if not rooms:
+        console.print("[yellow]No bot-to-bot DM rooms found.[/yellow]")
+        console.print("[dim]DM rooms are created when bots communicate with each other.[/dim]")
+        return
+    
+    table = Table(title="Bot-to-Bot DM Rooms")
+    table.add_column("Room ID", style="cyan")
+    table.add_column("Bots", style="green")
+    table.add_column("Messages", style="yellow")
+    table.add_column("Last Activity", style="blue")
+    
+    for room in rooms:
+        bots_display = " ↔ ".join([f"@{b}" for b in room["bots"]])
+        last_activity = room.get("last_activity", "Never")
+        if last_activity != "Never":
+            # Format timestamp
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(last_activity)
+                last_activity = dt.strftime("%Y-%m-%d %H:%M")
+            except:
+                pass
+        
+        table.add_row(
+            room["room_id"],
+            bots_display,
+            str(room["message_count"]),
+            last_activity
+        )
+    
+    console.print(table)
+    console.print("\n[dim]Use 'nanofolks peek <room-id>' to view a conversation[/dim]")
+
+
 app.add_typer(room_app, name="room")
 
 # Import and wire heartbeat commands

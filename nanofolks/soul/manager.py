@@ -74,34 +74,49 @@ class SoulManager:
         team: List[str],
         force: bool = False
     ) -> Dict[str, bool]:
-        """Apply theme to all team members' SOUL files.
-        
+        """Apply theme to all team members' personality files.
+
+        Creates SOUL.md (voice/personality) and IDENTITY.md + ROLE.md 
+        (identity/relationships + capabilities/constraints).
+
         Args:
             theme: Theme object to apply
             team: List of bot names in team
-            force: If True, overwrite existing SOUL files
-        
+            force: If True, overwrite existing files
+
         Returns:
             Dict mapping bot_name -> success (bool)
         """
         results = {}
-        
+
         for bot_name in team:
             try:
                 bot_theming = theme.get_bot_theming(bot_name)
                 if bot_theming:
-                    success = self.apply_theme_to_bot(
+                    # Apply SOUL.md (voice and personality)
+                    soul_success = self.apply_theme_to_bot(
                         bot_name,
                         bot_theming,
                         theme,
                         force=force
                     )
-                    results[bot_name] = success
+
+                    # Apply IDENTITY.md + ROLE.md 
+                    # (identity includes both relationships AND role/capabilities)
+                    identity_success = self.apply_identity_to_bot(
+                        bot_name,
+                        theme=theme.name.value,
+                        force=force
+                    )
+
+                    # Both should succeed for overall success
+                    results[bot_name] = soul_success and identity_success
                 else:
                     results[bot_name] = False
             except Exception as e:
+                logger.error(f"Failed to apply theme to {bot_name}: {e}")
                 results[bot_name] = False
-        
+
         return results
     
     def apply_theme_to_bot(
@@ -481,7 +496,10 @@ I am the {bot_name} specialist on the team.
         return True
     
     def apply_identity_to_team(self, team: List[str], theme: Optional[str] = None, force: bool = False) -> Dict[str, bool]:
-        """Apply IDENTITY.md templates to all team members.
+        """Apply IDENTITY.md and ROLE.md templates to all team members.
+        
+        Creates both identity (relationships, personality) and role (capabilities, 
+        constraints) files for each bot.
         
         Args:
             team: List of bot names in team
@@ -503,34 +521,52 @@ I am the {bot_name} specialist on the team.
         return results
     
     def apply_identity_to_bot(self, bot_name: str, theme: Optional[str] = None, force: bool = False) -> bool:
-        """Create a bot's IDENTITY.md from template.
-        
+        """Create a bot's IDENTITY.md and ROLE.md from templates.
+
+        Creates both identity (relationships, personality) and role (capabilities, constraints)
+        files together since they define who the bot is and what they can do.
+
         Args:
             bot_name: Name of the bot
-            theme: Optional theme name. If provided, loads from that specific theme
-            force: If True, overwrite existing file
-        
+            theme: Optional theme name. If provided, loads identity from that specific theme
+            force: If True, overwrite existing files
+
         Returns:
-            True if successful, False otherwise
+            True if both files created successfully, False otherwise
         """
-        identity_dir = self.bots_dir / bot_name
-        identity_dir.mkdir(parents=True, exist_ok=True)
-        
-        identity_file = identity_dir / "IDENTITY.md"
-        
-        if identity_file.exists() and not force:
-            return False
-        
-        # Load IDENTITY template from theme or templates
-        from nanofolks.templates import get_identity_template_for_bot
-        template = get_identity_template_for_bot(bot_name, theme=theme)
-        
-        if not template:
-            return False
-        
-        identity_file.write_text(template, encoding="utf-8")
-        return True
-    
+        bot_dir = self.bots_dir / bot_name
+        bot_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create IDENTITY.md
+        identity_file = bot_dir / "IDENTITY.md"
+        identity_success = True
+
+        if not identity_file.exists() or force:
+            from nanofolks.templates import get_identity_template_for_bot
+            identity_template = get_identity_template_for_bot(bot_name, theme=theme)
+
+            if identity_template:
+                identity_file.write_text(identity_template, encoding="utf-8")
+                identity_success = True
+            else:
+                identity_success = False
+
+        # Create ROLE.md (always from default templates, not theme-specific)
+        role_file = bot_dir / "ROLE.md"
+        role_success = True
+
+        if not role_file.exists() or force:
+            from nanofolks.templates import get_role_template_for_bot
+            role_template = get_role_template_for_bot(bot_name)
+
+            if role_template:
+                role_file.write_text(role_template, encoding="utf-8")
+                role_success = True
+            else:
+                role_success = False
+
+        return identity_success and role_success
+
     def agents_exists(self, bot_name: str) -> bool:
         """Check if a bot has an AGENTS.md file.
         

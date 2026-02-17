@@ -215,9 +215,10 @@ SOCIAL_CONFIG = HeartbeatConfig(
 AUDITOR_CONFIG = HeartbeatConfig(
     bot_name="auditor",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
-    max_execution_time_s=300,
+    max_execution_time_s=600,  # 10 minutes for comprehensive checks
     enabled=True,
     checks=[
+        # Code/Technical Audits
         _create_check(
             "check_code_quality_scores",
             "Monitor code quality metrics and flag declining trends",
@@ -257,9 +258,66 @@ AUDITOR_CONFIG = HeartbeatConfig(
                 "max_wait_hours": 24
             }
         ),
+        # Cross-Domain Audits (NEW)
+        _create_check(
+            "verify_research_outputs",
+            "Fact-check research outputs and verify source quality",
+            priority="high",
+            max_duration_s=150.0,
+            config={
+                "check_sources": True,
+                "verify_claims": True,
+                "flag_unverified": True
+            }
+        ),
+        _create_check(
+            "check_creative_compliance",
+            "Audit creative assets for brand compliance and completeness",
+            priority="high",
+            max_duration_s=120.0,
+            config={
+                "check_brand_guidelines": True,
+                "check_copyright": True,
+                "verify_completeness": True
+            }
+        ),
+        _create_check(
+            "assess_social_content_risk",
+            "Risk assessment for social media content before publication",
+            priority="critical",
+            max_duration_s=90.0,
+            config={
+                "check_unverified_claims": True,
+                "check_sensitive_topics": True,
+                "check_brand_alignment": True,
+                "block_on_critical": True
+            }
+        ),
+        _create_check(
+            "verify_cross_bot_handoffs",
+            "Check cross-bot workflow compliance and handoff completeness",
+            priority="high",
+            max_duration_s=100.0,
+            config={
+                "check_deliverables": True,
+                "check_context_transfer": True,
+                "verify_dod": True
+            }
+        ),
+        _create_check(
+            "check_documentation_completeness",
+            "Verify documentation accuracy and completeness across all domains",
+            priority="normal",
+            max_duration_s=120.0,
+            config={
+                "check_readmes": True,
+                "check_api_docs": True,
+                "flag_outdated": True
+            }
+        ),
     ],
-    parallel_checks=False,  # Sequential for audit integrity
-    max_concurrent_checks=1,
+    parallel_checks=True,  # Can run parallel checks for different domains
+    max_concurrent_checks=3,
     stop_on_first_failure=False,
     notify_on_failure=True,
     notification_channels=["coordinator"],

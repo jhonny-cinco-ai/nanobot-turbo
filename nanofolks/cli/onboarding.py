@@ -572,9 +572,9 @@ Then restart nanofolks for secure access.
     
     def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
         """Apply selected theme to all crew members in workspace.
-        
-        Creates SOUL.md and IDENTITY.md personality files for the entire crew.
-        
+
+        Creates SOUL.md, IDENTITY.md, and ROLE.md personality files for the entire crew.
+
         Args:
             workspace_path: Path to workspace
         """
@@ -582,37 +582,29 @@ Then restart nanofolks for secure access.
             # Initialize SoulManager for workspace
             soul_manager = SoulManager(workspace_path)
             team = get_team(self.selected_theme) if self.selected_theme else None
-            
+
             if team and self.selected_theme:
                 console.print("\n[cyan]Initializing crew personalities...[/cyan]")
-                
+
                 # Apply theme to entire crew
                 crew = ["leader", "researcher", "coder", "social", "creative", "auditor"]
-                
-                # Apply SOUL.md theme
+
+                # Apply SOUL.md, IDENTITY.md, and ROLE.md themes
                 soul_results = soul_manager.apply_theme_to_team(
                     team,
                     crew,
                     force=True
                 )
-                
-                # Apply IDENTITY.md theme
-                identity_results = soul_manager.apply_identity_to_team(
-                    crew,
-                    theme=self.selected_theme,
-                    force=True
-                )
-                
+
                 # Show results
                 soul_successful = sum(1 for v in soul_results.values() if v)
-                identity_successful = sum(1 for v in identity_results.values() if v)
-                
-                if soul_successful > 0 or identity_successful > 0:
+
+                if soul_successful > 0:
                     console.print(
-                        f"[green]✓ Initialized {soul_successful}/{len(crew)} SOUL files[/green]"
+                        f"[green]✓ Initialized {soul_successful}/{len(crew)} bot personality files[/green]"
                     )
                     console.print(
-                        f"[green]✓ Initialized {identity_successful}/{len(crew)} IDENTITY files[/green]"
+                        f"[dim]  (SOUL.md, IDENTITY.md, ROLE.md, AGENTS.md)[/dim]"
                     )
                 
                 # Show team personalities

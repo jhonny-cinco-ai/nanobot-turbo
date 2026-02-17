@@ -27,7 +27,8 @@ class SpecialistBot(ABC):
         bus=None,
         workspace_id: Optional[str] = None,
         theme_manager: Optional[TeamManager] = None,
-        custom_name: Optional[str] = None
+        custom_name: Optional[str] = None,
+        workspace_path: Optional["Path"] = None
     ):
         """Initialize a bot with a role card.
         
@@ -37,11 +38,14 @@ class SpecialistBot(ABC):
             workspace_id: Workspace context ID
             theme_manager: Optional theme manager for applying themed display names
             custom_name: Optional custom display name (overrides theme)
+            workspace_path: Path to workspace for DM room logging
         """
         self.role_card = role_card
         self.bus = bus
         self.workspace_id = workspace_id
+        self._workspace_path = workspace_path
         self._theme_manager = theme_manager
+        self._dm_room_manager = None  # Lazy initialized
         self.private_memory: Dict[str, Any] = {
             "learnings": [],  # Lessons learned by this bot
             "expertise_domains": [],  # Domains where bot is competent
@@ -62,6 +66,25 @@ class SpecialistBot(ABC):
         # Heartbeat service (initialized lazily)
         self._heartbeat = None
         self._heartbeat_config = None
+    
+    @property
+    def workspace(self) -> Optional["Path"]:
+        """Get workspace path."""
+        return self._workspace_path
+    
+    @workspace.setter
+    def workspace(self, path: "Path"):
+        """Set workspace path."""
+        self._workspace_path = path
+        self._dm_room_manager = None  # Reset DM manager
+    
+    @property
+    def dm_room_manager(self):
+        """Get or create the DM room manager."""
+        if self._dm_room_manager is None and self._workspace_path:
+            from nanofolks.bots.dm_room_manager import BotDMRoomManager
+            self._dm_room_manager = BotDMRoomManager(self._workspace_path)
+        return self._dm_room_manager
     
     def _create_tool_registry(self, workspace: "Path | None" = None):
         """Create a tool registry for this bot based on permissions.
@@ -153,16 +176,17 @@ class SpecialistBot(ABC):
         if self._theme_manager and self._theme_manager.current_theme:
             self._apply_theme_to_role_card()
 
-    def can_perform_action(self, action: str) -> tuple[bool, Optional[str]]:
+    def can_perform_action(self, action: str, context: Optional[Dict] = None) -> tuple[bool, Optional[str]]:
         """Validate if bot can perform an action (check hard bans).
         
         Args:
             action: Action description
+            context: Additional context about the action (tool name, parameters, etc.)
             
         Returns:
             Tuple of (is_allowed, error_message)
         """
-        return self.role_card.validate_action(action)
+        return self.role_card.check_hard_bans(action, context)
 
     def get_greeting(self, workspace: Optional[Workspace] = None) -> str:
         """Get bot's greeting for a workspace.
@@ -470,6 +494,161 @@ class SpecialistBot(ABC):
             message=f"[ESCALATION] {message}",
             priority=priority,
             data=data
+        )
+
+    async def send_message_to_bot(
+        self,
+        recipient_bot: str,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        expect_reply: bool = False,
+        timeout_seconds: int = 60
+    ) -> tuple[bool, Optional[str]]:
+        """Send a direct message to another specialist bot.
+        
+        This enables bot-to-bot communication for simple queries without
+        going through the Leader. Use this for:
+        - Quick questions ("What's the coding standard for X?")
+        - Information requests ("Do you have data on Y?")
+        - Clarifications ("Can you verify this fact?")
+        
+        For complex coordination or task delegation, use notify_coordinator()
+        or ask Leader to invoke the bot.
+        
+        Messages are logged to DM rooms for transparency - users can peek
+        into bot-to-bot conversations.
+        
+        Args:
+            recipient_bot: Name of target bot (e.g., "coder", "researcher")
+            message: Message content
+            context: Additional context data
+            expect_reply: Whether to wait for a response
+            timeout_seconds: How long to wait for reply (if expect_reply=True)
+            
+        Returns:
+            Tuple of (success, reply_message or None)
+            If expect_reply=False: (True, None) on success, (False, None) on failure
+            If expect_reply=True: (True, reply) on success, (False, error) on failure/timeout
+        """
+        from nanofolks.models.bot_dm_room import BotMessageType
+        
+        # Log to DM room for transparency (before sending)
+        if self.dm_room_manager:
+            msg_type = BotMessageType.QUERY if expect_reply else BotMessageType.INFO
+            self.dm_room_manager.log_message(
+                sender_bot=self.role_card.bot_name,
+                recipient_bot=recipient_bot,
+                content=message,
+                message_type=msg_type,
+                context=context
+            )
+        
+        if self.bus is None:
+            logger.warning(f"[{self.role_card.bot_name}] No bus available for messaging")
+            return False, "No message bus available"
+        
+        try:
+            from nanofolks.coordinator.models import BotMessage, MessageType
+            import uuid
+            
+            # Create message
+            bot_message = BotMessage(
+                id=str(uuid.uuid4()),
+                sender_id=self.role_card.bot_name,
+                recipient_id=recipient_bot,
+                type=MessageType.QUERY if expect_reply else MessageType.INFO,
+                content=message,
+                context=context or {},
+                conversation_id=context.get("conversation_id") if context else None
+            )
+            
+            # Send message
+            message_id = self.bus.send_message(bot_message)
+            
+            logger.info(
+                f"[{self.role_card.bot_name}] Sent message to @{recipient_bot}: "
+                f"{message[:50]}..."
+            )
+            
+            if not expect_reply:
+                return True, None
+            
+            # Wait for reply
+            import asyncio
+            start_time = asyncio.get_event_loop().time()
+            
+            while (asyncio.get_event_loop().time() - start_time) < timeout_seconds:
+                # Check inbox for reply
+                inbox = self.bus.get_inbox(self.role_card.bot_name)
+                
+                # Look for reply to our message
+                for msg in reversed(inbox):
+                    if (msg.sender_id == recipient_bot and 
+                        msg.context.get("reply_to") == message_id):
+                        logger.info(
+                            f"[{self.role_card.bot_name}] Received reply from @{recipient_bot}"
+                        )
+                        
+                        # Log reply to DM room for transparency
+                        if self.dm_room_manager:
+                            from nanofolks.models.bot_dm_room import BotMessageType
+                            self.dm_room_manager.log_message(
+                                sender_bot=recipient_bot,
+                                recipient_bot=self.role_card.bot_name,
+                                content=msg.content,
+                                message_type=BotMessageType.RESPONSE,
+                                context={"reply_to": message_id}
+                            )
+                        
+                        return True, msg.content
+                
+                await asyncio.sleep(0.5)  # Check every 500ms
+            
+            # Timeout
+            logger.warning(
+                f"[{self.role_card.bot_name}] Timeout waiting for reply from @{recipient_bot}"
+            )
+            return False, f"Timeout waiting for reply from @{recipient_bot}"
+            
+        except Exception as e:
+            logger.error(f"[{self.role_card.bot_name}] Failed to send message to @{recipient_bot}: {e}")
+            return False, str(e)
+
+    async def ask_bot(
+        self,
+        recipient_bot: str,
+        question: str,
+        context: Optional[Dict[str, Any]] = None,
+        timeout_seconds: int = 60
+    ) -> tuple[bool, Optional[str]]:
+        """Ask another bot a question and wait for answer.
+        
+        Convenience wrapper around send_message_to_bot() that always
+        expects a reply.
+        
+        Args:
+            recipient_bot: Name of bot to ask (e.g., "coder", "researcher")
+            question: The question to ask
+            context: Additional context
+            timeout_seconds: How long to wait for answer
+            
+        Returns:
+            Tuple of (success, answer or error_message)
+            
+        Example:
+            success, answer = await social_bot.ask_bot(
+                "coder",
+                "What are our Python naming conventions?"
+            )
+            if success:
+                print(f"Coder said: {answer}")
+        """
+        return await self.send_message_to_bot(
+            recipient_bot=recipient_bot,
+            message=question,
+            context=context,
+            expect_reply=True,
+            timeout_seconds=timeout_seconds
         )
 
     @abstractmethod

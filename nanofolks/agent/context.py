@@ -55,6 +55,12 @@ class ContextBuilder:
         """
         Build the system prompt from bootstrap files, memory, and skills.
         
+        The prompt structure follows a clear hierarchy:
+        1. Role Card (constraints, bans, escalation rules) - SHRINKS behavior space
+        2. IDENTITY.md (personality, relationships) - Defines WHO the bot is
+        3. SOUL.md (voice, tone, speaking style) - Defines HOW the bot speaks
+        4. AGENTS.md (specific task instructions) - Defines WHAT to do
+        
         Args:
             skill_names: Optional list of skills to include.
             bot_name: Optional bot name for personality injection.
@@ -64,10 +70,16 @@ class ContextBuilder:
         """
         parts = []
         
-        # Core identity (pass bot_name for customization)
+        # 1. Role Card (highest priority - defines constraints and boundaries)
+        # This SHRINKS the behavior space by defining what CANNOT be done
+        role_card_section = self._get_role_card_section(bot_name)
+        if role_card_section:
+            parts.append(role_card_section)
+        
+        # 2. Core identity (WHO the bot is - personality, relationships)
         parts.append(self._get_identity(bot_name))
         
-        # Bootstrap files (with optional bot-specific SOUL)
+        # 3. Bootstrap files (HOW the bot speaks - SOUL.md voice/tone)
         bootstrap = self._load_bootstrap_files(bot_name=bot_name)
         if bootstrap:
             parts.append(bootstrap)
@@ -193,6 +205,42 @@ Skills with available="false" need dependencies installed first - you can try in
         
         return self._build_identity(bot_name, now, tz, workspace_path, runtime)
     
+    def _get_role_card_section(self, bot_name: Optional[str] = None) -> str:
+        """Get the role card section for prompt inclusion.
+        
+        The role card SHRINKS the behavior space by defining:
+        - Domain ownership (what the bot owns)
+        - Hard bans (what must NEVER be done)
+        - Escalation triggers (when to ask for help)
+        - Definition of done (when is "done" actually done)
+        
+        This is loaded FIRST in the prompt to establish constraints
+        before personality (IDENTITY) and voice (SOUL).
+        
+        Args:
+            bot_name: Name of the bot to get role card for
+            
+        Returns:
+            Formatted role card section for the prompt
+        """
+        from nanofolks.models import get_role_card
+        
+        safe_bot_name = bot_name or "leader"
+        
+        # Get role card (checks for user overrides first, then built-in)
+        role_card = get_role_card(safe_bot_name, self.workspace)
+        
+        if role_card:
+            return f"# ROLE CARD (Constraints & Boundlines)\n\n{role_card.format_for_prompt()}"
+        
+        # Fallback: minimal role info
+        return f"""# ROLE CARD (Constraints & Boundaries)
+
+## Role: @{safe_bot_name}
+**Domain:** General assistance
+**Note:** No specific role card defined. Use general best practices.
+"""
+    
     def _build_identity(
         self,
         bot_name: Optional[str],
@@ -244,14 +292,14 @@ Bot Path: {workspace_path}/bots/{safe_bot_name}/"""
             capabilities = role_card.capabilities
             
             tools_list = []
-            if capabilities.can_read_files:
-                tools_list.append("file operations")
-            if capabilities.can_execute_code:
-                tools_list.append("code execution")
-            if capabilities.can_use_shell:
-                tools_list.append("shell commands")
-            if capabilities.can_browse_web:
+            if capabilities.can_access_web:
                 tools_list.append("web access")
+            if capabilities.can_exec_commands:
+                tools_list.append("command execution")
+            if capabilities.can_invoke_bots:
+                tools_list.append("bot invocation")
+            if capabilities.can_send_messages:
+                tools_list.append("message sending")
             
             tools_str = ", ".join(tools_list) if tools_list else "specialized tools"
             

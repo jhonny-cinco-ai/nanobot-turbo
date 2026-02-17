@@ -24,6 +24,8 @@ class DispatchTarget(Enum):
     LEADER_FIRST = "leader_first"      # Route through Leader
     DIRECT_BOT = "direct_bot"          # User tagged a specific bot
     DM = "dm"                          # Direct message to specific bot
+    MULTI_BOT = "multi_bot"            # All specified bots respond (@all)
+    CREW_CONTEXT = "crew_context"      # Relevant bots respond (@crew)
 
 
 @dataclass
@@ -56,8 +58,18 @@ class BotDispatch:
         "@creative": "creative",
         "@auditor": "auditor",
         "@all": "all",
-        "@crew": "all",
+        "@crew": "crew",
         "@team": "all",
+    }
+    
+    # Keywords that trigger specific bots for @crew mode
+    BOT_KEYWORDS = {
+        "coder": ["code", "programming", "bug", "fix", "python", "javascript", "api", "database", "sql", "develop", "function", "class", "module"],
+        "researcher": ["research", "data", "analyze", "market", "competitor", "trend", "survey", "study", "investigate", "report"],
+        "creative": ["design", "visual", "logo", "brand", "color", "ui", "ux", "mockup", "creative", "image", "art", "style"],
+        "social": ["post", "tweet", "engagement", "audience", "viral", "hashtag", "content", "social", "media", "marketing", "community"],
+        "auditor": ["audit", "quality", "compliance", "security", "review", "check", "test", "validate", "verify", "standard"],
+        "leader": ["plan", "coordinate", "delegate", "prioritize", "team", "schedule", "manage", "organize", "strategy"],
     }
     
     def __init__(self, leader_bot=None, room_manager=None):
@@ -99,26 +111,46 @@ class BotDispatch:
             )
         
         # Case 2: User tagged specific bot - bypass leader
-        mentioned_bot = self._extract_mention(message)
-        if mentioned_bot:
-            if mentioned_bot == "all":
-                # @all or @crew - notify all room participants
-                participants = room.participants if room else ["leader"]
+        mentioned = self._extract_mentions(message)
+        if mentioned:
+            if "all" in mentioned:
+                # @all - all bots respond simultaneously
+                participants = room.participants if room else ["leader", "coder", "researcher", "creative", "social", "auditor"]
                 return DispatchResult(
-                    target=DispatchTarget.DIRECT_BOT,
-                    primary_bot="leader",  # Leader coordinates
-                    secondary_bots=participants,
+                    target=DispatchTarget.MULTI_BOT,
+                    primary_bot="leader",
+                    secondary_bots=[p for p in participants if p != "leader"],
                     room_id=room.id if room else None,
-                    reason="User tagged @all/@crew - leader coordinates all bots"
+                    reason="User tagged @all - all bots respond"
                 )
-            else:
-                # Specific bot mentioned
+            elif "crew" in mentioned:
+                # @crew - relevant bots based on keywords
+                participants = room.participants if room else ["leader", "coder", "researcher", "creative", "social", "auditor"]
+                relevant_bots = self._select_relevant_bots(message, participants)
+                return DispatchResult(
+                    target=DispatchTarget.CREW_CONTEXT,
+                    primary_bot="leader",
+                    secondary_bots=relevant_bots,
+                    room_id=room.id if room else None,
+                    reason="User tagged @crew - relevant bots respond"
+                )
+            elif len(mentioned) == 1:
+                # Single bot mentioned
                 return DispatchResult(
                     target=DispatchTarget.DIRECT_BOT,
-                    primary_bot=mentioned_bot,
+                    primary_bot=mentioned[0],
                     secondary_bots=[],
                     room_id=room.id if room else None,
-                    reason=f"User tagged @{mentioned_bot} directly"
+                    reason=f"User tagged @{mentioned[0]} directly"
+                )
+            else:
+                # Multiple specific bots mentioned
+                return DispatchResult(
+                    target=DispatchTarget.MULTI_BOT,
+                    primary_bot="leader",
+                    secondary_bots=mentioned,
+                    room_id=room.id if room else None,
+                    reason=f"Multiple mentions: {', '.join(mentioned)}"
                 )
         
         # Case 3: Default - Route through Leader first
@@ -133,29 +165,71 @@ class BotDispatch:
             reason="Default: Leader coordinates response"
         )
     
-    def _extract_mention(self, message: str) -> Optional[str]:
-        """Extract bot mention from message.
+    def _extract_mentions(self, message: str) -> List[str]:
+        """Extract all bot mentions from message.
         
         Args:
             message: User message
             
         Returns:
-            Bot name if mentioned, None otherwise
+            List of mentioned bot names
+        """
+        message_lower = message.lower()
+        mentions = []
+        
+        # Check for @all variations first (highest priority)
+        all_patterns = ["@all", "@team", "@everyone"]
+        for pattern in all_patterns:
+            if pattern in message_lower:
+                mentions.append("all")
+                break
+        
+        # Check for @crew
+        if "@crew" in message_lower:
+            mentions.append("crew")
+        
+        # Check for specific bot mentions (excluding @all/@crew)
+        for mention, bot_name in self.BOT_MENTIONS.items():
+            if bot_name not in ["all", "crew"] and mention.lower() in message_lower:
+                if bot_name not in mentions:
+                    mentions.append(bot_name)
+        
+        return mentions
+    
+    def _select_relevant_bots(self, message: str, all_bots: List[str]) -> List[str]:
+        """Select bots relevant to the message content based on keywords.
+        
+        Args:
+            message: User message
+            all_bots: List of available bots
+            
+        Returns:
+            List of relevant bot names
         """
         message_lower = message.lower()
         
-        # Check for @all variations first (highest priority)
-        all_patterns = ["@all", "@crew", "@team", "@everyone"]
-        for pattern in all_patterns:
-            if pattern in message_lower:
-                return "all"
+        # Score each bot based on keyword matches
+        relevance_scores = {}
+        for bot in all_bots:
+            if bot == "leader":
+                continue  # Leader is always primary, not secondary
+            
+            score = 0
+            keywords = self.BOT_KEYWORDS.get(bot, [])
+            for keyword in keywords:
+                if keyword in message_lower:
+                    score += 1
+            relevance_scores[bot] = score
         
-        # Check for specific bot mentions
-        for mention, bot_name in self.BOT_MENTIONS.items():
-            if mention.lower() in message_lower:
-                return bot_name
+        # Return bots with score > 0, or top 3 if none match
+        relevant = [bot for bot, score in relevance_scores.items() if score > 0]
         
-        return None
+        if not relevant:
+            # No clear matches, return first 3 non-leader bots
+            non_leader = [b for b in all_bots if b != "leader"]
+            return non_leader[:3]
+        
+        return relevant
     
     def should_leader_create_room(
         self,
