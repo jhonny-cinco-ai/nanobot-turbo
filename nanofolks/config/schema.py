@@ -2,10 +2,17 @@
 
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
+from pydantic.alias_generators import to_camel
 from pydantic_settings import BaseSettings
 
 
-class WhatsAppConfig(BaseModel):
+class Base(Base):
+    """Base model that accepts both camelCase and snake_case keys."""
+    
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class WhatsAppConfig(Base):
     """WhatsApp channel configuration.
     
     For secure defaults (Tailscale IP + random port), leave bridge_url empty
@@ -54,7 +61,7 @@ class WhatsAppConfig(BaseModel):
             logger.warning(f"Could not save auto-configured bridge URL: {e}")
 
 
-class TelegramConfig(BaseModel):
+class TelegramConfig(Base):
     """Telegram channel configuration."""
     enabled: bool = False
     token: str = ""  # Bot token from @BotFather
@@ -62,7 +69,7 @@ class TelegramConfig(BaseModel):
     proxy: str | None = None  # HTTP/SOCKS5 proxy URL, e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
 
 
-class DiscordConfig(BaseModel):
+class DiscordConfig(Base):
     """Discord channel configuration."""
     enabled: bool = False
     token: str = ""  # Bot token from Discord Developer Portal
@@ -70,7 +77,7 @@ class DiscordConfig(BaseModel):
     gateway_url: str = "wss://gateway.discord.gg/?v=10&encoding=json"
     intents: int = 37377  # GUILDS + GUILD_MESSAGES + DIRECT_MESSAGES + MESSAGE_CONTENT
 
-class EmailConfig(BaseModel):
+class EmailConfig(Base):
     """Email channel configuration (IMAP inbound + SMTP outbound)."""
     enabled: bool = False
     consent_granted: bool = False  # Explicit owner permission to access mailbox data
@@ -101,14 +108,14 @@ class EmailConfig(BaseModel):
     allow_from: list[str] = Field(default_factory=list)  # Allowed sender email addresses
 
 
-class SlackDMConfig(BaseModel):
+class SlackDMConfig(Base):
     """Slack DM policy configuration."""
     enabled: bool = True
     policy: str = "open"  # "open" or "allowlist"
     allow_from: list[str] = Field(default_factory=list)  # Allowed Slack user IDs
 
 
-class SlackConfig(BaseModel):
+class SlackConfig(Base):
     """Slack channel configuration."""
     enabled: bool = False
     mode: str = "socket"  # "socket" supported
@@ -121,7 +128,7 @@ class SlackConfig(BaseModel):
     dm: SlackDMConfig = Field(default_factory=SlackDMConfig)
 
 
-class ChannelsConfig(BaseModel):
+class ChannelsConfig(Base):
     """Configuration for chat channels."""
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
@@ -130,7 +137,7 @@ class ChannelsConfig(BaseModel):
     slack: SlackConfig = Field(default_factory=SlackConfig)
 
 
-class AgentDefaults(BaseModel):
+class AgentDefaults(Base):
     """Default agent configuration."""
     workspace: str = "~/.nanofolks/workspace"
     model: str = "anthropic/claude-opus-4-5"
@@ -141,19 +148,19 @@ class AgentDefaults(BaseModel):
     # This is here for backward compatibility and CLI defaults only
 
 
-class AgentsConfig(BaseModel):
+class AgentsConfig(Base):
     """Agent configuration."""
     defaults: AgentDefaults = Field(default_factory=AgentDefaults)
 
 
-class ProviderConfig(BaseModel):
+class ProviderConfig(Base):
     """LLM provider configuration."""
     api_key: str = ""
     api_base: str | None = None
     extra_headers: dict[str, str] | None = None  # Custom headers (e.g. APP-Code for AiHubMix)
 
 
-class ProvidersConfig(BaseModel):
+class ProvidersConfig(Base):
     """Configuration for LLM providers."""
     anthropic: ProviderConfig = Field(default_factory=ProviderConfig)
     openai: ProviderConfig = Field(default_factory=ProviderConfig)
@@ -169,29 +176,29 @@ class ProvidersConfig(BaseModel):
     aihubmix: ProviderConfig = Field(default_factory=ProviderConfig)  # AiHubMix API gateway
 
 
-class GatewayConfig(BaseModel):
+class GatewayConfig(Base):
     """Gateway/server configuration."""
     host: str = "0.0.0.0"
     port: int = 18790
 
 
-class WebSearchConfig(BaseModel):
+class WebSearchConfig(Base):
     """Web search tool configuration."""
     api_key: str = ""  # Brave Search API key
     max_results: int = 5
 
 
-class WebToolsConfig(BaseModel):
+class WebToolsConfig(Base):
     """Web tools configuration."""
     search: WebSearchConfig = Field(default_factory=WebSearchConfig)
 
 
-class ExecToolConfig(BaseModel):
+class ExecToolConfig(Base):
     """Shell exec tool configuration."""
     timeout: int = 60
 
 
-class MCPServerConfig(BaseModel):
+class MCPServerConfig(Base):
     """MCP server connection configuration (stdio or HTTP)."""
     command: str = ""  # Stdio: command to run (e.g. "npx")
     args: list[str] = Field(default_factory=list)  # Stdio: command arguments
@@ -199,7 +206,7 @@ class MCPServerConfig(BaseModel):
     url: str = ""  # HTTP: streamable HTTP endpoint URL
 
 
-class ToolsConfig(BaseModel):
+class ToolsConfig(Base):
     """Tools configuration."""
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
@@ -210,14 +217,14 @@ class ToolsConfig(BaseModel):
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)  # MCP server configurations
 
 
-class RoutingTierConfig(BaseModel):
+class RoutingTierConfig(Base):
     """Configuration for a routing tier."""
     model: str
     cost_per_mtok: float = 1.0
     secondary_model: str | None = None  # Fallback if primary fails
 
 
-class RoutingTiersConfig(BaseModel):
+class RoutingTiersConfig(Base):
     """Configuration for all routing tiers."""
     simple: RoutingTierConfig = Field(default_factory=lambda: RoutingTierConfig(
         model="deepseek/deepseek-chat-v3-0324",
@@ -381,12 +388,12 @@ def get_routing_tiers_for_provider(provider: str) -> RoutingTiersConfig:
     )
 
 
-class ClientClassifierConfig(BaseModel):
+class ClientClassifierConfig(Base):
     """Configuration for client-side classifier."""
     min_confidence: float = 0.85
 
 
-class LLMClassifierConfig(BaseModel):
+class LLMClassifierConfig(Base):
     """Configuration for LLM-assisted classifier."""
     model: str = "gpt-4o-mini"
     timeout_ms: int = 500
@@ -394,13 +401,13 @@ class LLMClassifierConfig(BaseModel):
     secondary_model: str | None = None
 
 
-class StickyRoutingConfig(BaseModel):
+class StickyRoutingConfig(Base):
     """Configuration for sticky routing behavior."""
     context_window: int = 5
     downgrade_confidence: float = 0.9
 
 
-class AutoCalibrationConfig(BaseModel):
+class AutoCalibrationConfig(Base):
     """Configuration for auto-calibration."""
     enabled: bool = True
     interval: str = "24h"
@@ -409,7 +416,7 @@ class AutoCalibrationConfig(BaseModel):
     backup_before_calibration: bool = True
 
 
-class RoutingConfig(BaseModel):
+class RoutingConfig(Base):
     """Configuration for smart routing."""
     enabled: bool = False  # Disabled by default - user must explicitly enable
     tiers: RoutingTiersConfig = Field(default_factory=RoutingTiersConfig)
@@ -421,14 +428,14 @@ class RoutingConfig(BaseModel):
     stream_update_interval_ms: int = 100  # How often to update the streaming display (ms)
 
 
-class BackgroundConfig(BaseModel):
+class BackgroundConfig(Base):
     """Background processing configuration for memory system."""
     enabled: bool = True
     interval_seconds: int = 60          # Check every 60s
     quiet_threshold_seconds: int = 30   # User inactive for 30s = safe to run
 
 
-class EmbeddingConfig(BaseModel):
+class EmbeddingConfig(Base):
     """Embedding provider configuration."""
     provider: str = "local"             # "local" or "api"
     local_model: str = "BAAI/bge-small-en-v1.5"
@@ -438,7 +445,7 @@ class EmbeddingConfig(BaseModel):
     lazy_load: bool = True              # Download models on first use
 
 
-class ExtractionConfig(BaseModel):
+class ExtractionConfig(Base):
     """Entity extraction configuration."""
     enabled: bool = True
     provider: str = "gliner2"           # "gliner2" (only option now)
@@ -449,14 +456,14 @@ class ExtractionConfig(BaseModel):
     api_model: str = ""                 # Uses LLM classifier model if empty
 
 
-class SummaryConfig(BaseModel):
+class SummaryConfig(Base):
     """Summary node configuration."""
     staleness_threshold: int = 10       # Events before refresh
     max_refresh_batch: int = 20         # Max nodes to refresh per cycle
     model: str = ""                     # Uses LLM classifier model if empty
 
 
-class LearningConfig(BaseModel):
+class LearningConfig(Base):
     """Learning and preferences configuration."""
     enabled: bool = True
     decay_days: int = 14                # Half-life for learning relevance
@@ -464,13 +471,13 @@ class LearningConfig(BaseModel):
     relevance_decay_rate: float = 0.05   # 5% per day
 
 
-class ContextConfig(BaseModel):
+class ContextConfig(Base):
     """Context assembly configuration."""
     total_budget: int = 4000            # Total token budget for memory context
     always_include_preferences: bool = True
 
 
-class SessionCompactionConfig(BaseModel):
+class SessionCompactionConfig(Base):
     """
     Session compaction configuration for long conversations.
     
@@ -494,7 +501,7 @@ class SessionCompactionConfig(BaseModel):
     enable_memory_flush: bool = True    # Allow pre-compaction memory sync
 
 
-class EnhancedContextConfig(BaseModel):
+class EnhancedContextConfig(Base):
     """
     Enhanced context assembly with real-time monitoring.
     
@@ -520,7 +527,7 @@ class EnhancedContextConfig(BaseModel):
     preserve_user_preferences: bool = True
 
 
-class PrivacyConfig(BaseModel):
+class PrivacyConfig(Base):
     """Privacy and security configuration."""
     auto_redact_pii: bool = True
     auto_redact_credentials: bool = True
@@ -529,7 +536,7 @@ class PrivacyConfig(BaseModel):
     ])
 
 
-class SecurityConfig(BaseModel):
+class SecurityConfig(Base):
     """Security and skill scanning configuration."""
     enabled: bool = True  # Enable security scanning
     strict_mode: bool = False  # Block on MEDIUM severity (not just CRITICAL/HIGH)
@@ -548,7 +555,7 @@ class SecurityConfig(BaseModel):
     sandbox_skills: bool = False  # Run skills in sandbox (future feature)
 
 
-class MemoryConfig(BaseModel):
+class MemoryConfig(Base):
     """Memory system configuration."""
     enabled: bool = True
     db_path: str = "memory/memory.db"   # Relative to workspace
@@ -566,7 +573,7 @@ class MemoryConfig(BaseModel):
     enhanced_context: EnhancedContextConfig = Field(default_factory=EnhancedContextConfig)
 
 
-class WorkLogsConfig(BaseModel):
+class WorkLogsConfig(Base):
     """Work logs configuration for transparency and debugging."""
     enabled: bool = True
     storage: str = "sqlite"  # "sqlite", "memory", "none"

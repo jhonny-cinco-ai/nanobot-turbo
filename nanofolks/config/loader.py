@@ -83,7 +83,7 @@ def load_config(config_path: Path | None = None) -> Config:
             with open(path) as f:
                 data = json.load(f)
             data = _migrate_config(data)
-            config = Config.model_validate(convert_keys(data))
+            config = Config.model_validate(data)
             
             # Resolve keys from keyring if available
             config = _resolve_keyring_keys(config)
@@ -116,9 +116,7 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
     # Ensure parent directory has secure permissions (0700 = owner only)
     os.chmod(path.parent, 0o700)
     
-    # Convert to camelCase format
-    data = config.model_dump()
-    data = convert_to_camel(data)
+    data = config.model_dump(by_alias=True)
     
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
@@ -234,24 +232,6 @@ def _migrate_to_keyring(config: Config, dry_run: bool = False) -> Config:
         logger.error(f"Error migrating keys to keyring: {e}")
     
     return config
-
-
-def convert_keys(data: Any) -> Any:
-    """Convert camelCase keys to snake_case for Pydantic."""
-    if isinstance(data, dict):
-        return {camel_to_snake(k): convert_keys(v) for k, v in data.items()}
-    if isinstance(data, list):
-        return [convert_keys(item) for item in data]
-    return data
-
-
-def convert_to_camel(data: Any) -> Any:
-    """Convert snake_case keys to camelCase."""
-    if isinstance(data, dict):
-        return {snake_to_camel(k): convert_to_camel(v) for k, v in data.items()}
-    if isinstance(data, list):
-        return [convert_to_camel(item) for item in data]
-    return data
 
 
 def camel_to_snake(name: str) -> str:
