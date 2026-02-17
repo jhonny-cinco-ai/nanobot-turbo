@@ -1963,6 +1963,114 @@ ROLLOUT_STAGES = [
 
 ---
 
+## GSD Template Integration for Phase 2
+
+For Phase 2 execution and planning, we can leverage additional GSD templates:
+
+### 1. Roadmap Template (roadmap.md)
+
+**Source:** https://github.com/gsd-build/get-shit-done/blob/main/get-shit-done/templates/roadmap.md
+
+**How to adapt for Task Rooms:**
+
+```markdown
+# Roadmap: [Project Name]
+
+## Phases
+
+- [ ] **Phase 1: [Name]** - [One-line description]
+- [ ] **Phase 2: [Name]** - [One-line description]
+
+## Phase Details
+
+### Phase 1: [Name]
+**Goal**: [What this phase delivers]
+**Success Criteria**:
+  1. [Observable behavior from user perspective]
+  2. [Observable behavior from user perspective]
+**Plans**:
+- [ ] 01-01: [Brief description]
+- [ ] 01-02: [Brief description]
+```
+
+**Usage in nanofolks:** Use for TASK rooms that span multiple phases, with progress tracking.
+
+### 2. Phase Prompt Template (phase-prompt.md)
+
+**Source:** https://github.com/gsd-build/get-shit-done/blob/main/get-shit-done/templates/phase-prompt.md
+
+**Adopt wave-based parallel execution:**
+
+```yaml
+---
+phase: XX-name
+plan: NN
+type: execute
+wave: N                     # Execution wave (1, 2, 3...)
+depends_on: []              # Plan IDs this plan requires
+files_modified: []          # Files this plan modifies
+autonomous: true            # false if has checkpoints
+---
+
+<objective>
+[What this plan accomplishes]
+</objective>
+
+<tasks>
+<task type="auto">
+  <name>Task 1: [Action-oriented name]</name>
+  <files>path/to/file.ext</files>
+  <action>[Specific implementation]</action>
+  <verify>[Command or check]</verify>
+  <done>[Measurable acceptance criteria]</done>
+</task>
+</tasks>
+```
+
+**Key patterns to adopt:**
+- **Wave execution:** Pre-computed dependency order (wave 1, 2, 3...)
+- **Autonomy flag:** Control whether execution needs user checkpoints
+- **Vertical slices:** Group by feature, not by layer
+
+### 3. Verification Report Template (verification-report.md)
+
+**Source:** https://github.com/gsd-build/get-shit-done/blob/main/get-shit-done/templates/verification-report.md
+
+For the Room Lifecycle phase, use for automated verification of completed tasks:
+
+```markdown
+# Verification Report: [Task/Room Name]
+
+## Verification Summary
+- Status: [PASS/FAIL]
+- Verified at: [timestamp]
+
+## Checks Performed
+
+### [Check 1]
+- Expected: [what should be true]
+- Actual: [what was found]
+- Status: ✅/❌
+
+### [Check 2]
+- Expected: [what should be true]
+- Actual: [what was found]
+- Status: ✅/❌
+
+## Issues Found
+[None if all pass, otherwise list issues]
+```
+
+### Integration Points
+
+| GSD Feature | Where to Use | Phase 2 Week |
+|-------------|--------------|--------------|
+| Roadmap template | TASK room planning | Week 8-9 |
+| Wave execution | Bot delegation | Week 8-9 |
+| Verification reports | Room completion | Week 9 |
+
+---
+
 ## Phase 2 Summary
 
 ### Deliverables by End of Week 10:
