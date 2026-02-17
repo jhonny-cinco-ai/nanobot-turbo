@@ -11,7 +11,12 @@ Usage:
     manager.delete_key("openrouter")
 """
 
-import keyring
+try:
+    import keyring
+    KEYRING_AVAILABLE = True
+except ImportError:
+    KEYRING_AVAILABLE = False
+
 from typing import Optional
 from loguru import logger
 
@@ -42,12 +47,15 @@ class KeyringManager:
             api_key: The API key to store securely
             
         Raises:
-            keyring.errors.KeyringError: If keyring is unavailable
+            RuntimeError: If keyring is unavailable
         """
+        if not KEYRING_AVAILABLE:
+            raise RuntimeError("keyring package not installed. Run: pip install keyring")
+        
         try:
             keyring.set_password(self.service, provider, api_key)
             logger.info(f"Stored API key for provider: {provider}")
-        except keyring.errors.KeyringError as e:
+        except Exception as e:
             logger.error(f"Failed to store key in keyring: {e}")
             raise
     
@@ -60,10 +68,14 @@ class KeyringManager:
         Returns:
             The API key if found, None otherwise
         """
+        if not KEYRING_AVAILABLE:
+            logger.warning("keyring package not installed. API keys will not be available.")
+            return None
+        
         try:
             key = keyring.get_password(self.service, provider)
             return key
-        except keyring.errors.KeyringError as e:
+        except Exception as e:
             logger.warning(f"Failed to retrieve key from keyring: {e}")
             return None
     
@@ -76,6 +88,9 @@ class KeyringManager:
         Returns:
             True if key was deleted, False if it didn't exist
         """
+        if not KEYRING_AVAILABLE:
+            return False
+        
         try:
             keyring.delete_password(self.service, provider)
             logger.info(f"Deleted API key for provider: {provider}")

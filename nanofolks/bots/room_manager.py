@@ -5,6 +5,7 @@ Automatically creates and manages rooms, including a default
 """
 
 import json
+import secrets
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -117,12 +118,43 @@ class RoomManager:
             Room or None if not found
         """
         return self._rooms.get(room_id)
+
+    def _generate_short_id(self) -> str:
+        """Generate a unique 8-character alphanumeric short ID.
+        
+        Returns:
+            8-char alphanumeric string
+        """
+        chars = "abcdefghijkmnpqrstuvwxyz23456789"
+        return "".join(secrets.choice(chars) for _ in range(8))
+    
+    def _generate_unique_room_id(self, base_name: str) -> str:
+        """Generate a unique room ID with short_id prefix.
+        
+        Args:
+            base_name: Base name for the room (e.g., "website", "marketing-campaign")
+            
+        Returns:
+            Unique room ID in format: short_id-base_name_slug
+        """
+        slug = base_name.lower().replace(" ", "-").replace("_", "-")
+        slug = "".join(c for c in slug if c.isalnum() or c == "-")
+        
+        max_attempts = 10
+        for _ in range(max_attempts):
+            short_id = self._generate_short_id()
+            room_id = f"{short_id}-{slug}"
+            if room_id not in self._rooms:
+                return room_id
+        
+        raise RuntimeError(f"Could not generate unique room ID after {max_attempts} attempts")
     
     def create_room(
         self,
         name: str,
         room_type: RoomType = RoomType.PROJECT,
         participants: Optional[List[str]] = None,
+        use_short_id: bool = True,
     ) -> Room:
         """Create a new room.
         
@@ -130,17 +162,19 @@ class RoomManager:
             name: Room name (becomes ID)
             room_type: Type of room
             participants: Initial bot participants (defaults to ["leader"])
+            use_short_id: If True, prepend unique 8-char short_id to room_id
             
         Returns:
             Created room
         """
-        # Sanitize name for ID
-        room_id = name.lower().replace(" ", "-").replace("_", "-")
+        if use_short_id:
+            room_id = self._generate_unique_room_id(name)
+        else:
+            room_id = name.lower().replace(" ", "-").replace("_", "-")
         
         if room_id in self._rooms:
             raise ValueError(f"Room '{name}' already exists")
         
-        # Default to just Leader if no participants specified
         if participants is None:
             participants = ["leader"]
         
@@ -155,7 +189,7 @@ class RoomManager:
         self._rooms[room_id] = room
         self._save_room(room)
         
-        logger.info(f"Created room '{name}' with {len(participants)} bots")
+        logger.info(f"Created room '{name}' with ID '{room_id}' and {len(participants)} bots")
         return room
     
     def invite_bot(self, room_id: str, bot_name: str) -> bool:
@@ -182,6 +216,38 @@ class RoomManager:
         
         logger.info(f"Invited '{bot_name}' to room '{room_id}'")
         return True
+    
+    def create_project_room(
+        self,
+        name: str,
+        bots: Optional[List[str]] = None,
+    ) -> Room:
+        """Create a new project room and invite bots.
+        
+        This is a convenience method that creates a project room with
+        a unique short_id-prefixed ID and invites the specified bots.
+        
+        Args:
+            name: Room name/description (e.g., "website", "marketing-campaign")
+            bots: List of bot names to invite (defaults to ["leader"])
+            
+        Returns:
+            Created room with bots invited
+        """
+        if bots is None:
+            bots = ["leader"]
+        elif "leader" not in bots:
+            bots = ["leader"] + bots
+        
+        room = self.create_room(
+            name=name,
+            room_type=RoomType.PROJECT,
+            participants=bots,
+            use_short_id=True,
+        )
+        
+        logger.info(f"Created project room '{name}' with bots: {bots}")
+        return room
     
     def remove_bot(self, room_id: str, bot_name: str) -> bool:
         """Remove a bot from a room.

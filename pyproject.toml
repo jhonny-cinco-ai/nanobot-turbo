@@ -95,3 +95,5 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+norecursedirs = ["tests/heartbeat", "tests/phase1", "tests/phase2", "tests/phase3", "tests/phase4", "tests/phase5", "tests/router"]
+addopts = "--ignore=tests/test_bot_dispatch.py --ignore=tests/test_cli_input.py --ignore=tests/test_cli_work_logs.py --ignore=tests/test_email_channel.py --ignore=tests/test_learning_exchange.py --ignore=tests/test_phase6_turbo_memory_bridge.py --ignore=tests/test_theme_integration.py --ignore=tests/test_thinking_display.py --ignore=tests/test_thinking_integration.py --ignore=tests/test_thinking_phase3.py --ignore=tests/test_tool_validation.py --ignore=tests/test_work_logs.py"

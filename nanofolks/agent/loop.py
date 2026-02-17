@@ -288,6 +288,10 @@ class AgentLoop:
             protected_paths=protected_paths,
         )
         
+        # Initialize hybrid flow router for Phase 2 intent detection
+        self.hybrid_router = None
+        self._hybrid_router_enabled = True  # Can be disabled via config if needed
+        
         # Ensure theme is applied to nanobot SOUL on first agent start
         self._apply_theme_if_needed()
         
@@ -978,6 +982,62 @@ class AgentLoop:
         dispatch_result = self._check_multi_bot_dispatch(msg.content, session)
         if dispatch_result and dispatch_result.get('is_multi_bot'):
             return await self._handle_multi_bot_response(msg, dispatch_result, session)
+        
+        # NEW: Phase 2 - Intent Detection + Hybrid Router
+        # Check for ongoing project state first
+        if self._hybrid_router_enabled:
+            from nanofolks.agent.project_state import ProjectStateManager, ProjectPhase
+            room_id = msg.session_key  # Use session_key as room_id
+            
+            state_manager = ProjectStateManager(self.workspace, room_id)
+            
+            # Check for timeout
+            state_manager.check_timeout()
+            
+            # If in the middle of a flow (not IDLE), continue it
+            if state_manager.state.phase != ProjectPhase.IDLE:
+                from nanofolks.agent.intent_flow_router import IntentFlowRouter
+                if self.hybrid_router is None:
+                    self.hybrid_router = IntentFlowRouter(self)
+                return await self.hybrid_router._continue_full_flow(msg, state_manager, session)
+            
+            # NEW: Intent detection for new messages
+            # Only use if NOT an explicit @mention (let existing dispatch handle those)
+            if not dispatch_result:  # No @all/@crew/@bot explicit mentions
+                from nanofolks.agent.intent_detector import IntentDetector, FlowType
+                intent_detector = IntentDetector()
+                intent = intent_detector.detect(msg.content)
+                
+                # Initialize router lazily
+                if self.hybrid_router is None:
+                    from nanofolks.agent.intent_flow_router import IntentFlowRouter
+                    self.hybrid_router = IntentFlowRouter(self)
+                
+                # Route based on intent:
+                # - QUICK: Route to quick flow (clarifying questions → answer)
+                # - FULL: Let Leader handle it - Leader will decide to create room if needed
+                #   This gives Leader autonomy to orchestrate complex tasks
+                if intent.flow_type == FlowType.QUICK:
+                    logger.info(f"Intent detected: {intent.intent_type.value}, routing to quick flow")
+                    return await self.hybrid_router.route(msg, session)
+                elif intent.flow_type == FlowType.FULL:
+                    # Store intent info in session metadata for Leader to access
+                    session.metadata['_detected_intent'] = {
+                        'type': intent.intent_type.value,
+                        'confidence': intent.confidence,
+                        'suggested_bots': intent.suggested_bots,
+                    }
+                    
+                    # Add intent context to session so Leader sees it
+                    intent_context = f"\n[System: This request appears to be a {intent.intent_type.value} task. " \
+                                    f"Suggested team: {', '.join(intent.suggested_bots)}]\n"
+                    session.messages.append({
+                        'role': 'system', 
+                        'content': intent_context
+                    })
+                    self.sessions.save(session)
+                    logger.info(f"Intent detected: {intent.intent_type.value}, passing to Leader (Leader will decide if room needed)")
+                    # Don't auto-route - let Leader handle it normally
         
         # Update tool contexts
         message_tool = self.tools.get("message")

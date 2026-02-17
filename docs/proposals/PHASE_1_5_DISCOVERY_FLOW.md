@@ -1,8 +1,12 @@
 # Phase 1.5: Communal Discovery Flow
 
+> **⚠️ DEPRECATED**: See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the latest phased approach.
+> 
+> The discovery flow content has been incorporated into **Phase 2 (Intent Detection + Hybrid Router)** and **Phase 3 (Full Discovery Flow)**.
+
 ## Executive Summary
 
-Phase 1.5 introduces a **Discovery Phase** between the current Phase 1 (Multi-Bot Foundation) and Phase 2 (Session Migration). This phase addresses a key UX issue: the current model where Leader privately coordinates and returns summaries feels like "one assistant" rather than a true crew.
+Phase 1.5 introduced a **Discovery Phase** between the current Phase 1 (Multi-Bot Foundation) and Phase 2 (Session Migration). This phase addresses a key UX issue: the current model where Leader privately coordinates and returns summaries feels like "one assistant" rather than a true crew.
 
 **Inspiration:** GSD (Get Shit Done) framework's `discuss → plan → execute → verify` cycle
 

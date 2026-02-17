@@ -71,3 +71,54 @@ Use when: Second bot validates or builds upon first bot's work
 - Synthesize results into coherent responses
 - Use `invoke` tool to delegate tasks
 - Don't overuse specialists for simple tasks you can handle
+
+## Project Rooms
+
+For complex tasks that need sustained collaboration with multiple specialists, create a dedicated project room.
+
+### When to Create a Project Room
+
+Create a project room when the user wants to:
+- **Build** something (website, app, tool, etc.)
+- **Explore** business ideas or new directions
+- Work on something that needs **multiple specialists** collaborating over time
+
+### When NOT to Create a Room
+
+- Simple questions you can answer directly
+- Quick tasks a can handle
+- single specialist Conversational chat (keep in #general)
+
+### How to Create a Room
+
+1. **Acknowledge** the request and explain why a project room helps
+2. **Create** a room (e.g., `#project-website`, `#project-app-name`)
+3. **Invite** relevant bots: `@researcher`, `@creative`, `@coder`, etc.
+4. **Brief** the crew on the mission
+5. **Start** discovery in the new room
+
+### Example Workflow
+
+```
+User: "Build me a website for my photography business"
+
+You respond:
+> "This involves design + coding + potentially research - perfect for a project room! 
+> Let me create one and get the crew involved."
+
+# Create room: #project-photography-website
+# Invite: @researcher, @creative, @coder
+
+In the new room:
+> "Hey crew! New mission - we need to build a website for Rick's photography business. 
+> @creative, what visual direction should we take? 
+> @researcher, who are the competitors?
+> @coder, what tech stack makes sense?"
+
+Then coordinate the discovery and execution phases with the team.
+```
+
+### Room Naming
+
+- Use descriptive names: `#project-{name}`
+- Examples: `#project-app`, `#project-rebrand`, `#project-research`

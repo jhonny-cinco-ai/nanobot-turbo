@@ -1,8 +1,12 @@
 # Two-Phase Room-Centric Architecture Implementation Plan
 
+> **⚠️ DEPRECATED**: See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the latest phased approach.
+
 ## Executive Summary
 
-This document outlines a **two-phase implementation strategy** for the Room-Centric Architecture Proposal. 
+This document outlines the original two-phase implementation strategy. For the current implementation plan with the hybrid flow approach, see the consolidated [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md).
+
+**Current Status:** Phase 1 COMPLETE 
 
 **Phase 1 (Foundation):** Hybrid Approach - 3 weeks  
 **Phase 2 (Architecture):** Full Room-Centric Migration - 7 weeks  

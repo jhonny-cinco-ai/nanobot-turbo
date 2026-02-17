@@ -3546,6 +3546,150 @@ def room_show(
     console.print(f"\n[dim]Use 'nanofolks room invite {room_id} <bot>' to add bots[/dim]")
 
 
+# ============================================================================
+# Project Commands
+# ============================================================================
+
+project_app = typer.Typer(help="Manage project states and discovery flows")
+
+
+@project_app.command("status")
+def project_status(
+    room_id: str = typer.Option("general", "--room", "-r", help="Room/project ID"),
+):
+    """Show current project status and phase."""
+    from nanofolks.agent.project_state import ProjectStateManager, ProjectPhase
+    from nanofolks.config.loader import get_data_dir
+    
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    state_manager = ProjectStateManager(workspace, room_id)
+    state = state_manager.state
+    
+    if state.phase == ProjectPhase.IDLE:
+        console.print(f"[yellow]No active project in room '{room_id}'[/yellow]")
+        return
+    
+    console.print(Panel(
+        f"[bold cyan]Project Status[/bold cyan]\n\n"
+        f"Room: [cyan]{room_id}[/cyan]\n"
+        f"Phase: [bold]{state.phase.value.upper()}[/bold]\n"
+        f"Iteration: {state.iteration}",
+        title="Project"
+    ))
+    
+    if state.user_goal:
+        console.print(f"\n[bold]Goal:[/bold] {state.user_goal}")
+    
+    if state.phase == ProjectPhase.DISCOVERY:
+        console.print(f"\n[bold]Discovery Progress:[/bold]")
+        questions = [e for e in state.discovery_log if e.get('is_question', True)]
+        console.print(f"  Questions asked: {len(questions)}")
+        console.print(f"  Bot responses: {len([e for e in state.discovery_log if not e.get('is_question', True)])}")
+    
+    elif state.phase == ProjectPhase.APPROVAL:
+        if state.synthesis:
+            console.print(f"\n[bold]Synthesis:[/bold]")
+            console.print(f"  {state.synthesis.get('goal', 'N/A')}")
+    
+    console.print(f"\n[dim]Use 'nanofolks project reset --room {room_id}' to cancel[/dim]")
+
+
+@project_app.command("reset")
+def project_reset(
+    room_id: str = typer.Option("general", "--room", "-r", help="Room/project ID"),
+):
+    """Cancel current project and return to idle."""
+    from nanofolks.agent.project_state import ProjectStateManager, ProjectPhase
+    from nanofolks.config.loader import get_data_dir
+    
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    state_manager = ProjectStateManager(workspace, room_id)
+    
+    if state_manager.state.phase == ProjectPhase.IDLE:
+        console.print(f"[yellow]No active project in room '{room_id}'[/yellow]")
+        return
+    
+    state_manager.complete_review()
+    console.print(f"[green]✓ Project cancelled. Returned to idle.[/green]")
+
+
+@project_app.command("log")
+def project_log(
+    room_id: str = typer.Option("general", "--room", "-r", help="Room/project ID"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of entries to show"),
+):
+    """Show discovery log for a project."""
+    from nanofolks.agent.project_state import ProjectStateManager, ProjectPhase
+    from nanofolks.config.loader import get_data_dir
+    
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    state_manager = ProjectStateManager(workspace, room_id)
+    state = state_manager.state
+    
+    if state.phase == ProjectPhase.IDLE:
+        console.print(f"[yellow]No active project in room '{room_id}'[/yellow]")
+        return
+    
+    log = state.discovery_log[-limit:] if state.discovery_log else []
+    
+    if not log:
+        console.print("[yellow]No discovery log entries.[/yellow]")
+        return
+    
+    console.print(f"[bold]Discovery Log ({room_id}):[/bold]\n")
+    
+    for entry in log:
+        prefix = "❓" if entry.get('is_question', True) else "💬"
+        bot = entry.get('bot', 'unknown')
+        content = entry.get('content', '')[:100]
+        console.print(f"  {prefix} @{bot}: {content}...")
+
+
+@project_app.command("brief")
+def project_brief(
+    room_id: str = typer.Option("general", "--room", "-r", help="Room/project ID"),
+):
+    """Show current project synthesis/brief."""
+    from nanofolks.agent.project_state import ProjectStateManager, ProjectPhase
+    from nanofolks.config.loader import get_data_dir
+    
+    data_dir = get_data_dir()
+    workspace = data_dir.parent
+    
+    state_manager = ProjectStateManager(workspace, room_id)
+    state = state_manager.state
+    
+    if state.phase == ProjectPhase.IDLE:
+        console.print(f"[yellow]No active project in room '{room_id}'[/yellow]")
+        return
+    
+    if not state.synthesis:
+        console.print("[yellow]No synthesis available yet (still in discovery).[/yellow]")
+        return
+    
+    console.print(Panel(
+        f"[bold cyan]Project Brief[/bold cyan]\n\n"
+        f"{state.synthesis.get('goal', 'N/A')}",
+        title=room_id
+    ))
+    
+    if state.synthesis.get('scope', {}).get('included'):
+        console.print("\n[bold]In Scope:[/bold]")
+        for item in state.synthesis['scope']['included']:
+            console.print(f"  • {item}")
+    
+    if state.synthesis.get('constraints'):
+        console.print("\n[bold]Constraints:[/bold]")
+        for k, v in state.synthesis['constraints'].items():
+            console.print(f"  • {k}: {v}")
+
+
 # Separate command for bot-to-bot DM room peeking
 @app.command("peek")
 def peek(
@@ -3694,6 +3838,7 @@ def list_dm_rooms():
 
 
 app.add_typer(room_app, name="room")
+app.add_typer(project_app, name="project")
 
 # Import and wire heartbeat commands
 try:
