@@ -108,6 +108,53 @@ class AgentLoop:
 
         # Initialize secret sanitizer for security
         self.sanitizer = SecretSanitizer()
+        
+        # Stream callback for real-time progress
+        self._stream_callback: callable | None = None
+    
+    def _strip_think(self, text: str | None) -> str | None:
+        """Strip thinking blocks from model content.
+        
+        Removes blocks like:
+        - [:]Yes, I think...[/]
+        - [:]Let me analyze...[/]
+        
+        Args:
+            text: The model response content
+            
+        Returns:
+            Content with thinking blocks removed, or None
+        """
+        if not text:
+            return None
+        import re
+        return re.sub(r"\[:\s*Yes,.*?\]", "", text, flags=re.DOTALL).strip() or None
+    
+    def _tool_hint(self, tool_calls: list) -> str:
+        """Format tool calls as concise hint.
+        
+        Example: 'web_search("query")' or 'read_file("src/main.py")'
+        
+        Args:
+            tool_calls: List of tool call objects
+            
+        Returns:
+            Formatted tool hint string
+        """
+        def _fmt(tc):
+            val = None
+            if tc.arguments:
+                # Get first argument value
+                for v in tc.arguments.values():
+                    val = v
+                    break
+            if not isinstance(val, str):
+                return tc.name
+            if len(val) > 40:
+                return f'{tc.name}("{val[:40]}…")'
+            return f'{tc.name}("{val}")'
+        
+        return ", ".join(_fmt(tc) for tc in tool_calls)
 
         self.context = ContextBuilder(workspace)
 
@@ -1370,6 +1417,12 @@ class AgentLoop:
 
             # Handle tool calls
             if response.has_tool_calls:
+                # Show progress for tool calls
+                if self._stream_callback:
+                    clean = self._strip_think(response.content)
+                    hint = self._tool_hint(response.tool_calls)
+                    await self._stream_callback(f"↳ {hint}")
+                
                 # Add assistant message with tool calls
                 tool_call_dicts = [
                     {
@@ -1393,6 +1446,10 @@ class AgentLoop:
                     # Sanitize tool arguments to prevent secrets in logs
                     sanitized_args = self.sanitizer.sanitize(args_str[:200])
                     logger.info(f"Tool call: {tool_call.name}({sanitized_args})")
+                    
+                    # Show tool start progress
+                    if self._stream_callback:
+                        await self._stream_callback(f"↳ 🔧 {tool_call.name}...")
 
                     # Log tool execution start
                     import time
@@ -1401,6 +1458,10 @@ class AgentLoop:
                     try:
                         result = await self.tools.execute(tool_call.name, tool_call.arguments)
                         tool_duration_ms = int((time.time() - tool_start_time) * 1000)
+                        
+                        # Show tool completion progress
+                        if self._stream_callback:
+                            await self._stream_callback(f"✓ {tool_call.name}")
 
                         # Log successful tool execution
                         self.work_log_manager.log_tool(

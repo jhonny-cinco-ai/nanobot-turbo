@@ -1362,13 +1362,26 @@ def chat(
 
     # Streaming callback for real-time chunk display
     streaming_content = ""
+    tool_progress = []
+    
     def _stream_chunk(chunk: str):
-        nonlocal streaming_content
-        streaming_content += chunk
-        # Simple inline update - could be enhanced with Live display
-        # Show last 80 chars of accumulated content
-        preview = streaming_content[-80:].replace("\n", " ").replace("\r", "")
-        console.print(f"[dim]🔄 Thinking: {preview}...[/dim]\r", end="", highlight=False)
+        nonlocal streaming_content, tool_progress
+        # Check if this is a tool progress message (starts with ↳)
+        if chunk.startswith("↳ "):
+            tool_progress.append(chunk)
+            # Show tool progress with distinctive styling
+            if "..." in chunk:
+                # Tool is running
+                console.print(f"[dim]{chunk}[/dim]\r", end="", highlight=False)
+            else:
+                # Tool completed
+                console.print(f"[green]{chunk}[/green]")
+        else:
+            # Regular content chunk
+            streaming_content += chunk
+            # Show last 80 chars of accumulated content
+            preview = streaming_content[-80:].replace("\n", " ").replace("\r", "")
+            console.print(f"[dim]🔄 Thinking: {preview}...[/dim]\r", end="", highlight=False)
 
     if message:
         # Single message mode
