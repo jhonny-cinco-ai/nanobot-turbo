@@ -30,6 +30,7 @@ class AuditEntry:
     key_ref: str  # Symbolic reference like {{openrouter_key}}
     success: bool
     duration_ms: int
+    room_id: Optional[str] = None  # Room where the operation occurred
     error: Optional[str] = None
     details: Optional[dict] = None
 
@@ -80,7 +81,8 @@ class SecureAuditLogger:
     
     def log(self, operation: str, key_ref: str, success: bool, 
             duration_ms: int, error: Optional[str] = None,
-            details: Optional[dict] = None) -> None:
+            details: Optional[dict] = None,
+            room_id: Optional[str] = None) -> None:
         """Log an operation with symbolic key reference only.
         
         IMPORTANT: key_ref must be a symbolic reference like {{openrouter_key}},
@@ -93,6 +95,7 @@ class SecureAuditLogger:
             duration_ms: How long the operation took in milliseconds
             error: Optional error message if failed
             details: Additional details about the operation
+            room_id: Optional room ID for room-centric context
         """
         entry = AuditEntry(
             timestamp=datetime.utcnow().isoformat() + "Z",
@@ -100,6 +103,7 @@ class SecureAuditLogger:
             key_ref=key_ref,  # Always symbolic!
             success=success,
             duration_ms=duration_ms,
+            room_id=room_id,
             error=error,
             details=details
         )
@@ -108,7 +112,8 @@ class SecureAuditLogger:
     
     def log_tool_execution(self, tool_name: str, key_ref: str,
                           success: bool, duration_ms: int,
-                          error: Optional[str] = None) -> None:
+                          error: Optional[str] = None,
+                          room_id: Optional[str] = None) -> None:
         """Log tool execution with symbolic key reference.
         
         Args:
@@ -117,19 +122,22 @@ class SecureAuditLogger:
             success: Whether the tool executed successfully
             duration_ms: Execution time in milliseconds
             error: Optional error message
+            room_id: Optional room ID for room-centric context
         """
         self.log(
             operation=f"tool.{tool_name}",
             key_ref=key_ref,
             success=success,
             duration_ms=duration_ms,
-            error=error
+            error=error,
+            room_id=room_id
         )
     
     def log_api_call(self, provider: str, key_ref: str,
                      success: bool, duration_ms: int,
                      error: Optional[str] = None,
-                     tokens_used: Optional[int] = None) -> None:
+                     tokens_used: Optional[int] = None,
+                     room_id: Optional[str] = None) -> None:
         """Log an API call with symbolic key reference.
         
         Args:
@@ -139,6 +147,7 @@ class SecureAuditLogger:
             duration_ms: Call duration in milliseconds
             error: Optional error message
             tokens_used: Optional number of tokens used
+            room_id: Optional room ID for room-centric context
         """
         details = {"tokens_used": tokens_used} if tokens_used else None
         
@@ -148,12 +157,14 @@ class SecureAuditLogger:
             success=success,
             duration_ms=duration_ms,
             error=error,
-            details=details
+            details=details,
+            room_id=room_id
         )
     
     def log_key_operation(self, operation: str, key_ref: str,
                           success: bool, 
-                          details: Optional[dict] = None) -> None:
+                          details: Optional[dict] = None,
+                          room_id: Optional[str] = None) -> None:
         """Log a key management operation.
         
         Args:
@@ -161,13 +172,15 @@ class SecureAuditLogger:
             key_ref: Symbolic key reference
             success: Whether the operation succeeded
             details: Additional details
+            room_id: Optional room ID for room-centric context
         """
         self.log(
             operation=operation,
             key_ref=key_ref,
             success=success,
             duration_ms=0,  # Key ops are typically fast
-            details=details
+            details=details,
+            room_id=room_id
         )
     
     def get_entries(self, limit: int = 100) -> list[AuditEntry]:
@@ -218,7 +231,8 @@ def get_audit_logger() -> SecureAuditLogger:
 
 def log_tool_execution(tool_name: str, key_ref: str, 
                        success: bool, duration_ms: int,
-                       error: Optional[str] = None) -> None:
+                       error: Optional[str] = None,
+                       room_id: Optional[str] = None) -> None:
     """Convenience function for logging tool execution.
     
     Args:
@@ -227,14 +241,16 @@ def log_tool_execution(tool_name: str, key_ref: str,
         success: Whether execution succeeded
         duration_ms: Execution time
         error: Optional error message
+        room_id: Optional room ID for room-centric context
     """
-    get_audit_logger().log_tool_execution(tool_name, key_ref, success, duration_ms, error)
+    get_audit_logger().log_tool_execution(tool_name, key_ref, success, duration_ms, error, room_id)
 
 
 def log_api_call(provider: str, key_ref: str,
                  success: bool, duration_ms: int,
                  error: Optional[str] = None,
-                 tokens_used: Optional[int] = None) -> None:
+                 tokens_used: Optional[int] = None,
+                 room_id: Optional[str] = None) -> None:
     """Convenience function for logging API calls.
     
     Args:
@@ -244,5 +260,6 @@ def log_api_call(provider: str, key_ref: str,
         duration_ms: Call duration
         error: Optional error message
         tokens_used: Optional tokens used
+        room_id: Optional room ID for room-centric context
     """
-    get_audit_logger().log_api_call(provider, key_ref, success, duration_ms, error, tokens_used)
+    get_audit_logger().log_api_call(provider, key_ref, success, duration_ms, error, tokens_used, room_id)

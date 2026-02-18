@@ -22,6 +22,7 @@ class Anomaly:
     description: str
     key_ref: str
     detected_at: str
+    room_id: Optional[str] = None  # Room where anomaly occurred
     details: Optional[dict] = None
 
 
@@ -44,11 +45,17 @@ class AnomalyDetector:
         self.error_counts: dict[str, int] = defaultdict(int)
         self.response_sizes: dict[str, list[float]] = defaultdict(list)
         
+        # Per-room tracking for room-centric security monitoring
+        # Key: room_id, Value: list of timestamps
+        self.room_request_times: dict[str, list[datetime]] = defaultdict(list)
+        self.room_error_counts: dict[str, int] = defaultdict(int)
+        
         # Thresholds (configurable)
         self.max_requests_per_minute = 60
         self.max_requests_per_hour = 1000
         self.max_errors_per_window = 5
         self.max_response_size_mb = 10.0
+        self.max_room_requests_per_minute = 30  # Per-room rate limit
         
     def _cleanup_old_entries(self, key_ref: str) -> None:
         """Remove entries older than 1 hour to prevent memory growth."""
@@ -63,23 +70,42 @@ class AnomalyDetector:
         # Clean response sizes
         self.response_sizes[key_ref] = []
     
-    def record_request(self, key_ref: str) -> None:
+    def record_request(self, key_ref: str, room_id: Optional[str] = None) -> None:
         """Record a request for this key.
         
         Args:
             key_ref: The symbolic key reference
+            room_id: Optional room ID for per-room tracking
         """
         now = datetime.utcnow()
         self.request_times[key_ref].append(now)
         self._cleanup_old_entries(key_ref)
+        
+        # Track per-room requests
+        if room_id:
+            self.room_request_times[room_id].append(now)
+            self._cleanup_old_room_entries(room_id)
     
-    def record_error(self, key_ref: str) -> None:
+    def _cleanup_old_room_entries(self, room_id: str) -> None:
+        """Remove room entries older than 1 hour."""
+        cutoff = datetime.utcnow() - timedelta(hours=1)
+        self.room_request_times[room_id] = [
+            t for t in self.room_request_times[room_id]
+            if t > cutoff
+        ]
+    
+    def record_error(self, key_ref: str, room_id: Optional[str] = None) -> None:
         """Record an error for this key.
         
         Args:
             key_ref: The symbolic key reference
+            room_id: Optional room ID for per-room tracking
         """
         self.error_counts[key_ref] += 1
+        
+        # Track per-room errors
+        if room_id:
+            self.room_error_counts[room_id] += 1
     
     def record_response_size(self, key_ref: str, size_mb: float) -> None:
         """Record response size for this key.
@@ -202,6 +228,42 @@ class AnomalyDetector:
         
         return None
     
+    def check_room_rate(self, room_id: str) -> Optional[Anomaly]:
+        """Check for suspicious request rates from a specific room.
+        
+        Monitors for rooms that are making excessive requests,
+        which could indicate abuse or runaway processes.
+        
+        Args:
+            room_id: The room ID to check
+            
+        Returns:
+            Anomaly if detected, None otherwise
+        """
+        now = datetime.utcnow()
+        one_minute_ago = now - timedelta(minutes=1)
+        
+        requests = self.room_request_times.get(room_id, [])
+        
+        # Count requests in last minute
+        last_minute = len([t for t in requests if t > one_minute_ago])
+        
+        if last_minute > self.max_room_requests_per_minute:
+            return Anomaly(
+                severity="medium",
+                description=f"Room request rate exceeded: {last_minute} requests/min (limit: {self.max_room_requests_per_minute})",
+                key_ref="room",
+                detected_at=now.isoformat() + "Z",
+                room_id=room_id,
+                details={
+                    "room_id": room_id,
+                    "requests_per_minute": last_minute,
+                    "limit": self.max_room_requests_per_minute
+                }
+            )
+        
+        return None
+    
     def check_all(self, key_ref: str) -> list[Anomaly]:
         """Run all anomaly checks for a key.
         
@@ -230,20 +292,28 @@ class AnomalyDetector:
         
         return anomalies
     
-    def reset(self, key_ref: Optional[str] = None) -> None:
-        """Reset counters for a key or all keys.
+    def reset(self, key_ref: Optional[str] = None, room_id: Optional[str] = None) -> None:
+        """Reset counters for a key, room, or all.
         
         Args:
-            key_ref: Optional specific key to reset, or None to reset all
+            key_ref: Optional specific key to reset
+            room_id: Optional specific room to reset
         """
         if key_ref:
             self.request_times.pop(key_ref, None)
             self.error_counts.pop(key_ref, None)
             self.response_sizes.pop(key_ref, None)
-        else:
+        
+        if room_id:
+            self.room_request_times.pop(room_id, None)
+            self.room_error_counts.pop(room_id, None)
+        
+        if not key_ref and not room_id:
             self.request_times.clear()
             self.error_counts.clear()
             self.response_sizes.clear()
+            self.room_request_times.clear()
+            self.room_error_counts.clear()
 
 
 # Global detector instance
