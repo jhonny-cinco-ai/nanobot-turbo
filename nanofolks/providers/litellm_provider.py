@@ -277,7 +277,7 @@ class LiteLLMProvider(LLMProvider):
                             if isinstance(tc.function.arguments, str):
                                 try:
                                     args = json_repair.loads(tc.function.arguments)
-                                except:
+                                except Exception:
                                     args = {"_raw": tc.function.arguments}
                             else:
                                 args = tc.function.arguments or {}

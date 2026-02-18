@@ -605,8 +605,6 @@ def memory_doctor():
 
                 for issue in issues:
                     console.print(f"[yellow]⚠️  {issue}[/yellow]")
-
-                console.print(f"[red]❌ Memory doctor failed: {e}")
         except Exception as e:
             console.print(f"[red]❌ Memory doctor failed: {e}")
 
@@ -721,6 +719,9 @@ def session_status():
         session_table.add_column("Last Updated", style="dim")
         session_table.add_column("Compactions", style="magenta")
 
+        from nanofolks.memory.session_compactor import SessionCompactor
+        compactor = SessionCompactor(config.memory.session_compaction)
+        
         for session_data in sessions:
             try:
                 session = session_manager.get_or_create(session_data["key"])

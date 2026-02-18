@@ -1,13 +1,19 @@
 """Base class for all specialist bots with heartbeat support."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from loguru import logger
 
 from nanofolks.models.role_card import RoleCard
 from nanofolks.teams import TeamManager
+
+if TYPE_CHECKING:
+    from nanofolks.teams.workspace import Workspace
 
 
 class SpecialistBot(ABC):

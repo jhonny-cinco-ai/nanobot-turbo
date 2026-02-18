@@ -4,10 +4,19 @@ This module provides the TurboMemoryStore class which manages all database opera
 for the memory system using SQLite with WAL mode for better concurrency.
 """
 
+from __future__ import annotations
+
 import json
 import sqlite3
 import struct
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
+
+from loguru import logger
+
+if TYPE_CHECKING:
+    from nanofolks.memory.embedding import EmbeddingProvider
 from pathlib import Path
 from typing import Optional
 

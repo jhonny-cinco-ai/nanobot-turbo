@@ -651,7 +651,7 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
                 try:
                     # Try to get events by session (room:general)
                     recent_events = self.memory.get_events_by_session(session_key="room:general", limit=recent_limit)
-                except:
+                except Exception:
                     # Fallback to getting all events
                     recent_events = []
 

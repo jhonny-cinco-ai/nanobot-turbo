@@ -65,7 +65,7 @@ async def check_bot_team_health(bot, config: Dict[str, Any]) -> Dict[str, Any]:
                 if isinstance(last_heartbeat, str):
                     try:
                         last_heartbeat = datetime.fromisoformat(last_heartbeat.replace('Z', '+00:00'))
-                    except:
+                    except Exception:
                         last_heartbeat = now
 
                 silence_minutes = (now - last_heartbeat).total_seconds() / 60
@@ -192,7 +192,7 @@ async def monitor_task_delegation_queue(bot, config: Dict[str, Any]) -> Dict[str
             if isinstance(created_at, str):
                 try:
                     created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                except:
+                except Exception:
                     created_at = now
 
             hours_pending = (now - created_at).total_seconds() / 3600

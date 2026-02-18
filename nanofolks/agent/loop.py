@@ -1,12 +1,21 @@
 """Agent loop: the core processing engine."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from nanofolks.agent.tools.cron import CronService
+    from nanofolks.config.schema import ExecToolConfig, MemoryConfig, RoutingConfig
+    from nanofolks.session.manager import SessionManager
+    from nanofolks.agent.chat_onboarding import ChatOnboarding
+    from nanofolks.providers.base import LLMResponse
 
 from nanofolks.agent.context import ContextBuilder
 from nanofolks.agent.stages import RoutingContext, RoutingStage
@@ -52,8 +61,8 @@ class AgentLoop:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         brave_api_key: str | None = None,
-        exec_config: "ExecToolConfig | None" = None,
-        cron_service: "CronService | None" = None,
+        exec_config: ExecToolConfig | None = None,
+        cron_service: CronService | None = None,
         system_timezone: str = "UTC",
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
@@ -61,7 +70,7 @@ class AgentLoop:
         evolutionary: bool = False,
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
-        memory_config: "MemoryConfig | None" = None,
+        memory_config: MemoryConfig | None = None,
         bot_name: str = "leader",
         mcp_servers: dict | None = None,
     ):

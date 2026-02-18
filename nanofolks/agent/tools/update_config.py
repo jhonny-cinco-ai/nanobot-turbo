@@ -484,7 +484,7 @@ Examples:
                             return parsed
                         # Single value parsed as non-list
                         return [str(parsed)]
-                    except:
+                    except Exception:
                         return [item.strip() for item in value.split(',') if item.strip()]
                 # Single non-string value (e.g., int)
                 return [str(value)]

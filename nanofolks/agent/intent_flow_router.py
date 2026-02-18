@@ -1,5 +1,7 @@
 """Intent Flow Router - Routes messages to appropriate flow based on detected intent."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from loguru import logger
@@ -9,6 +11,8 @@ from nanofolks.agent.intent_detector import FlowType, Intent, IntentDetector, In
 if TYPE_CHECKING:
     from nanofolks.bus.events import InboundMessage, OutboundMessage
     from nanofolks.session.manager import Session
+    from nanofolks.agent.loop import AgentLoop
+    from nanofolks.agent.project_state import ProjectStateManager
 
 
 class IntentFlowRouter:

@@ -341,7 +341,7 @@ def _print_team_status(manager):
             from nanofolks.bots.heartbeat_configs import get_bot_heartbeat_config
             config = get_bot_heartbeat_config(bot.name)
             interval_min = config.default_interval // 60
-        except:
+        except Exception:
             interval_min = "?"
 
         # Get history count

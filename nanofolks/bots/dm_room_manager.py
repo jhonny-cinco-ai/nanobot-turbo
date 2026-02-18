@@ -334,7 +334,7 @@ class BotDMRoomManager:
                         try:
                             last_data = json.loads(lines[-1].strip())
                             last_message = BotDMMessage.from_dict(last_data)
-                        except:
+                        except Exception:
                             pass
 
                 # Parse bots from room_id

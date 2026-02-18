@@ -61,7 +61,7 @@ async def check_design_asset_status(bot, config: Dict[str, Any]) -> Dict[str, An
                 if isinstance(last_modified, str):
                     try:
                         last_modified = datetime.fromisoformat(last_modified.replace('Z', '+00:00'))
-                    except:
+                    except Exception:
                         last_modified = datetime.now()
 
                 age_days = (datetime.now() - last_modified).days
@@ -175,7 +175,7 @@ async def monitor_creative_deadlines(bot, config: Dict[str, Any]) -> Dict[str, A
             if isinstance(deadline, str):
                 try:
                     deadline = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
-                except:
+                except Exception:
                     continue
 
             hours_remaining = (deadline - now).total_seconds() / 3600
@@ -372,7 +372,7 @@ async def check_content_approval_queue(bot, config: Dict[str, Any]) -> Dict[str,
             if isinstance(submitted, str):
                 try:
                     submitted = datetime.fromisoformat(submitted.replace('Z', '+00:00'))
-                except:
+                except Exception:
                     submitted = now
 
             hours_waiting = (now - submitted).total_seconds() / 3600

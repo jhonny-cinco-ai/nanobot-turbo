@@ -6,8 +6,17 @@ This module provides:
 - Creating restricted tool sets per bot
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from nanofolks.agent.tools.registry import ToolRegistry
+
+if TYPE_CHECKING:
+    pass
 from typing import Optional
 
 

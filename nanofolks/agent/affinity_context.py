@@ -153,46 +153,46 @@ class AffinityContextBuilder:
 
         if "pirate" in theme_lower or "pirate" in theme_lower:
             refs = [
-                f"Arr, @{to_bot} be right about this. ",
-                f"As @{to_bot} would say, ",
-                f"@{to_bot} speaks true, me hearties. ",
+                "Arr, @{to_bot} be right about this. ",
+                "As @{to_bot} would say, ",
+                "@{to_bot} speaks true, me hearties. ",
             ]
         elif "rock" in theme_lower or "band" in theme_lower:
             refs = [
-                f"@{to_bot} is on the same wavelength. ",
-                f"Like @{to_bot} always says, ",
-                f" @{to_bot} really gets it. ",
+                "@{to_bot} is on the same wavelength. ",
+                "Like @{to_bot} always says, ",
+                " @{to_bot} really gets it. ",
             ]
         elif "space" in theme_lower:
             refs = [
-                f"Commander @{to_bot} confirms. ",
-                f"As noted in the briefing by @{to_bot}, ",
-                f"@{to_bot}'s analysis is correct. ",
+                "Commander @{to_bot} confirms. ",
+                "As noted in the briefing by @{to_bot}, ",
+                "@{to_bot}'s analysis is correct. ",
             ]
         elif "executive" in theme_lower or "corp" in theme_lower:
             refs = [
-                f"I agree with @{to_bot}'s assessment. ",
-                f"Building on @{to_bot}'s point... ",
-                f"@{to_bot} raises an important consideration. ",
+                "I agree with @{to_bot}'s assessment. ",
+                "Building on @{to_bot}'s point... ",
+                "@{to_bot} raises an important consideration. ",
             ]
         else:
             if affinity >= 0.7:
                 refs = [
-                    f"@{to_bot} makes a great point. ",
-                    f"I agree with @{to_bot}. ",
-                    f"@{to_bot} is absolutely right. ",
+                    "@{to_bot} makes a great point. ",
+                    "I agree with @{to_bot}. ",
+                    "@{to_bot} is absolutely right. ",
                 ]
             elif affinity <= 0.4:
                 refs = [
-                    f"Though @{to_bot} might see it differently... ",
-                    f"@{to_bot} has a valid perspective, even if I disagree. ",
-                    f"Despite @{to_bot}'s reservations, ",
+                    "Though @{to_bot} might see it differently... ",
+                    "@{to_bot} has a valid perspective, even if I disagree. ",
+                    "Despite @{to_bot}'s reservations, ",
                 ]
             else:
                 refs = [
-                    f"@{to_bot} makes a good point. ",
-                    f"As @{to_bot} mentioned... ",
-                    f"I agree with @{to_bot}. ",
+                    "@{to_bot} makes a good point. ",
+                    "As @{to_bot} mentioned... ",
+                    "I agree with @{to_bot}. ",
                 ]
 
         return refs

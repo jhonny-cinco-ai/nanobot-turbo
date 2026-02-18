@@ -121,7 +121,7 @@ class RoutingPattern:
             age_days = (datetime.now() - added).days
             if age_days < 7:
                 return True  # New patterns get a chance
-        except:
+        except Exception:
             pass
 
         # Check success rate
@@ -165,7 +165,7 @@ class RoutingPattern:
                     score += 10
                 elif days_since < 90:
                     score += 5
-            except:
+            except Exception:
                 pass
 
         return score

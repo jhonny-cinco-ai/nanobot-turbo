@@ -365,7 +365,7 @@ async def check_pending_reviews(bot, config: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(created, str):
                 try:
                     created = datetime.fromisoformat(created.replace('Z', '+00:00'))
-                except:
+                except Exception:
                     created = now
 
             hours_waiting = (now - created).total_seconds() / 3600
@@ -1128,7 +1128,7 @@ async def check_documentation_completeness(bot, config: Dict[str, Any]) -> Dict[
                                 "doc_id": getattr(doc, 'id', 'unknown'),
                                 "days_old": days_old
                             })
-                    except:
+                    except Exception:
                         pass
 
                 # Check for TODO/FIXME markers

@@ -467,7 +467,7 @@ def load_config_from_file(config_path: Path) -> Optional[Dict[str, Any]]:
                 # Try YAML first, then JSON
                 try:
                     return yaml.safe_load(f)
-                except:
+                except Exception:
                     f.seek(0)
                     return json.load(f)
     except Exception as e:

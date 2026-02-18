@@ -73,7 +73,7 @@ class SkillsLoader:
                 import json
                 data = json.loads(verification_file.read_text())
                 return data.get("status", SkillVerificationStatus.PENDING)
-            except:
+            except Exception:
                 pass
 
         # No verification record - pending
@@ -195,7 +195,7 @@ class SkillsLoader:
                                     import json
                                     vdata = json.loads(verification_file.read_text())
                                     skill_info["risk_score"] = str(vdata.get("risk_score", 0))
-                                except:
+                                except Exception:
                                     skill_info["risk_score"] = "0"
                         skills.append(skill_info)
 
@@ -317,7 +317,7 @@ class SkillsLoader:
                                     import json
                                     vdata = json.loads(verification_file.read_text())
                                     risk = vdata.get("risk_score", 100)
-                                except:
+                                except Exception:
                                     pass
                             rejected_skills.append({
                                 "name": skill_dir.name,

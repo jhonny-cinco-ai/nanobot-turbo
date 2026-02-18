@@ -2,9 +2,13 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
+from loguru import logger
 from nanofolks.teams import BotTeamProfile, Team
+
+if TYPE_CHECKING:
+    from nanofolks.teams.theme import Theme
 
 
 def get_agents_templates() -> Dict[str, str]:

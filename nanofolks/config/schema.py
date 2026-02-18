@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_settings import BaseSettings

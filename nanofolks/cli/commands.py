@@ -1,18 +1,23 @@
 """CLI commands for nanofolks."""
 
+from __future__ import annotations
+
 import asyncio
 import os
 import select
 import signal
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
 from loguru import logger
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
+
+if TYPE_CHECKING:
+    from nanofolks.agent.thinking import ThinkingDisplay
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 from rich.markdown import Markdown
@@ -2792,7 +2797,7 @@ def routing_analytics():
         try:
             data = json.loads(analytics_file.read_text())
             classifications = data.get("classifications", [])
-        except:
+        except Exception:
             pass
 
     if not classifications:
@@ -3815,7 +3820,7 @@ def list_dm_rooms():
                 from datetime import datetime
                 dt = datetime.fromisoformat(last_activity)
                 last_activity = dt.strftime("%Y-%m-%d %H:%M")
-            except:
+            except Exception:
                 pass
 
         table.add_row(
