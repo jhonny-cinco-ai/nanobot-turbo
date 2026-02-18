@@ -762,6 +762,9 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
                 system_prompt += f"\nParticipants: {', '.join(participants)}"
             system_prompt += "\n\nYou are collaborating in this room with other bots. Use @botname to mention specific bots when you need their expertise."
 
+        # Add tool usage guidance for better UX
+        system_prompt += "\n\n## Tool Usage Guidelines\nBefore calling any tools, briefly tell the user what you're about to do (e.g., 'I'll search for that information'). This helps users understand what the agent is doing during tool execution."
+
         # Add memory context if provided
         if memory_context:
             system_prompt += f"\n\n## Memory Context\n{memory_context}"
