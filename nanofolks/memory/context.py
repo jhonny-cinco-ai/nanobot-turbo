@@ -81,7 +81,8 @@ class ContextAssembler:
     
     def assemble_context(
         self,
-        channel: str,
+        room_id: str,
+        channel: str = None,
         entity_ids: list[str] = None,
         recent_event_ids: list[str] = None,
         include_preferences: bool = True,
@@ -90,7 +91,8 @@ class ContextAssembler:
         Assemble memory context from summaries.
         
         Args:
-            channel: Current conversation channel
+            room_id: Current room (room-centric)
+            channel: Current conversation channel (optional, for reference only)
             entity_ids: Entity IDs mentioned in current conversation
             recent_event_ids: Recent event IDs to include
             include_preferences: Whether to include user preferences
@@ -107,10 +109,10 @@ class ContextAssembler:
             sections.append(("IDENTITY", identity_context, self.budget.identity))
             remaining_budget -= self.budget.identity
         
-        # Section 2: Channel Context
-        channel_context = self._get_channel_context(channel)
-        if channel_context:
-            sections.append(("CHANNEL", channel_context, self.budget.channel))
+        # Section 2: Room Context (room-centric)
+        room_context = self._get_room_context(room_id)
+        if room_context:
+            sections.append(("ROOM", room_context, self.budget.channel))
             remaining_budget -= self.budget.channel
         
         # Section 3: Entity Context (prioritized by relevance)
@@ -151,11 +153,15 @@ class ContextAssembler:
 You have access to a knowledge graph of entities, relationships, and facts from past conversations.
 Use this context to provide personalized and informed responses."""
     
-    def _get_channel_context(self, channel: str) -> str:
-        """Get channel-specific context from summary tree."""
-        channel_node = self.store.get_summary_node(f"channel:{channel}")
-        if channel_node and channel_node.summary:
-            return f"Channel: {channel}\n{channel_node.summary}"
+    def _get_room_context(self, room_id: str) -> str:
+        """Get room-specific context from summary tree.
+        
+        Args:
+            room_id: Room ID (room-centric)
+        """
+        room_node = self.store.get_summary_node(f"room:{room_id}")
+        if room_node and room_node.summary:
+            return f"Room: {room_id}\n{room_node.summary}"
         return ""
     
     def _get_entity_context(self, entity_ids: list[str]) -> str:

@@ -1150,9 +1150,10 @@ class AgentLoop:
                 )
                 entity_ids = [e.id for e in relevant_entities]
                 
-                # Assemble memory context
+                # Assemble memory context (room-centric)
+                room_id_for_context = msg.room_id if msg.room_id else self._current_room_id
                 memory_context = self.context_assembler.assemble_context(
-                    channel=msg.channel,
+                    room_id=room_id_for_context,
                     entity_ids=entity_ids,
                     include_preferences=True,
                 )
@@ -1506,7 +1507,11 @@ class AgentLoop:
             origin_chat_id = msg.chat_id
         
         # Use the origin session for context (room-centric format)
-        session_key = f"room:{origin_channel}_{origin_chat_id}"
+        # Prefer room_id from message, fallback to constructing from origin info
+        if msg.room_id:
+            session_key = f"room:{msg.room_id}"
+        else:
+            session_key = f"room:{origin_channel}_{origin_chat_id}"
         session = self.sessions.get_or_create(session_key)
         
         # Update tool contexts
@@ -1646,7 +1651,8 @@ class AgentLoop:
                 channel=channel,
                 sender_id="user",
                 chat_id=chat_id,
-                content=content
+                content=content,
+                room_id=room_id
             )
             
             # Store stream callback for use in _process_message

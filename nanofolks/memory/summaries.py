@@ -20,13 +20,13 @@ class SummaryTreeManager:
     """
     Manages the hierarchical summary tree.
     
-    Tree structure:
+    Tree structure (room-centric):
     root/
-    ├── channel:telegram/
+    ├── room:general/
     │   ├── entity:John Smith (summary)
     │   ├── entity:Jane Doe (summary)
     │   └── topic:programming (summary)
-    ├── channel:cli/
+    ├── room:project-website/
     │   └── ...
     └── user_preferences (always in context)
     """
@@ -266,7 +266,7 @@ class SummaryTreeManager:
     
     def get_summary_for_context(
         self,
-        channel: str = None,
+        room_id: str,
         entity_ids: list[str] = None,
         max_tokens: int = 1000,
     ) -> str:
@@ -274,7 +274,7 @@ class SummaryTreeManager:
         Get pre-computed summaries for context assembly.
         
         Args:
-            channel: Current channel (optional)
+            room_id: Current room (room-centric)
             entity_ids: Entity IDs to include (optional)
             max_tokens: Maximum tokens to return
             
@@ -283,11 +283,10 @@ class SummaryTreeManager:
         """
         summaries = []
         
-        # Get channel summary
-        if channel:
-            channel_node = self.store.get_summary_node(f"channel:{channel}")
-            if channel_node and channel_node.summary:
-                summaries.append(f"## Channel: {channel}\n{channel_node.summary}")
+        # Get room summary (room-centric)
+        room_node = self.store.get_summary_node(f"room:{room_id}")
+        if room_node and room_node.summary:
+            summaries.append(f"## Room: {room_id}\n{room_node.summary}")
         
         # Get entity summaries
         if entity_ids:
