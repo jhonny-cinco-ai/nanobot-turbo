@@ -436,7 +436,12 @@ class AgentLoop:
             session.add_message("assistant", response)
             self.sessions.save(session)
             
-            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=response)
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=response,
+                room_id=msg.room_id or self._current_room_id,
+            )
         
         elif onboarding.state == OnboardingState.IN_PROGRESS:
             # Process answer and get next question
@@ -454,7 +459,12 @@ class AgentLoop:
             session.add_message("assistant", response)
             self.sessions.save(session)
             
-            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=response)
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=response,
+                room_id=msg.room_id or self._current_room_id,
+            )
         
         elif onboarding.state == OnboardingState.TEAM_INTRO:
             # Handle questions about bots
@@ -607,6 +617,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=combined_content,
+                room_id=msg.room_id or self._current_room_id,
                 metadata={
                     'multi_bot': True,
                     'responding_bots': [r.bot_name for r in responses],
@@ -985,11 +996,19 @@ class AgentLoop:
         if cmd == "/new":
             session.clear()
             self.sessions.save(session)
-            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
-                                  content="🐈 New session started.")
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content="🐈 New session started.",
+                room_id=msg.room_id or self._current_room_id,
+            )
         if cmd == "/help":
-            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id,
-                                  content="🐈 nanofolks commands:\n/new — Start a new conversation\n/help — Show available commands")
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content="🐈 nanofolks commands:\n/new — Start a new conversation\n/help — Show available commands",
+                room_id=msg.room_id or self._current_room_id,
+            )
         
         # Check for multi-bot triggers (@all, @crew, multiple @mentions)
         dispatch_result = self._check_multi_bot_dispatch(msg.content, session)
@@ -1484,6 +1503,7 @@ class AgentLoop:
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=final_content,
+            room_id=msg.room_id or self._current_room_id,
             metadata=response_metadata,  # Includes context usage if enabled
         )
     
@@ -1595,7 +1615,8 @@ class AgentLoop:
         return OutboundMessage(
             channel=origin_channel,
             chat_id=origin_chat_id,
-            content=final_content
+            content=final_content,
+            room_id=msg.room_id or self._current_room_id,
         )
     
     async def process_direct(
@@ -1890,5 +1911,6 @@ Once configured, we can start chatting! 🤖"""
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=content,
+            room_id=msg.room_id or self._current_room_id,
             metadata=msg.metadata or {}
         )

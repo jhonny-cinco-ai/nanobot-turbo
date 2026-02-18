@@ -691,6 +691,12 @@ def gateway(
     
     config = load_config()
     bus = MessageBus()
+    
+    # Configure room manager for cross-channel broadcast
+    from nanofolks.bots.room_manager import get_room_manager
+    room_manager = get_room_manager()
+    bus.set_room_manager(room_manager)
+    
     provider = _make_provider(config)
     session_manager = SessionManager(config.workspace_path)
     
@@ -1299,6 +1305,7 @@ def chat(
         room = current_room.id
     
     bus = MessageBus()
+    bus.set_room_manager(room_manager)  # Enable cross-channel broadcast
     provider = _make_provider(config)
 
     if logs:
