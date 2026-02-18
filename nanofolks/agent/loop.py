@@ -1571,6 +1571,9 @@ class AgentLoop:
             except Exception as e:
                 logger.debug(f"Failed to calculate context usage: {e}")
 
+        # Strip thinking blocks from final content
+        final_content = self._strip_think(final_content) or final_content
+
         return OutboundMessage(
             channel=msg.channel,
             chat_id=msg.chat_id,
