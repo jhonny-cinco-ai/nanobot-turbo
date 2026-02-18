@@ -1276,7 +1276,7 @@ async def _handle_room_creation_intent(
 @app.command()
 def chat(
     message: str = typer.Option(None, "--message", "-m", help="Message to send"),
-    session_id: str = typer.Option("room:cli_default", "--session", "-s", help="Session ID (room-centric format: room:{channel}_{id})"),
+    session_id: str = typer.Option(None, "--session", "-s", help="Session ID (room-centric format: room:{room_id}). If not set, uses --room value"),
     room: str = typer.Option("general", "--room", "-r", help="Room to join (general, project-alpha, etc.)"),
     markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render assistant output as Markdown"),
     logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanofolks runtime logs during chat"),

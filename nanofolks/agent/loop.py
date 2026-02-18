@@ -1596,10 +1596,10 @@ class AgentLoop:
     async def process_direct(
         self,
         content: str,
-        session_key: str = "room:cli_direct",
+        session_key: str | None = None,
         channel: str = "cli",
         chat_id: str = "direct",
-        room_id: str = "default",
+        room_id: str = "general",
         room_type: str = "open",
         participants: list | None = None,
         stream_callback: callable = None,
@@ -1609,10 +1609,11 @@ class AgentLoop:
 
         Args:
             content: The message content.
-            session_key: Session identifier (room-centric format: "room:{channel}_{chat_id}").
+            session_key: Session identifier (room-centric format: "room:{room_id}"). 
+                        If None, constructed from room_id.
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
-            room_id: Room identifier for multi-agent context.
+            room_id: Room identifier for multi-agent context (default: "general").
             room_type: Type of room (open, project, direct, coordination).
             participants: List of bot participants in the room.
             stream_callback: Optional callback for streaming chunks (content: str) -> None.
@@ -1624,6 +1625,10 @@ class AgentLoop:
         self._current_room_id = room_id
         self._current_room_type = room_type
         self._current_room_participants = participants or ["leader"]
+        
+        # Construct session_key from room_id if not provided (room-centric)
+        if session_key is None:
+            session_key = f"room:{room_id}"
         
         # Start work log session for transparency with room context
         self.work_log_manager.start_session(
