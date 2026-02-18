@@ -8,6 +8,7 @@ This document outlines the complete implementation plan for Nanofolks, a multi-b
 - Phase 1 ✅ COMPLETE: Multi-Bot Foundation
 - Phase 2 ✅ COMPLETE: Intent Detection + IntentFlowRouter
 - Phase 3 ✅ COMPLETE: Full Discovery Flow (Leader-first)
+- Quick Flow Persistence ✅ ADDED: State survives service restarts
 - Phase 4: Session Migration (deferred)
 
 **Total Duration:** ~14 weeks
@@ -387,12 +388,22 @@ nanofolks/agent/
 
 ## Testing Checklist (Phase 2)
 
-- [ ] Intent detector correctly identifies all 6 intent types
-- [ ] CHAT → simultaneous flow (Phase 1 integration)
-- [ ] ADVICE/RESEARCH → quick flow (1-2 Qs → answer)
-- [ ] BUILD/TASK/EXPLORE → full discovery flow
-- [ ] Cancellation keywords work in any phase
-- [ ] Backward compatible with existing Phase 1 behavior
+- [x] Intent detector correctly identifies all 6 intent types
+- [x] CHAT → simultaneous flow (Phase 1 integration)
+- [x] ADVICE/RESEARCH → quick flow (1-2 Qs → answer)
+- [x] BUILD/TASK/EXPLORE → full discovery flow
+- [x] Cancellation keywords work in any phase
+- [x] Backward compatible with existing Phase 1 behavior
+- [x] Quick flow state persistence (survives restarts)
+
+### Quick Flow Persistence (Added Post-Implementation)
+
+The quick flow (ADVICE/RESEARCH intents) now uses persisted state via `ProjectStateManager`:
+
+- **Storage**: `.nanofolks/project_states/{room_id}_quick.json`
+- **Timeout**: 10 minutes TTL (shorter than full flow's 30 min)
+- **Benefits**: Survives service restarts, works across workers
+- **Implementation**: `QuickFlowState` class in `project_state.py`
 
 ---
 
@@ -827,12 +838,12 @@ nanofolks/agent/
 
 ## Testing Checklist (Phase 3)
 
-- [ ] Full flow: DISCOVERY → SYNTHESIS → APPROVAL → EXECUTION → REVIEW
-- [ ] Approval triggers execution
-- [ ] Rejection loops back to discovery
-- [ ] Timeout auto-resets to idle
-- [ ] Cancellation keywords work
-- [ ] Project state persists across restarts
+- [x] Full flow: DISCOVERY → SYNTHESIS → APPROVAL → EXECUTION → REVIEW
+- [x] Approval triggers execution
+- [x] Rejection loops back to discovery
+- [x] Timeout auto-resets to idle
+- [x] Cancellation keywords work
+- [x] Project state persists across restarts
 
 ---
 

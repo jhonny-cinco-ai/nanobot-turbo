@@ -36,14 +36,28 @@ class ProjectState:
     suggested_bots: List[str] = field(default_factory=list)
 
 
+class QuickFlowState:
+    """State for quick flow (ADVICE/RESEARCH intents)."""
+    def __init__(self):
+        self.intent_type: str = ""
+        self.questions_asked: int = 0
+        self.user_goal: str = ""
+        self.user_answers: List[str] = []
+        self.created_at: datetime = datetime.now()
+        self.updated_at: datetime = datetime.now()
+
+
 class ProjectStateManager:
     """Manages project state across sessions for full discovery flow.
     
     This implements the state machine for:
     DISCOVERY → SYNTHESIS → APPROVAL → EXECUTION → REVIEW → IDLE
+    
+    Also supports quick flow state for ADVICE/RESEARCH intents.
     """
     
     TIMEOUT_MINUTES = 30
+    QUICK_FLOW_TIMEOUT_MINUTES = 10
     MIN_QUESTIONS = 3
     MIN_BOTS_WITH_QUESTIONS = 2
     
@@ -317,6 +331,97 @@ class ProjectStateManager:
             lines.append(f"Last activity: {elapsed:.0f}m ago")
         
         return "\n".join(lines)
+
+
+    def start_quick_flow(self, intent_type: str, user_goal: str):
+        """Start a quick flow session.
+        
+        Args:
+            intent_type: Type of intent (advice, research)
+            user_goal: The user's original question/request
+        """
+        quick_state = QuickFlowState()
+        quick_state.intent_type = intent_type
+        quick_state.user_goal = user_goal
+        quick_state.questions_asked = 0
+        quick_state.user_answers = []
+        
+        self._save_quick_flow_state(quick_state)
+        logger.info(f"Started quick flow for: {user_goal[:50]}...")
+    
+    def get_quick_flow_state(self) -> Optional[QuickFlowState]:
+        """Get quick flow state if it exists and hasn't timed out.
+        
+        Returns:
+            QuickFlowState if valid, None otherwise
+        """
+        quick_file = self.state_dir / f"{self.room_id}_quick.json"
+        if not quick_file.exists():
+            return None
+        
+        try:
+            with open(quick_file, 'r') as f:
+                data = json.load(f)
+            
+            created_at = datetime.fromisoformat(data['created_at'])
+            updated_at = datetime.fromisoformat(data['updated_at'])
+            
+            elapsed = (datetime.now() - updated_at).total_seconds() / 60
+            if elapsed > self.QUICK_FLOW_TIMEOUT_MINUTES:
+                logger.info(f"Quick flow timed out after {elapsed:.0f} minutes")
+                self.clear_quick_flow_state()
+                return None
+            
+            quick_state = QuickFlowState()
+            quick_state.intent_type = data.get('intent_type', '')
+            quick_state.questions_asked = data.get('questions_asked', 0)
+            quick_state.user_goal = data.get('user_goal', '')
+            quick_state.user_answers = data.get('user_answers', [])
+            quick_state.created_at = created_at
+            quick_state.updated_at = updated_at
+            
+            return quick_state
+        except Exception as e:
+            logger.warning(f"Failed to load quick flow state: {e}")
+            return None
+    
+    def update_quick_flow_state(self, questions_asked: int, user_answers: List[str]):
+        """Update quick flow state.
+        
+        Args:
+            questions_asked: Number of questions asked so far
+            user_answers: List of user's answers
+        """
+        quick_state = self.get_quick_flow_state()
+        if quick_state:
+            quick_state.questions_asked = questions_asked
+            quick_state.user_answers = user_answers
+            self._save_quick_flow_state(quick_state)
+    
+    def clear_quick_flow_state(self):
+        """Clear quick flow state."""
+        quick_file = self.state_dir / f"{self.room_id}_quick.json"
+        if quick_file.exists():
+            quick_file.unlink()
+            logger.info("Cleared quick flow state")
+    
+    def _save_quick_flow_state(self, quick_state: QuickFlowState):
+        """Persist quick flow state to disk.
+        
+        Args:
+            quick_state: The quick flow state to save
+        """
+        data = {
+            'intent_type': quick_state.intent_type,
+            'questions_asked': quick_state.questions_asked,
+            'user_goal': quick_state.user_goal,
+            'user_answers': quick_state.user_answers,
+            'created_at': quick_state.created_at.isoformat(),
+            'updated_at': datetime.now().isoformat(),
+        }
+        quick_file = self.state_dir / f"{self.room_id}_quick.json"
+        with open(quick_file, 'w') as f:
+            json.dump(data, f, indent=2)
 
 
 def get_project_state_manager(workspace: Path, room_id: str) -> ProjectStateManager:

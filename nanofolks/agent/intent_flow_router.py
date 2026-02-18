@@ -114,23 +114,34 @@ class IntentFlowRouter:
         """Handle ADVICE/RESEARCH intents - quick 1-2 questions then answer.
         
         This flow asks 1-2 clarifying questions, then provides the answer.
+        Uses persisted state via ProjectStateManager for durability.
         """
+        from nanofolks.agent.project_state import ProjectStateManager
+        
         room_id = msg.session_key
+        state_manager = ProjectStateManager(self.agent.workspace, room_id)
         
-        if room_id not in self._quick_flow_state:
-            self._quick_flow_state[room_id] = {
-                'intent': intent,
-                'questions_asked': 0,
-                'user_goal': msg.content,
-                'user_answers': [],
-            }
+        quick_state = state_manager.get_quick_flow_state()
         
-        state = self._quick_flow_state[room_id]
+        if quick_state is None:
+            state_manager.start_quick_flow(intent.intent_type.value, msg.content)
+            quick_state = state_manager.get_quick_flow_state()
+            if quick_state is None:
+                from nanofolks.bus.events import OutboundMessage
+                return OutboundMessage(
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    content="Sorry, I couldn't start the quick flow. Please try again.",
+                    metadata={'phase': 'error', 'intent': intent.intent_type.value}
+                )
         
-        if state['questions_asked'] < 1:
-            state['user_answers'].append(msg.content)
-            question = await self._generate_quick_question_llm(intent, state)
-            state['questions_asked'] += 1
+        if quick_state.questions_asked < 1:
+            quick_state.user_answers.append(msg.content)
+            state_manager.update_quick_flow_state(quick_state.questions_asked, quick_state.user_answers)
+            
+            question = await self._generate_quick_question_llm(intent, quick_state)
+            quick_state.questions_asked += 1
+            state_manager.update_quick_flow_state(quick_state.questions_asked, quick_state.user_answers)
             
             from nanofolks.bus.events import OutboundMessage
             return OutboundMessage(
@@ -139,14 +150,14 @@ class IntentFlowRouter:
                 content=question,
                 metadata={
                     'phase': 'quick_discovery',
-                    'questions_asked': state['questions_asked'],
+                    'questions_asked': quick_state.questions_asked,
                     'intent': intent.intent_type.value,
                 }
             )
         else:
-            state['user_answers'].append(msg.content)
-            answer = await self._generate_quick_answer_llm(intent, state, msg.content)
-            del self._quick_flow_state[room_id]
+            quick_state.user_answers.append(msg.content)
+            answer = await self._generate_quick_answer_llm(intent, quick_state, msg.content)
+            state_manager.clear_quick_flow_state()
             
             from nanofolks.bus.events import OutboundMessage
             return OutboundMessage(
@@ -445,11 +456,13 @@ class IntentFlowRouter:
             metadata={'phase': 'idle'}
         )
 
-    async def _generate_quick_question_llm(self, intent: Intent, state: dict) -> str:
+    async def _generate_quick_question_llm(self, intent: Intent, state: Any) -> str:
         """Generate a quick clarifying question using LLM."""
+        user_goal = getattr(state, 'user_goal', state.get('user_goal', ''))
+        
         prompt = f"""You are a helpful assistant. The user wants to {intent.intent_type.value.lower()}.
 
-User's original request: {state['user_goal']}
+User's original request: {user_goal}
 
 Ask ONE brief clarifying question to better understand their needs. Be specific and helpful.
 
@@ -478,15 +491,18 @@ Question:"""
     async def _generate_quick_answer_llm(
         self, 
         intent: Intent, 
-        state: dict, 
+        state: Any, 
         user_context: str
     ) -> str:
         """Generate a quick answer after clarification using LLM."""
-        answers = "\n".join(f"- {a}" for a in state['user_answers'])
+        user_goal = getattr(state, 'user_goal', state.get('user_goal', ''))
+        user_answers = getattr(state, 'user_answers', state.get('user_answers', []))
+        
+        answers = "\n".join(f"- {a}" for a in user_answers)
         
         prompt = f"""You are a helpful assistant. The user wants to {intent.intent_type.value.lower()}.
 
-Original request: {state['user_goal']}
+Original request: {user_goal}
 
 Their answers to your questions:
 {answers}
@@ -503,7 +519,7 @@ Provide a helpful, concise answer to their request. Be specific and actionable."
             return response.content.strip()
         except Exception as e:
             logger.warning(f"LLM answer generation failed: {e}")
-            return f"Based on what you've shared, here's my advice regarding: {state['user_goal']}"
+            return f"Based on what you've shared, here's my advice regarding: {user_goal}"
 
     async def _generate_discovery_question_llm(
         self,
