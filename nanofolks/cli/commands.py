@@ -706,7 +706,6 @@ def gateway(
     from nanofolks.heartbeat.dashboard import DashboardService
     from nanofolks.heartbeat.dashboard_server import DashboardHTTPServer
     from nanofolks.heartbeat.multi_manager import MultiHeartbeatManager
-    from nanofolks.session.manager import SessionManager
 
     if verbose:
         import logging
@@ -723,7 +722,10 @@ def gateway(
     bus.set_room_manager(room_manager)
 
     provider = _make_provider(config)
-    session_manager = SessionManager(config.workspace_path)
+    
+    # Use RoomSessionManager with CAS storage for conflict-free concurrent writes
+    from nanofolks.session.dual_mode import create_session_manager
+    session_manager = create_session_manager(config.workspace_path, config)
 
     # Create cron service first (callback set after agent creation)
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
