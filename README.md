@@ -883,11 +883,40 @@ nanofolks routing analytics  # Show cost savings
 
 ## Skills
 
+Skills extend Nanofolks' capabilities with specialized tools and knowledge.
+
+### How Skills Work
+
+Nanofolks uses **progressive loading** to keep responses fast:
+
+1. **Skills Summary** - All available skills are listed in the system prompt with name, description, and file path
+2. **On-Demand Loading** - When the agent needs a skill, it reads the skill file automatically
+3. **Zero Overhead** - Full skill instructions only load when actually used
+
+This keeps every conversation lightweight while giving access to all capabilities.
+
+### Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| `humanizer` | Remove AI writing patterns from text |
+| `github` | GitHub CLI integration |
+| `weather` | Weather info (wttr.in, Open-Meteo) |
+| `summarize` | URL, file, and YouTube summarization |
+| `tmux` | Terminal session management |
+| `skill-creator` | Create new skills |
+
+### CLI Commands
+
 ```bash
 nanofolks skills list        # List all skills
 nanofolks skills scan ./skill  # Security scan
 nanofolks skills approve name # Approve skill
 ```
+
+### Adding Custom Skills
+
+Place a `SKILL.md` file in `workspace/skills/your-skill/`. It will be auto-discovered and security-scanned before becoming available.
 
 
 ## Scheduled Tasks
