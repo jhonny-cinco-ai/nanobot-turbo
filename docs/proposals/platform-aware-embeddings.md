@@ -1,17 +1,25 @@
-# Platform-Aware Embedding Providers
+# Platform-Aware ML Providers
 
-> Use Apple's on-device NLContextualEmbedding for macOS users, with automatic fallback to FastEmbed for other platforms.
+> Use Apple's on-device ML capabilities for macOS users, with automatic fallback to cloud APIs for other platforms.
+
+This proposal covers:
+1. **Text Embeddings** - Semantic search, memory retrieval
+2. **Image Analysis** - First-pass filtering before paid vision APIs
+3. **Speech-to-Text** - Voice input processing
 
 ## Executive Summary
 
-Replace the current FastEmbed-only embedding provider with a platform-aware factory that:
-- Uses **Apple's NLContextualEmbedding** on macOS (768D vectors, zero bundle size)
-- Uses **FastEmbed** on Linux/Windows (current behavior)
+Replace the current FastEmbed-only ML providers with platform-aware factories that:
+- Use **Apple's NLContextualEmbedding** on macOS for text (768D vectors, zero bundle size)
+- Use **Apple Vision** on macOS for image first-pass (free, before paid APIs)
+- Use **Apple Speech-to-Text** on macOS for voice input
+- Use **FastEmbed** on Linux/Windows (current behavior)
 - Allows explicit provider selection via config
 - Maintains full API compatibility
 
-**Duration:** 1-2 weeks  
+**Duration:** 2-3 weeks  
 **Risk Level:** Low (additive feature, full backward compatibility)
+**Primary Benefit:** Cost savings + better privacy
 
 ---
 
@@ -506,6 +514,144 @@ Export bge-small to CoreML, run locally
 
 4. **Future Apple Silicon**: What about iOS/iPadOS support?
    - Proposal: Future work - would need platform check expansion
+
+---
+
+## Additional Apple ML Capabilities
+
+Beyond text embeddings, Apple's on-device ML can provide additional capabilities:
+
+### Apple Vision (Image Analysis)
+
+Apple's Vision framework provides image classification, object detection, and OCR entirely on-device.
+
+#### Use Case: Cost-Saving First Pass
+
+```
+Current flow:
+  User uploads image → Paid Vision API ($0.005/call) → Response
+
+With Apple Vision:
+  User uploads image → Apple Vision (free) → Is image simple enough?
+    → Yes: Return result (free)
+    → No: Forward to paid Vision API
+```
+
+#### Features Available
+
+| Feature | Description | nanofolks Use |
+|---------|-------------|---------------|
+| **Image Classification** | Classify images (cat, dog, landscape, etc.) | Quick image categorization |
+| **Object Detection** | Detect objects in images | Count items, locate elements |
+| **Face Detection** | Detect faces, age, gender | User identification |
+| **Text Recognition (OCR)** | Extract text from images | Process screenshots, documents |
+| **Barcode Detection** | Read QR codes, barcodes | Scan codes |
+| **Rectangle Detection** | Detect document edges | Scan documents |
+
+#### Example Implementation
+
+```python
+import Vision
+
+def analyze_image(image_path: str) -> dict:
+    # Load image
+    image = NSImage(image_path)
+    
+    # Classify image
+    request = VNClassifyImageRequest()
+    handler = VNImageRequestHandler(image)
+    results = handler.perform([request])
+    
+    # Return top classifications
+    return {"labels": results.first?.top3}
+```
+
+#### Cost Savings Example
+
+| Scenario | Current | With Apple Vision |
+|----------|---------|-------------------|
+| 1000 simple images/month | $5.00 | $0.00 |
+| 100 complex images/month | $0.50 | $0.50 |
+| **Total** | **$5.50** | **$0.50** |
+
+---
+
+### Apple Speech-to-Text
+
+Apple's Speech framework provides on-device speech recognition.
+
+#### Use Case: Voice Commands
+
+```
+User speaks → Apple Speech-to-Text (free) → Text → Agent response
+```
+
+#### Features Available
+
+| Feature | Description |
+|---------|-------------|
+| **On-Device Recognition** | 100% offline, no network needed |
+| **Live Transcription** | Real-time speech-to-text |
+| **Language Support** | 50+ languages |
+| **Custom Words** | Add domain-specific vocabulary |
+
+#### Example Implementation
+
+```python
+import Speech
+
+def transcribe_audio(audio_path: str) -> str:
+    recognizer = SFSpeechRecognizer()
+    request = SFSpeechURLRecognitionRequest(url: audio_path)
+    
+    result = recognizer.recognitionTask(request) { result, error
+        return result.bestTranscription.formattedString
+    }
+```
+
+#### Use in nanofolks
+
+- Voice commands in CLI
+- Audio messages from Telegram/Discord
+- Meeting transcription
+- Voice notes
+
+---
+
+### Sentiment Analysis (Bonus)
+
+Apple's NaturalLanguage can analyze sentiment.
+
+#### Example
+
+```python
+from NaturalLanguage import NLTagger
+
+tagger = NLTagger(tagSchemes: [.sentimentScore])
+sentiment = tagger.tagString("I love this!")
+
+# Returns: 0.0 (negative) to 1.0 (positive)
+```
+
+#### Use Cases
+
+| Feature | How It Helps |
+|---------|--------------|
+| Feedback learning | Auto-detect positive/negative feedback |
+| Escalation | Trigger human handoff on negative sentiment |
+| Analytics | Track user satisfaction over time |
+
+---
+
+### Comparison: All Apple ML Features
+
+| Feature | Dimensions | Model Size | Cost | macOS Version |
+|---------|------------|------------|------|---------------|
+| **Text Embedding** | 768D | 0 MB | Free | macOS 14+ |
+| **Image Analysis** | N/A | 0 MB | Free | macOS 10.15+ |
+| **Speech-to-Text** | N/A | 0 MB | Free | macOS 10.15+ |
+| **Sentiment** | N/A | 0 MB | Free | macOS 10.15+ |
+| **NER** | N/A | 0 MB | Free | macOS 10.15+ |
 
 ---
 
