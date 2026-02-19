@@ -155,8 +155,6 @@ Connect Nanofolks to your favorite messaging platforms.
 | **Discord** | Easy | Bot token + intents |
 | **WhatsApp** | Medium | Scan QR code |
 | **Slack** | Medium | Socket mode |
-| **Feishu** | Medium | WebSocket |
-| **QQ** | Easy | App credentials |
 
 <details>
 <summary><b>Telegram</b> (Recommended)</summary>
@@ -858,11 +856,35 @@ Nanofolks also respects these env vars:
 | `nanofolks onboard` | First-time setup |
 | `nanofolks configure` | Interactive configuration |
 | `nanofolks agent -m "msg"` | Send a message |
-| `nanofolks agent` | Interactive chat mode |
+| `nanofolks chat` | Interactive chat mode |
 | `nanofolks gateway` | Start multi-channel gateway |
 
-
 ## Memory & Session
+
+```bash
+nanofolks memory status       # Show memory statistics
+nanofolks memory search "query"  # Search memories
+nanofolks session status     # Show context usage
+nanofolks session compact    # Manual compaction
+```
+
+## Routing
+
+```bash
+nanofolks routing status     # Show routing config
+nanofolks routing test "msg" # Test classification
+nanofolks routing analytics  # Show cost savings
+```
+
+## Skills
+
+```bash
+nanofolks skills list        # List all skills
+nanofolks skills scan ./skill  # Security scan
+nanofolks skills approve name # Approve skill
+```
+
+Skills extend Nanofolks' capabilities with specialized tools and knowledge.
 
 ```bash
 nanofolks memory status       # Show memory statistics
@@ -905,14 +927,6 @@ This keeps every conversation lightweight while giving access to all capabilitie
 | `summarize` | URL, file, and YouTube summarization |
 | `tmux` | Terminal session management |
 | `skill-creator` | Create new skills |
-
-### CLI Commands
-
-```bash
-nanofolks skills list        # List all skills
-nanofolks skills scan ./skill  # Security scan
-nanofolks skills approve name # Approve skill
-```
 
 ### Adding Custom Skills
 
