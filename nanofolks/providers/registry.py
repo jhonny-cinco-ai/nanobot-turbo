@@ -51,6 +51,9 @@ class ProviderSpec:
     # per-model param overrides, e.g. (("kimi-k2.5", {"temperature": 1.0}),)
     model_overrides: tuple[tuple[str, dict[str, Any]], ...] = ()
 
+    # provider supports cache_control on content blocks (e.g. Anthropic prompt caching)
+    supports_prompt_caching: bool = False
+
     @property
     def label(self) -> str:
         return self.display_name or self.name.title()
@@ -121,6 +124,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         default_api_base="",
         strip_model_prefix=False,
         model_overrides=(),
+        supports_prompt_caching=True,
     ),
 
     # OpenAI: LiteLLM recognizes "gpt-*" natively, no prefix needed.
