@@ -279,7 +279,7 @@ class BotHeartbeatService:
         heartbeat_file = self._get_heartbeat_file_path()
         if heartbeat_file:
             try:
-                content = heartbeat_file.read_text()
+                content = heartbeat_file.read_text(encoding="utf-8")
                 self._warn_heartbeat_secrets(content, heartbeat_file)
                 return content
             except Exception as e:

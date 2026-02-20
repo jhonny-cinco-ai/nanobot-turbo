@@ -638,7 +638,7 @@ If no permissions are specified, bots get access to all standard tools.
     for filename, content in templates.items():
         file_path = workspace / filename
         if not file_path.exists():
-            file_path.write_text(content)
+            file_path.write_text(content, encoding="utf-8")
             console.print(f"  [dim]Created {filename}[/dim]")
 
     # Create memory directory and MEMORY.md
@@ -661,7 +661,7 @@ This file stores important information that should persist across sessions.
 ## Important Notes
 
 (Things to remember)
-""")
+""", encoding="utf-8")
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
     # Create skills directory for custom user skills
