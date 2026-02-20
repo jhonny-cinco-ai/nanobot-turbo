@@ -891,11 +891,17 @@ class AgentLoop:
         """Connect to configured MCP servers (one-time, lazy)."""
         if self._mcp_connected or not self._mcp_servers:
             return
-        self._mcp_connected = True
-        from nanofolks.agent.tools.mcp import connect_mcp_servers
-        self._mcp_stack = AsyncExitStack()
-        await self._mcp_stack.__aenter__()
-        await connect_mcp_servers(self._mcp_servers, self.tools, self._mcp_stack)
+        if getattr(self, '_mcp_connecting', False):
+            return
+        self._mcp_connecting = True
+        try:
+            from nanofolks.agent.tools.mcp import connect_mcp_servers
+            self._mcp_stack = AsyncExitStack()
+            await self._mcp_stack.__aenter__()
+            await connect_mcp_servers(self._mcp_servers, self.tools, self._mcp_stack)
+            self._mcp_connected = True
+        finally:
+            self._mcp_connecting = False
 
     async def close_mcp(self) -> None:
         """Close MCP connections."""
