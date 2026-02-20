@@ -18,7 +18,8 @@ class MessageTool(Tool):
         self._send_callback = send_callback
         self._default_channel = default_channel
         self._default_chat_id = default_chat_id
-        self._turn_sends: list[tuple[str, str]] = []
+        self._default_message_id = default_message_id
+        self._sent_in_turn: bool = False
 
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current message context."""
@@ -27,11 +28,7 @@ class MessageTool(Tool):
 
     def start_turn(self) -> None:
         """Reset per-turn send tracking."""
-        self._turn_sends.clear()
-
-    def get_turn_sends(self) -> list[tuple[str, str]]:
-        """Get (channel, chat_id) targets sent in the current turn."""
-        return list(self._turn_sends)
+        self._sent_in_turn = False
 
     def set_send_callback(self, callback: Callable[[OutboundMessage], Awaitable[None]]) -> None:
         """Set the callback for sending messages."""
@@ -97,7 +94,7 @@ class MessageTool(Tool):
 
         try:
             await self._send_callback(msg)
-            self._turn_sends.append((channel, chat_id))
+            self._sent_in_turn = True
             media_info = f" with {len(media)} attachments" if media else ""
             return f"Message sent to {channel}:{chat_id}{media_info}"
         except Exception as e:
