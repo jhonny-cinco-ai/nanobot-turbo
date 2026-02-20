@@ -639,6 +639,46 @@ Output: "My API key is sk-or-v1-ab***..." (masked)
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Skill Security
+
+Skills can execute arbitrary code and access files, so they undergo security scanning before being loaded.
+
+#### Risk Levels
+
+| Level | Description | Auto-load |
+|-------|-------------|-----------|
+| **Critical** | Executes shell commands, writes files, makes network calls | Never |
+| **High** | Accesses sensitive directories or reads sensitive files | After approval |
+| **Medium** | Uses external APIs or has broad file access | After approval |
+| **Low** | Pure text transformation, no side effects | Always |
+
+#### Scanning Process
+
+1. **Auto-scan on Discovery** - When a new skill is detected, it's automatically scanned
+2. **Risk Assessment** - The scanner analyzes the skill for:
+   - Shell command execution (`subprocess`, `os.system`, etc.)
+   - File system access patterns
+   - Network requests
+   - Environment variable usage
+3. **Decision** - Based on risk level:
+   - **Low/Medium** → Available but requires approval
+   - **High/Critical** → Blocked until manually approved
+
+#### Manual Approval
+
+For skills that need review:
+
+```bash
+# After reviewing the skill code:
+nanofolks skills approve <skill_name>
+
+# Or scan a skill before adding:
+nanofolks skills scan /path/to/skill
+```
+
+> [!TIP]
+> Always review skill code before approving, especially those with **High** or **Critical** risk ratings.
+
 ---
 
 ## 🏠 Rooms & Collaboration
@@ -931,6 +971,17 @@ This keeps every conversation lightweight while giving access to all capabilitie
 ### Adding Custom Skills
 
 Place a `SKILL.md` file in `workspace/skills/your-skill/`. It will be auto-discovered and security-scanned before becoming available.
+
+> [!TIP]
+> See [Skill Security](#skill-security) below for details on the scanning process.
+
+### Skill CLI Commands
+
+```bash
+nanofolks skills list              # List all available skills with status
+nanofolks skills scan <path>       # Security scan a skill before adding
+nanofolks skills approve <name>    # Manually approve a skill after review
+```
 
 
 ## Scheduled Tasks
