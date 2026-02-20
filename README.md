@@ -753,24 +753,6 @@ You: @coder build a dashboard with those stats
 Coder: [references previous findings]
 ```
 
-### CLI Commands
-
-```bash
-# Create a new project room
-nanofolks room create project-alpha
-
-# Invite bots to the room
-nanofolks room invite project-alpha researcher
-nanofolks room invite project-alpha coder
-nanofolks room invite project-alpha creative
-
-# See who's in the room
-nanofolks room show project-alpha
-
-# List all your rooms
-nanofolks room list
-```
-
 ---
 
 ## 💓 Multi-Heartbeat System
@@ -870,6 +852,16 @@ nanofolks session compact    # Manual compaction
 nanofolks routing status     # Show routing config
 nanofolks routing test "msg" # Test classification
 nanofolks routing analytics  # Show cost savings
+```
+
+
+## Rooms
+
+```bash
+nanofolks room create project-alpha  # Create a new project room
+nanofolks room invite project-alpha researcher  # Invite bots
+nanofolks room show project-alpha    # See who's in the room
+nanofolks room list                  # List all your rooms
 ```
 
 
