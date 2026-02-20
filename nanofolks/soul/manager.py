@@ -261,8 +261,8 @@ Professional and collaborative.
         if agents_file.exists() and not force:
             return False
 
-        from nanofolks.templates import get_agents_templates
-        template = get_agents_templates().get(bot_name)
+        from nanofolks.templates import get_agents_template
+        template = get_agents_template(bot_name)
         if not template:
             return False
 

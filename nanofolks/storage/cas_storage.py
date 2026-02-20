@@ -97,6 +97,7 @@ class CASFileStorage:
         path = self._get_path(key)
         
         for attempt in range(self.max_retries):
+            current_etag = None
             try:
                 _, current_etag = self.read(key)
                 

@@ -52,7 +52,7 @@ def get_all_ips() -> list[str]:
         hostname = socket.gethostname()
         # Get all addresses (IPv4)
         for addr_info in socket.getaddrinfo(hostname, None):
-            ip = addr_info[4][0]
+            ip = str(addr_info[4][0])
             if ":" not in ip and ip != "127.0.0.1" and ip not in ips:
                 ips.append(ip)
     except Exception:
