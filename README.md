@@ -16,8 +16,6 @@ Instead of a single assistant, you work alongside a crew of AI specialists with 
 
 From pirate captains to space explorers to creative misfits, your companions don't just respond. They work together.
 
-📏 Real-time line count: **3,689 lines** (run `bash core_agent_lines.sh` to verify anytime)
-
 Pick the kind of crew that fits you.
 
 
