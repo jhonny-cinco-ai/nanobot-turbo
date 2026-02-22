@@ -101,7 +101,7 @@ class OnboardingWizard:
     def _show_welcome(self) -> None:
         """Display welcome panel."""
         console.print(Panel.fit(
-            "[bold cyan]🚀 Welcome to Nanobot![/bold cyan]\n\n"
+            "[bold cyan]🚀 Welcome to nanofolks![/bold cyan]\n\n"
             "Let's set up your multi-agent team in just a few steps.\n"
             "This wizard will guide you through:\n"
             "  1. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"

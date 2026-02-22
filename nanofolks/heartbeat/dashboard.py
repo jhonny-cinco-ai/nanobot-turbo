@@ -263,7 +263,7 @@ class DashboardService:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nanobot Heartbeat Dashboard</title>
+    <title>nanoFolks Heartbeat Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -510,7 +510,7 @@ class DashboardService:
 <body>
     <div class="container">
         <header>
-            <h1>🤖 Nanobot Heartbeat Dashboard</h1>
+            <h1>🤖 nanoFolks Heartbeat Dashboard</h1>
             <div class="status-indicator">
                 <span class="status-dot connected" id="connectionStatus"></span>
                 <span id="connectionText">Connected</span>
