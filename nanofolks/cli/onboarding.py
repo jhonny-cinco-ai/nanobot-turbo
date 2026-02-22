@@ -78,16 +78,16 @@ class OnboardingWizard:
         """
         self._show_welcome()
 
-        # Step 0: Check keyring status
+        # Step 1: Keyring Configuration
         self._check_keyring_status()
 
-        # Step 1: Provider & API Key
+        # Step 2: Provider & API Key
         self._configure_provider()
 
-        # Step 2: Theme/Team Selection
+        # Step 3: Theme/Team Selection
         self._select_theme()
 
-        # Step 3: Summary & Create
+        # Step 4: Summary & Create
         self._confirm_and_create()
 
         # Create the #general room
@@ -114,11 +114,12 @@ class OnboardingWizard:
                 "[bold cyan]🚀 Welcome to nanofolks![/bold cyan]\n\n"
                 "Let's set up your multi-agent team in just a few steps.\n"
                 "This wizard will guide you through:\n"
-                "  1. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"
-                "  2. [bold]Evolutionary Mode[/bold] (optional)\n"
-                "  3. [bold]Network Security[/bold] (Tailscale + secure ports)\n"
-                "  4. [bold]Team Theme[/bold] - Choose your crew's personality\n"
-                "  5. [bold]Launch[/bold] - Create your workspace and crew",
+                "  1. [bold]Security[/bold] - Keyring setup for secure API key storage\n"
+                "  2. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"
+                "  3. [bold]Evolutionary Mode[/bold] (optional)\n"
+                "  4. [bold]Network Security[/bold] (Tailscale + secure ports)\n"
+                "  5. [bold]Team Theme[/bold] - Choose your crew's personality\n"
+                "  6. [bold]Launch[/bold] - Create your workspace and crew",
                 title="🎉",
                 border_style="cyan",
             )
@@ -189,7 +190,7 @@ class OnboardingWizard:
 
     def _configure_provider(self) -> None:
         """Step 1: Configure AI provider and API key."""
-        console.print("[bold cyan]Step 1: AI Provider Setup[/bold cyan]\n")
+        console.print("[bold cyan]Step 2: AI Provider Setup[/bold cyan]\n")
         console.print("Choose the AI provider for your crew:\n")
 
         for key, (name, desc) in self.PROVIDERS.items():
@@ -267,7 +268,7 @@ class OnboardingWizard:
 
     def _configure_smart_routing(self, provider: str, primary_model: str) -> None:
         """Step 1b: Configure Smart Routing."""
-        console.print("[bold cyan]Step 1b: Smart Routing[/bold cyan]\n")
+        console.print("[bold cyan]Step 2b: Smart Routing[/bold cyan]\n")
         console.print("""
 [dim]Smart routing automatically selects the best model based on query complexity:[/dim]
   • Simple queries → Cheaper, faster models
@@ -293,7 +294,7 @@ class OnboardingWizard:
 
     def _configure_evolutionary_mode(self) -> None:
         """Step 1c: Configure Evolutionary Mode."""
-        console.print("[bold cyan]Step 1c: Evolutionary Mode (Optional)[/bold cyan]\n")
+        console.print("[bold cyan]Step 2c: Evolutionary Mode (Optional)[/bold cyan]\n")
         console.print("""
 [dim]Evolutionary mode allows bots to:[/dim]
   • Modify their own source code
@@ -315,7 +316,7 @@ class OnboardingWizard:
 
     def _configure_network_security(self) -> None:
         """Step 1d: Configure Network & Security."""
-        console.print("[bold cyan]Step 1d: Network & Security[/bold cyan]\n")
+        console.print("[bold cyan]Step 2d: Network & Security[/bold cyan]\n")
         console.print("""
 [dim]Configure how nanofolks services are accessed:[/dim]
   • Dashboard & bridge will use secure defaults
@@ -539,7 +540,7 @@ Then restart nanofolks for secure access.
 
     def _select_theme(self) -> None:
         """Interactive team/theme selection."""
-        console.print("[bold cyan]Step 2: Choose Your Crew Theme[/bold cyan]\n")
+        console.print("[bold cyan]Step 3: Choose Your Crew Theme[/bold cyan]\n")
 
         themes = list_teams()
         [t["name"] for t in themes]
@@ -615,7 +616,7 @@ Then restart nanofolks for secure access.
 
     def _confirm_and_create(self) -> None:
         """Final confirmation and room creation."""
-        console.print("[bold cyan]Step 3: Ready to Launch![/bold cyan]\n")
+        console.print("[bold cyan]Step 4: Ready to Launch![/bold cyan]\n")
 
         # Show summary table
         summary_table = Table(title="Your Setup Summary", box=box.ROUNDED)
