@@ -367,6 +367,7 @@ Nanofolks has a production-hardened memory system that learns from every convers
 | **Event Logging** | Every message (user and assistant) is stored in a local SQLite database with full conversation context |
 | **Entity Extraction** | The system automatically identifies people, places, organizations, and concepts mentioned in conversations |
 | **Knowledge Graph** | Entities are connected through relationships, creating a map of what you've discussed |
+| **Fast Semantic Search** | HNSW-based vector index enables millisecond-speed search over millions of memories |
 | **Preference Learning** | Nanofolks detects feedback patterns and learns your communication style, preferences, and habits over time |
 | **Context Assembly** | When you send a message, Nanofolks retrieves relevant memories and assembles them into context |
 
@@ -375,6 +376,7 @@ Nanofolks has a production-hardened memory system that learns from every convers
 Unlike simple chat histories, Nanofolks builds a persistent knowledge base that:
 - Survives restarts and new conversations
 - Connects related information across time
+- Searches semantically (find "dog" when you search "pet")
 - Improves the more you use it
 
 ---

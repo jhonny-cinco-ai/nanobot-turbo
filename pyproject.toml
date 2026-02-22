@@ -40,6 +40,7 @@ dependencies = [
     "qq-botpy>=1.0.0",
     "python-socks[asyncio]>=2.4.0",
     "fastembed>=0.3.0",
+    "hnswlib>=0.8.0",
     "gliner2>=0.1.0",
     "prompt-toolkit>=3.0.0",
     "json-repair>=0.30.0",

@@ -61,6 +61,7 @@ from nanofolks.memory.summaries import (
     SummaryTreeManager,
     create_summary_manager,
 )
+from nanofolks.memory.vector_index import VectorIndex
 
 __all__ = [
     "Event",
@@ -72,6 +73,7 @@ __all__ = [
     "Learning",
     "TurboMemoryStore",
     "EmbeddingProvider",
+    "VectorIndex",
     "pack_embedding",
     "unpack_embedding",
     "cosine_similarity",

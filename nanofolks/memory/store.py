@@ -25,6 +25,7 @@ from loguru import logger
 from nanofolks.config.schema import MemoryConfig
 from nanofolks.memory.migrations import MigrationManager
 from nanofolks.memory.models import Edge, Entity, Event, Fact, Learning, SummaryNode
+from nanofolks.memory.vector_index import VectorIndex
 
 
 class TurboMemoryStore:
@@ -71,6 +72,9 @@ class TurboMemoryStore:
                 logger.info("Legacy memory files detected, starting migration...")
                 stats = self.migrate_from_legacy(workspace)
                 logger.info(f"Migration complete: {stats}")
+
+        # Initialize HNSW vector index for fast semantic search
+        self._vector_index: Optional[VectorIndex] = None
 
         logger.info(f"TurboMemoryStore initialized: {self.db_path}")
 
@@ -247,11 +251,16 @@ class TurboMemoryStore:
         logger.debug("Database tables initialized")
 
     def close(self):
-        """Close the database connection."""
+        """Close the database connection and save vector index."""
         if self._conn:
             self._conn.close()
             self._conn = None
             logger.debug("Database connection closed")
+            
+        # Save vector index
+        if self._vector_index:
+            self._vector_index.close()
+            logger.debug("Vector index saved")
 
     def __enter__(self):
         """Context manager entry."""
@@ -260,6 +269,19 @@ class TurboMemoryStore:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+
+    def _get_vector_index(self) -> VectorIndex:
+        """Get or initialize the vector index."""
+        if self._vector_index is None:
+            dimension = 384  # bge-small-en-v1.5
+            self._vector_index = VectorIndex(
+                workspace=self.workspace,
+                dimension=dimension,
+                name="events"
+            )
+            self._vector_index.initialize()
+                
+        return self._vector_index
 
     # =========================================================================
     # Event Operations
@@ -311,6 +333,14 @@ class TurboMemoryStore:
             )
         )
         conn.commit()
+
+        # Also add to vector index for fast semantic search
+        if event.content_embedding:
+            try:
+                vector_index = self._get_vector_index()
+                vector_index.add_vector(event.id, event.content_embedding)
+            except Exception as e:
+                logger.warning(f"Failed to add embedding to vector index: {e}")
 
         logger.debug(f"Event saved: {event.id}")
         return event.id
@@ -441,7 +471,7 @@ class TurboMemoryStore:
         threshold: float = 0.5
     ) -> list[tuple[Event, float]]:
         """
-        Search events by semantic similarity.
+        Search events by semantic similarity using HNSW index.
 
         Args:
             query_embedding: The query embedding vector
@@ -452,11 +482,60 @@ class TurboMemoryStore:
         Returns:
             List of (event, similarity_score) tuples, sorted by similarity
         """
+        # Use vector index for fast search
+        try:
+            vector_index = self._get_vector_index()
+            index_results = vector_index.search(
+                query_embedding=query_embedding,
+                k=limit * 2,  # Get more to filter by session
+            )
+            
+            if not index_results:
+                return []
+                
+            # Get events from database and filter by session if needed
+            conn = self._get_connection()
+            results = []
+            
+            for event_id, similarity in index_results:
+                if similarity < threshold:
+                    continue
+                    
+                row = conn.execute(
+                    "SELECT * FROM events WHERE id = ?",
+                    (event_id,)
+                ).fetchone()
+                
+                if row:
+                    # Apply session filter if specified
+                    if session_key and row['session_key'] != session_key:
+                        continue
+                        
+                    event = self._row_to_event(row)
+                    results.append((event, similarity))
+                    
+                if len(results) >= limit:
+                    break
+                    
+            return results
+            
+        except Exception as e:
+            logger.warning(f"Vector index search failed, falling back to brute force: {e}")
+            # Fallback to brute force
+            return self._search_events_bruteforce(query_embedding, session_key, limit, threshold)
+
+    def _search_events_bruteforce(
+        self,
+        query_embedding: list[float],
+        session_key: str | None = None,
+        limit: int = 10,
+        threshold: float = 0.5
+    ) -> list[tuple[Event, float]]:
+        """Fallback brute-force search if vector index fails."""
         from nanofolks.memory.embeddings import cosine_similarity
 
         conn = self._get_connection()
 
-        # Get events with embeddings
         if session_key:
             rows = conn.execute(
                 """
@@ -477,7 +556,6 @@ class TurboMemoryStore:
                 """
             ).fetchall()
 
-        # Calculate similarities
         results = []
         for row in rows:
             if row['content_embedding']:
@@ -488,7 +566,6 @@ class TurboMemoryStore:
                     event = self._row_to_event(row)
                     results.append((event, similarity))
 
-        # Sort by similarity (highest first) and return top N
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:limit]
 
