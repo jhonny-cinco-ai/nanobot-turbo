@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="nanofolks_logo.png" alt="Nanofolks" width="500">
+  <img src="nanofolks_header.png" alt="Nanofolks" width="660">
   <h1>Nanofolks - Your crew's already on it.</h1>
   <p>
     <a href="https://pypi.org/project/nanofolks-ai/"><img src="https://img.shields.io/pypi/v/nanofolks-ai" alt="PyPI"></a>
