@@ -333,8 +333,10 @@ def _configure_single_provider(name: str, schema: dict):
 
         console.print("[dim]API key stored in OS Keychain/Keyring (not in config file)[/dim]")
     else:
-        # Fallback: store in config file if keyring not available
-        console.print("[yellow]⚠ OS Keyring not available, storing key in config file[/yellow]")
+        # Fallback: store in config file if keyring not available (less secure!)
+        console.print("[yellow]⚠ WARNING: OS Keyring not available![/yellow]")
+        console.print("[yellow]⚠ API key stored in config file (less secure)[/yellow]")
+        console.print("[dim]Recommendation: Set up your OS keyring for better security[/dim]")
 
         with console.status(f"[cyan]Saving {name} configuration...[/cyan]", spinner="dots"):
             result = asyncio.run(tool.execute(

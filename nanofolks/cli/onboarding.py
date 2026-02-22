@@ -395,13 +395,19 @@ Then restart nanofolks for secure access.
                     "[dim]API key saved to OS Keychain/Keyring (not in config file)[/dim]"
                 )
             else:
-                # Fallback: store in config file
+                # Fallback: store in config file (less secure!)
                 from nanofolks.agent.tools.update_config import UpdateConfigTool
 
                 tool = UpdateConfigTool()
                 await tool.execute(path=f"providers.{provider}.apiKey", value=api_key)
                 console.print(
-                    "[yellow]⚠ OS Keyring unavailable, key stored in config file[/yellow]"
+                    "[yellow]⚠ WARNING: OS Keyring unavailable![/yellow]"
+                )
+                console.print(
+                    "[yellow]⚠ API key stored in config file (less secure)[/yellow]"
+                )
+                console.print(
+                    "[dim]Recommendation: Set up your OS keyring for better security[/dim]"
                 )
         except Exception as e:
             console.print(f"[yellow]⚠ Could not save API key: {e}[/yellow]")
