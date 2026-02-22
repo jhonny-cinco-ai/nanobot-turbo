@@ -210,7 +210,8 @@ def init_gnome_keyring(password: str) -> bool:
         if proc.returncode == 0:
             # Set the keyring backend to SecretService
             import keyring
-            keyring.set_keyring(keyring.backends.SecretService.Keyring())
+            from keyring.backends import SecretService
+            keyring.set_keyring(SecretService.Keyring())
             logger.info("GNOME keyring initialized successfully")
             return True
         else:
