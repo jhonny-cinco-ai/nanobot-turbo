@@ -152,14 +152,14 @@ class KeyringManager:
 _default_keyring_manager: Optional[KeyringManager] = None
 
 
-def init_gnome_keyring(password: str | None = None) -> bool:
-    """Initialize GNOME keyring daemon on headless Linux.
+def init_gnome_keyring(password: str) -> bool:
+    """Initialize GNOME keyring on headless Linux.
 
     This enables secure keyring storage on headless servers by starting
     the GNOME keyring daemon with the provided password.
 
     Args:
-        password: The password to unlock the keyring. If None, will prompt via stdin.
+        password: The password to unlock the keyring (required).
 
     Returns:
         True if keyring was initialized successfully, False otherwise
@@ -167,12 +167,12 @@ def init_gnome_keyring(password: str | None = None) -> bool:
     Example:
         # With password (for automation):
         init_gnome_keyring("my-secret-password")
-
-        # Or prompt for password:
-        init_gnome_keyring()
     """
     import subprocess
-    import sys
+
+    if not password:
+        logger.warning("Password is required to initialize GNOME keyring")
+        return False
 
     try:
         # Check if gnome-keyring-daemon is available
@@ -195,29 +195,17 @@ def init_gnome_keyring(password: str | None = None) -> bool:
             logger.warning("dbus-run-session not installed")
             return False
 
-        # Initialize the keyring
+        # Initialize the keyring - pipe password to stdin
         cmd = ["dbus-run-session", "--", "gnome-keyring-daemon", "--unlock"]
         
-        if password:
-            # Pipe password to the daemon
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = proc.communicate(input=password + "\n", timeout=10)
-        else:
-            # Use stdin
-            proc = subprocess.Popen(
-                cmd,
-                stdin=sys.stdin,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = proc.communicate(timeout=30)
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        stdout, stderr = proc.communicate(input=password + "\n", timeout=10)
 
         if proc.returncode == 0:
             # Set the keyring backend to SecretService

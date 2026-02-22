@@ -19,7 +19,7 @@ console = Console()
 
 @app.command("init-keyring")
 def init_keyring(
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="Keyring password (will prompt if not provided)"),
+    password: str = typer.Option(..., "--password", "-p", help="Keyring password (required)"),
 ):
     """Initialize GNOME keyring on headless Linux servers.
 
@@ -31,11 +31,7 @@ def init_keyring(
     """
     console.print("\n[bold]Initializing GNOME Keyring[/bold]\n")
 
-    if password:
-        success = init_gnome_keyring(password)
-    else:
-        console.print("[dim]Enter a password to unlock the keyring:[/dim]")
-        success = init_gnome_keyring()
+    success = init_gnome_keyring(password)
 
     if success:
         console.print("[green]✓[/green] GNOME Keyring initialized successfully!")
