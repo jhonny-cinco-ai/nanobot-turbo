@@ -867,7 +867,7 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
             msg["tool_calls"] = tool_calls
 
         # Thinking models reject history without this
-        if reasoning_content:
+        if reasoning_content is not None:
             msg["reasoning_content"] = reasoning_content
 
         messages.append(msg)
