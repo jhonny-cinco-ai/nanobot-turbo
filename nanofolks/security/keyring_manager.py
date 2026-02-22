@@ -11,13 +11,20 @@ Usage:
     manager.delete_key("openrouter")
 """
 
+import os
+import platform
+import subprocess
+import sys
+from dataclasses import dataclass
+from typing import Optional
+
 try:
     import keyring
+    from keyring import backends
+
     KEYRING_AVAILABLE = True
 except ImportError:
     KEYRING_AVAILABLE = False
-
-from typing import Optional
 
 from loguru import logger
 
@@ -107,9 +114,20 @@ class KeyringManager:
         Returns:
             List of provider names with stored keys
         """
-        providers = ["anthropic", "openai", "openrouter", "deepseek", "groq",
-                     "zhipu", "dashscope", "gemini", "moonshot", "minimax",
-                     "aihubmix", "brave"]
+        providers = [
+            "anthropic",
+            "openai",
+            "openrouter",
+            "deepseek",
+            "groq",
+            "zhipu",
+            "dashscope",
+            "gemini",
+            "moonshot",
+            "minimax",
+            "aihubmix",
+            "brave",
+        ]
 
         stored = []
         for provider in providers:
@@ -176,41 +194,34 @@ def init_gnome_keyring(password: str) -> bool:
 
     try:
         # Check if gnome-keyring-daemon is available
-        result = subprocess.run(
-            ["which", "gnome-keyring-daemon"],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["which", "gnome-keyring-daemon"], capture_output=True, text=True)
         if result.returncode != 0:
             logger.warning("gnome-keyring-daemon not installed")
             return False
 
         # Check if dbus-run-session is available
-        result = subprocess.run(
-            ["which", "dbus-run-session"],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["which", "dbus-run-session"], capture_output=True, text=True)
         if result.returncode != 0:
             logger.warning("dbus-run-session not installed")
             return False
 
         # Initialize the keyring - run as background process that persists
         cmd = ["dbus-run-session", "--", "gnome-keyring-daemon", "--unlock", "--components=secrets"]
-        
+
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            start_new_session=True  # Run in own session so it persists
+            start_new_session=True,  # Run in own session so it persists
         )
-        
+
         # Give the daemon time to start
         import time
+
         time.sleep(1)
-        
+
         # Try to communicate without waiting for exit (daemon should keep running)
         try:
             stdout, stderr = proc.communicate(input=password + "\n", timeout=5)
@@ -221,9 +232,10 @@ def init_gnome_keyring(password: str) -> bool:
         # Check if daemon is running by testing the keyring
         import keyring
         from keyring.backends import SecretService
+
         test_keyring = SecretService.Keyring()
         test_keyring.set_keyring(test_keyring)
-        
+
         try:
             test_keyring.set_password("nanofolks", "__test__", "test")
             test_keyring.delete_password("nanofolks", "__test__")
@@ -262,3 +274,91 @@ def is_keyring_available() -> bool:
         True if keyring is available
     """
     return get_keyring_manager().is_available()
+
+
+@dataclass
+class KeyringInfo:
+    """Information about the system's keyring configuration."""
+
+    os_name: str
+    os_detail: str
+    keyring_backend: str
+    keyring_available: bool
+    needs_setup: bool
+    setup_instructions: str
+
+
+def get_keyring_info() -> KeyringInfo:
+    """Get detailed information about the system's keyring configuration.
+
+    Returns:
+        KeyringInfo with OS, backend, and setup instructions
+    """
+    os_name = platform.system()
+    os_detail = platform.release()
+
+    if not KEYRING_AVAILABLE:
+        return KeyringInfo(
+            os_name=os_name,
+            os_detail=os_detail,
+            keyring_backend="Not installed",
+            keyring_available=False,
+            needs_setup=True,
+            setup_instructions="Install keyring: pip install keyring keyrings.alt",
+        )
+
+    backend = "Unknown"
+    needs_setup = False
+    instructions = ""
+
+    try:
+        backend = keyring.get_keyring().__class__.__name__
+    except Exception:
+        pass
+
+    if os_name == "Darwin":
+        if backend in ("macOS", "Keyring", "Darwin"):
+            backend = "macOS Keychain"
+        else:
+            backend = f"macOS ({backend})"
+        instructions = "Should work automatically. If issues: pip install keyrings.alt"
+
+    elif os_name == "Linux":
+        is_headless = (
+            os.environ.get("DISPLAY") is None and os.environ.get("WAYLAND_DISPLAY") is None
+        )
+
+        if is_headless:
+            backend = "GNOME Keyring (headless)"
+            needs_setup = True
+            instructions = (
+                "Headless server detected. Run: nanofolks security init-keyring --password YOUR_PASSWORD\n"
+                "Or manually: dbus-run-session -- gnome-keyring-daemon --unlock --components=secrets"
+            )
+        elif backend in ("SecretService", "Gnome"):
+            backend = "GNOME Keyring (Secret Service)"
+            instructions = "Should work automatically on GNOME desktop."
+        elif backend == "KWallet":
+            backend = "KWallet (KDE)"
+            instructions = "Should work automatically on KDE desktop."
+        else:
+            backend = f"Linux ({backend})"
+            instructions = "Install: apt install libsecret-1-0 gnome-keyring"
+
+    elif os_name == "Windows":
+        backend = "Windows Credential Manager"
+        instructions = "Should work automatically."
+
+    try:
+        available = is_keyring_available()
+    except Exception:
+        available = False
+
+    return KeyringInfo(
+        os_name=os_name,
+        os_detail=os_detail,
+        keyring_backend=backend,
+        keyring_available=available,
+        needs_setup=needs_setup and not available,
+        setup_instructions=instructions,
+    )

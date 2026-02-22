@@ -21,6 +21,11 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from nanofolks.models import Room, RoomType
+from nanofolks.security.keyring_manager import (
+    get_keyring_info,
+    init_gnome_keyring,
+    is_keyring_available,
+)
 from nanofolks.soul import SoulManager
 from nanofolks.teams import TeamManager
 from nanofolks.templates import get_theme, list_themes
@@ -72,6 +77,9 @@ class OnboardingWizard:
         """
         self._show_welcome()
 
+        # Step 0: Check keyring status
+        self._check_keyring_status()
+
         # Step 1: Provider & API Key
         self._configure_provider()
 
@@ -115,6 +123,48 @@ class OnboardingWizard:
             )
         )
         console.print()
+
+    def _check_keyring_status(self) -> None:
+        """Check and display keyring status."""
+        from rich import box
+
+        info = get_keyring_info()
+
+        status_table = Table(title="Keyring Status", box=box.ROUNDED, show_header=False)
+        status_table.add_column("Property", style="cyan")
+        status_table.add_column("Value", style="white")
+
+        status_table.add_row("OS", f"{info.os_name} ({info.os_detail})")
+        status_table.add_row("Backend", info.keyring_backend)
+
+        if info.keyring_available:
+            status_table.add_row("Status", "[green]✓ Available[/green]")
+        else:
+            status_table.add_row("Status", "[yellow]⚠ Not available[/yellow]")
+            if info.setup_instructions:
+                status_table.add_row("Fix", info.setup_instructions)
+
+        console.print(status_table)
+        console.print()
+
+        if info.needs_setup:
+            console.print("[yellow]⚠ Headless Linux server detected[/yellow]")
+            init_keyring = Confirm.ask(
+                "Initialize GNOME keyring now? (required for secure API key storage)", default=True
+            )
+
+            if init_keyring:
+                password = Prompt.ask("Enter a password to unlock the keyring", password=True)
+                if password:
+                    console.print("\n[cyan]Initializing GNOME keyring...[/cyan]")
+                    success = init_gnome_keyring(password)
+                    if success:
+                        console.print("[green]✓ GNOME keyring initialized successfully![/green]\n")
+                    else:
+                        console.print("[red]✗ Failed to initialize keyring[/red]")
+                        console.print(
+                            "[dim]You can run 'nanofolks security init-keyring' later[/dim]\n"
+                        )
 
     def _configure_provider(self) -> None:
         """Step 1: Configure AI provider and API key."""
@@ -400,12 +450,8 @@ Then restart nanofolks for secure access.
 
                 tool = UpdateConfigTool()
                 await tool.execute(path=f"providers.{provider}.apiKey", value=api_key)
-                console.print(
-                    "[yellow]⚠ WARNING: OS Keyring unavailable![/yellow]"
-                )
-                console.print(
-                    "[yellow]⚠ API key stored in config file (less secure)[/yellow]"
-                )
+                console.print("[yellow]⚠ WARNING: OS Keyring unavailable![/yellow]")
+                console.print("[yellow]⚠ API key stored in config file (less secure)[/yellow]")
                 console.print(
                     "[dim]Recommendation: Set up your OS keyring for better security[/dim]"
                 )
@@ -453,7 +499,11 @@ Then restart nanofolks for secure access.
                 # Cohere
                 "openrouter/cohere/command-a",
             ],
-            "anthropic": ["anthropic/claude-3.5-sonnet-20241022", "anthropic/claude-3-opus-20240229", "anthropic/claude-3-haiku-20240307"],
+            "anthropic": [
+                "anthropic/claude-3.5-sonnet-20241022",
+                "anthropic/claude-3-opus-20240229",
+                "anthropic/claude-3-haiku-20240307",
+            ],
             "openai": ["openai/gpt-4o", "openai/gpt-4o-mini", "openai/o1", "openai/o1-mini"],
             "groq": ["groq/llama-3.3-70b", "groq/mixtral-8x7b-32768"],
             "deepseek": ["deepseek/deepseek-chat", "deepseek/deepseek-chat-v3-0324"],
