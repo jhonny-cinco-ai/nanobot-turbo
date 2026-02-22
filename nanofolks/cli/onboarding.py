@@ -134,6 +134,10 @@ class OnboardingWizard:
         console.print("[dim]Tip: You can paste your API key (Ctrl+V or Cmd+V)[/dim]")
         api_key = Prompt.ask(f"Enter your {provider_name.title()} API key", password=False)
 
+        if api_key:
+            key_preview = api_key[:12] + "..." if len(api_key) > 12 else api_key
+            console.print(f"[dim]Received: {key_preview}[/dim]\n")
+
         if not api_key:
             console.print(
                 "[yellow]⚠ No API key provided. You can configure this later with: nanofolks configure[/yellow]\n"

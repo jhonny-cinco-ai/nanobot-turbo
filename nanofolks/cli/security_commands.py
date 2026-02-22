@@ -194,6 +194,10 @@ def add_key(
         console.print("[red]Error: No API key provided[/red]")
         raise typer.Exit(1)
 
+    # Show feedback that key was received (first 8 chars)
+    key_preview = key[:12] + "..." if len(key) > 12 else key
+    console.print(f"[dim]Received: {key_preview}[/dim]")
+
     keyring = get_keyring_manager()
     keyring.store_key(provider, key)
 
