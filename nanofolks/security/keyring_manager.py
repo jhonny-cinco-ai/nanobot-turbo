@@ -143,15 +143,29 @@ class KeyringManager:
             True if keyring is available and working, False otherwise
         """
         try:
-            # Test with a temporary key
+            # Test with a temporary key - with timeout to prevent hanging on headless servers
             test_key = "__nanofolks_test_key__"
-            keyring.set_password(self.service, "__test__", test_key)
+            import time
+            start_time = time.time()
+            timeout = 3  # 3 second timeout
+            
+            # Try to set password with timeout
+            while True:
+                try:
+                    keyring.set_password(self.service, "__test__", test_key)
+                    break
+                except Exception as e:
+                    if "Prompt dismissed" in str(e) or time.time() - start_time > timeout:
+                        logger.debug(f"Keyring not available (timeout): {e}")
+                        return False
+                    time.sleep(0.1)
+                    
             retrieved = keyring.get_password(self.service, "__test__")
             keyring.delete_password(self.service, "__test__")
 
             return retrieved == test_key
         except Exception as e:
-            logger.warning(f"Keyring not available: {e}")
+            logger.debug(f"Keyring not available: {e}")
             return False
 
     def has_key(self, provider: str) -> bool:
