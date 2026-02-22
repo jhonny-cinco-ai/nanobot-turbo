@@ -51,6 +51,9 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
 ]
+full = [
+    "keyrings.alt>=1.0.0",
+]
 
 [project.scripts]
 nanofolks = "nanofolks.cli.commands:app"

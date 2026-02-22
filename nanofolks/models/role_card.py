@@ -30,6 +30,7 @@ from loguru import logger
 
 class RoleCardDomain(Enum):
     """Domain/specialty of a bot."""
+
     COORDINATION = "coordination"
     RESEARCH = "research"
     DEVELOPMENT = "development"
@@ -41,6 +42,7 @@ class RoleCardDomain(Enum):
 @dataclass
 class BotCapabilities:
     """What features/tools are enabled for a bot."""
+
     can_invoke_bots: bool = False
     can_do_heartbeat: bool = False
     can_access_web: bool = True
@@ -128,7 +130,9 @@ class RoleCard:
         """Check if bot has a capability."""
         return getattr(self.capabilities, cap, False)
 
-    def check_hard_bans(self, action: str, context: Optional[Dict] = None) -> Tuple[bool, Optional[str]]:
+    def check_hard_bans(
+        self, action: str, context: Optional[Dict] = None
+    ) -> Tuple[bool, Optional[str]]:
         """Check if an action violates any hard bans.
 
         Args:
@@ -156,10 +160,25 @@ class RoleCard:
         # Common action keywords to match against
         keywords = []
         action_patterns = [
-            "direct", "post", "deploy", "execute", "modify", "delete",
-            "bypass", "skip", "ignore", "fabricate", "invent", "make up",
-            "without approval", "without verification", "internal format",
-            "tool trace", "path", "credential", "secret"
+            "direct",
+            "post",
+            "deploy",
+            "execute",
+            "modify",
+            "delete",
+            "bypass",
+            "skip",
+            "ignore",
+            "fabricate",
+            "invent",
+            "make up",
+            "without approval",
+            "without verification",
+            "internal format",
+            "tool trace",
+            "path",
+            "credential",
+            "secret",
         ]
 
         for pattern in action_patterns:
@@ -332,41 +351,41 @@ LEADER_ROLE = RoleCard(
         "Bot outputs and deliverables",
         "Status reports from specialists",
         "Escalations requiring decisions",
-        "System health metrics"
+        "System health metrics",
     ],
     outputs=[
         "Task assignments to specialist bots",
         "Coordinated responses to users",
         "Final decisions on escalations",
         "Strategic direction and priorities",
-        "Team health summaries"
+        "Team health summaries",
     ],
     definition_of_done=[
         "All tasks are assigned to appropriate bots",
         "Escalations have been resolved or forwarded to user",
         "Team coordination is documented",
-        "Next steps and owners are clearly defined"
+        "Next steps and owners are clearly defined",
     ],
     hard_bans=[
         "No deploying to production without approval",
         "No making final decisions on legal/compliance issues without user confirmation",
         "No overriding specialist bot expertise without good reason",
         "No ignoring escalation requests from bots",
-        "No keeping critical information from the user"
+        "No keeping critical information from the user",
     ],
     escalation_triggers=[
         "Legal or compliance risks",
         "High-stakes decisions with unclear outcomes",
         "Bot conflicts that cannot be resolved",
         "Security incidents or vulnerabilities",
-        "Tasks outside all bot domains"
+        "Tasks outside all bot domains",
     ],
     metrics=[
         "Task completion rate",
         "Average resolution time",
         "Escalation handling speed",
         "Bot team utilization",
-        "User satisfaction with coordination"
+        "User satisfaction with coordination",
     ],
     capabilities=BotCapabilities(
         can_invoke_bots=True,
@@ -376,7 +395,7 @@ LEADER_ROLE = RoleCard(
         can_send_messages=True,
         max_concurrent_tasks=3,
     ),
-    version="1.0"
+    version="1.0",
 )
 
 RESEARCHER_ROLE = RoleCard(
@@ -388,41 +407,41 @@ RESEARCHER_ROLE = RoleCard(
         "Data sources and references",
         "Claims requiring verification",
         "Market trends and signals",
-        "Competitor information"
+        "Competitor information",
     ],
     outputs=[
         "Research summaries with sources",
         "Fact-checked information",
         "Data analysis and insights",
         "Verified citations and references",
-        "Risk flags for unverified claims"
+        "Risk flags for unverified claims",
     ],
     definition_of_done=[
         "Information is sourced and citations provided",
         "Claims have been verified or flagged as unverified",
         "Analysis includes methodology and confidence level",
-        "Deliverable is review-ready with clear findings"
+        "Deliverable is review-ready with clear findings",
     ],
     hard_bans=[
         "No making up citations or fabricating data",
         "No presenting unverified information as fact",
         "No using outdated sources without noting the date",
         "No internal tool traces or paths in outputs",
-        "No ignoring conflicting evidence"
+        "No ignoring conflicting evidence",
     ],
     escalation_triggers=[
         "Conflicting or contradictory data",
         "Insufficient reliable sources",
         "Claims requiring domain expertise beyond research",
         "Sensitive or controversial topics",
-        "Data quality concerns"
+        "Data quality concerns",
     ],
     metrics=[
         "Research accuracy rate",
         "Source quality score",
         "Time to complete research",
         "Citation completeness",
-        "User satisfaction with findings"
+        "User satisfaction with findings",
     ],
     capabilities=BotCapabilities(
         can_do_heartbeat=True,
@@ -431,7 +450,7 @@ RESEARCHER_ROLE = RoleCard(
         can_send_messages=False,
         max_concurrent_tasks=2,
     ),
-    version="1.0"
+    version="1.0",
 )
 
 CODER_ROLE = RoleCard(
@@ -443,21 +462,21 @@ CODER_ROLE = RoleCard(
         "Bug reports and issues",
         "Code review requests",
         "Architecture decisions to implement",
-        "Security vulnerabilities to fix"
+        "Security vulnerabilities to fix",
     ],
     outputs=[
         "Clean, documented code",
         "Bug fixes with tests",
         "Code review feedback",
         "Technical implementation plans",
-        "Security patches"
+        "Security patches",
     ],
     definition_of_done=[
         "Code compiles/parses without errors",
         "Tests pass (unit, integration, lint)",
         "Documentation is updated",
         "Security scan passes",
-        "Implementation matches requirements"
+        "Implementation matches requirements",
     ],
     hard_bans=[
         "No committing directly to main/production without PR",
@@ -465,21 +484,21 @@ CODER_ROLE = RoleCard(
         "No introducing security vulnerabilities",
         "No breaking existing functionality without migration plan",
         "No leaving hardcoded credentials or secrets",
-        "No internal file paths or tool traces in code comments"
+        "No internal file paths or tool traces in code comments",
     ],
     escalation_triggers=[
         "Architectural decisions affecting multiple systems",
         "Security vulnerabilities requiring immediate attention",
         "Breaking changes to public APIs",
         "Unclear requirements or conflicting specifications",
-        "Performance concerns requiring optimization"
+        "Performance concerns requiring optimization",
     ],
     metrics=[
         "Code quality score",
         "Bug fix success rate",
         "Test coverage",
         "Security scan results",
-        "Implementation time vs estimate"
+        "Implementation time vs estimate",
     ],
     capabilities=BotCapabilities(
         can_do_heartbeat=True,
@@ -488,7 +507,7 @@ CODER_ROLE = RoleCard(
         can_send_messages=False,
         max_concurrent_tasks=2,
     ),
-    version="1.0"
+    version="1.0",
 )
 
 SOCIAL_ROLE = RoleCard(
@@ -500,21 +519,21 @@ SOCIAL_ROLE = RoleCard(
         "Community mentions and feedback",
         "Trending topics and signals",
         "Brand guidelines and constraints",
-        "Engagement metrics and analytics"
+        "Engagement metrics and analytics",
     ],
     outputs=[
         "Social media drafts (NOT direct posts)",
         "Community response suggestions",
         "Engagement reports",
         "Risk flags for public content",
-        "Posting plans and schedules"
+        "Posting plans and schedules",
     ],
     definition_of_done=[
         "Draft is review-ready with 1-2 variants",
         "Any risky claims are flagged explicitly",
         "Content aligns with brand guidelines",
         "Plan includes next step and owner",
-        "Drafts are saved for approval, NOT posted"
+        "Drafts are saved for approval, NOT posted",
     ],
     hard_bans=[
         "No direct posting to social media (drafts only)",
@@ -522,21 +541,21 @@ SOCIAL_ROLE = RoleCard(
         "No internal formats or tool traces in public content",
         "No ignoring negative sentiment or crises",
         "No engaging with trolls or inflammatory content",
-        "No posting without brand approval on sensitive topics"
+        "No posting without brand approval on sensitive topics",
     ],
     escalation_triggers=[
         "Numeric claims or comparisons requiring verification",
         "Controversial or sensitive topics",
         "Negative sentiment or PR risks",
         "Community crisis or backlash",
-        "Unclear brand alignment"
+        "Unclear brand alignment",
     ],
     metrics=[
         "Engagement rate per post",
         "Drafts-to-publish ratio",
         "Community interaction quality",
         "Response time to mentions",
-        "Brand sentiment tracking"
+        "Brand sentiment tracking",
     ],
     capabilities=BotCapabilities(
         can_do_heartbeat=True,
@@ -545,7 +564,7 @@ SOCIAL_ROLE = RoleCard(
         can_send_messages=True,
         max_concurrent_tasks=2,
     ),
-    version="1.0"
+    version="1.0",
 )
 
 CREATIVE_ROLE = RoleCard(
@@ -557,42 +576,42 @@ CREATIVE_ROLE = RoleCard(
         "Brand guidelines and assets",
         "Content calendars and deadlines",
         "Feedback on creative work",
-        "Design references and inspiration"
+        "Design references and inspiration",
     ],
     outputs=[
         "Creative content and copy",
         "Design assets and mockups",
         "Content variants for testing",
         "Creative strategy recommendations",
-        "Asset organization and documentation"
+        "Asset organization and documentation",
     ],
     definition_of_done=[
         "Content meets creative brief requirements",
         "Brand guidelines are followed",
         "Assets are organized and named correctly",
         "Deliverables are in requested formats",
-        "Creative is review-ready with rationale"
+        "Creative is review-ready with rationale",
     ],
     hard_bans=[
         "No inventing facts for creative content",
         "No using copyrighted material without permission",
         "No deviating from brand guidelines without approval",
         "No internal tool paths or references in public assets",
-        "No missing deadlines without communication"
+        "No missing deadlines without communication",
     ],
     escalation_triggers=[
         "Conflicts between creative vision and brand guidelines",
         "Requests requiring copyrighted or licensed material",
         "Extremely tight deadlines affecting quality",
         "Vague creative briefs requiring clarification",
-        "Multiple rounds of conflicting feedback"
+        "Multiple rounds of conflicting feedback",
     ],
     metrics=[
         "Creative output volume",
         "Content approval rate",
         "Brand consistency score",
         "Deadline adherence",
-        "User satisfaction with creative work"
+        "User satisfaction with creative work",
     ],
     capabilities=BotCapabilities(
         can_do_heartbeat=True,
@@ -601,7 +620,7 @@ CREATIVE_ROLE = RoleCard(
         can_send_messages=False,
         max_concurrent_tasks=2,
     ),
-    version="1.0"
+    version="1.0",
 )
 
 AUDITOR_ROLE = RoleCard(
@@ -617,7 +636,7 @@ AUDITOR_ROLE = RoleCard(
         "Documentation for accuracy and completeness",
         "Definition-of-Done criteria for deliverables",
         "Compliance requirements and quality standards",
-        "Audit logs and bot activity trails"
+        "Audit logs and bot activity trails",
     ],
     outputs=[
         "Comprehensive audit reports with domain-specific findings",
@@ -628,7 +647,7 @@ AUDITOR_ROLE = RoleCard(
         "Cross-bot workflow compliance reports",
         "Definition-of-Done verification results",
         "Process improvement recommendations",
-        "Audit trail integrity reports"
+        "Audit trail integrity reports",
     ],
     definition_of_done=[
         "All applicable quality checks completed for the domain",
@@ -636,7 +655,7 @@ AUDITOR_ROLE = RoleCard(
         "Verification evidence documented (sources, screenshots, references)",
         "Recommendations are specific and actionable",
         "Audit trail entry created with timestamps and decisions",
-        "Handoff readiness status clearly stated"
+        "Handoff readiness status clearly stated",
     ],
     hard_bans=[
         "No approving work with critical security, legal, or safety issues",
@@ -650,7 +669,7 @@ AUDITOR_ROLE = RoleCard(
         "No overriding quality gates without explicit escalation and approval",
         "No fabricating or exaggerating audit findings",
         "No approving cross-bot handoffs with incomplete context or missing deliverables",
-        "No ignoring conflicting information between bot outputs"
+        "No ignoring conflicting information between bot outputs",
     ],
     escalation_triggers=[
         "Critical security vulnerabilities in code",
@@ -663,7 +682,7 @@ AUDITOR_ROLE = RoleCard(
         "Cross-bot workflow failures or communication breakdowns",
         "Conflicts between speed requirements and quality standards",
         "Unclear quality criteria or missing acceptance standards",
-        "Audit findings that challenge fundamental assumptions"
+        "Audit findings that challenge fundamental assumptions",
     ],
     metrics=[
         "Quality gate pass rate by domain (code, research, creative, social)",
@@ -675,7 +694,7 @@ AUDITOR_ROLE = RoleCard(
         "Definition-of-Done fulfillment rate",
         "Audit completion time by deliverable type",
         "False positive rate (incorrectly flagged issues)",
-        "Process improvement recommendations implemented"
+        "Process improvement recommendations implemented",
     ],
     capabilities=BotCapabilities(
         can_do_heartbeat=True,
@@ -684,7 +703,7 @@ AUDITOR_ROLE = RoleCard(
         can_send_messages=False,
         max_concurrent_tasks=3,
     ),
-    version="2.0"
+    version="2.0",
 )
 
 
@@ -700,6 +719,8 @@ BUILTIN_ROLES: Dict[str, RoleCard] = {
     "creative": CREATIVE_ROLE,
     "auditor": AUDITOR_ROLE,
 }
+
+BUILTIN_BOTS = BUILTIN_ROLES  # Alias for backwards compatibility
 
 
 class RoleCardStorage:
@@ -739,6 +760,7 @@ class RoleCardStorage:
         """
         # 1. Check for ROLE.md (new markdown-based approach)
         from nanofolks.identity.role_parser import RoleParser
+
         role_parser = RoleParser(self.workspace)
         role_from_md = role_parser.parse_role_file(bot_name)
         if role_from_md:
@@ -760,7 +782,7 @@ class RoleCardStorage:
     def _load_from_file(self, path: Path) -> Optional[RoleCard]:
         """Load role card from YAML file."""
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 data = yaml.safe_load(f)
             return RoleCard.from_dict(data)
         except Exception as e:
@@ -783,7 +805,7 @@ class RoleCardStorage:
             path = self.global_dir / f"{role_card.bot_name}.yaml"
 
         try:
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 yaml.dump(role_card.to_dict(), f, default_flow_style=False, sort_keys=False)
             logger.info(f"Saved role card for {role_card.bot_name} to {path}")
             return True
@@ -791,7 +813,9 @@ class RoleCardStorage:
             logger.error(f"Failed to save role card: {e}")
             return False
 
-    def save_bot_proposal(self, bot_name: str, proposed_changes: Dict[str, Any], reason: str) -> bool:
+    def save_bot_proposal(
+        self, bot_name: str, proposed_changes: Dict[str, Any], reason: str
+    ) -> bool:
         """Save a bot-proposed role card update as a draft.
 
         These proposals require user approval before becoming active.
@@ -815,7 +839,7 @@ class RoleCardStorage:
         }
 
         try:
-            with open(proposal_path, 'w') as f:
+            with open(proposal_path, "w") as f:
                 yaml.dump(proposal, f, default_flow_style=False, sort_keys=False)
             logger.info(f"Saved role card proposal from {bot_name}")
             return True
@@ -909,7 +933,9 @@ def is_valid_role(bot_name: str) -> bool:
     return bot_name in BUILTIN_ROLES
 
 
-def save_role_card(role_card: RoleCard, scope: str = "workspace", workspace_path: Optional[Path] = None) -> bool:
+def save_role_card(
+    role_card: RoleCard, scope: str = "workspace", workspace_path: Optional[Path] = None
+) -> bool:
     """Save a role card override."""
     storage = get_role_card_storage(workspace_path)
     return storage.save_role_card(role_card, scope)
