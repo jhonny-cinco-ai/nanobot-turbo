@@ -28,6 +28,7 @@ dependencies = [
     "readability-lxml>=0.8.0",
     "rich>=13.0.0",
     "keyring>=24.0.0",
+    "keyrings.alt>=1.0.0",
     "croniter>=2.0.0",
     "dingtalk-stream>=0.4.0",
     "python-telegram-bot[socks]>=21.0",
@@ -50,9 +51,6 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
-]
-full = [
-    "keyrings.alt>=1.0.0",
 ]
 
 [project.scripts]
