@@ -18,6 +18,7 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from nanofolks.models import Room, RoomType
@@ -128,7 +129,17 @@ class OnboardingWizard:
         """Check and display keyring status."""
         from rich import box
 
-        info = get_keyring_info()
+        console.print("[dim]Checking OS keyring configuration...[/dim]")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Checking keyring...", total=None)
+            info = get_keyring_info()
+            progress.update(task, completed=True)
 
         status_table = Table(title="Keyring Status", box=box.ROUNDED, show_header=False)
         status_table.add_column("Property", style="cyan")
@@ -157,7 +168,17 @@ class OnboardingWizard:
                 password = Prompt.ask("Enter a password to unlock the keyring", password=True)
                 if password:
                     console.print("\n[cyan]Initializing GNOME keyring...[/cyan]")
-                    success = init_gnome_keyring(password)
+                    
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        console=console,
+                        transient=True,
+                    ) as progress:
+                        task = progress.add_task("Initializing keyring...", total=None)
+                        success = init_gnome_keyring(password)
+                        progress.update(task, completed=True)
+                    
                     if success:
                         console.print("[green]✓ GNOME keyring initialized successfully![/green]\n")
                     else:
