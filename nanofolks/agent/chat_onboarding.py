@@ -14,7 +14,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from nanofolks.models.role_card import BUILTIN_BOTS, RoleCardDomain
+from nanofolks.models.role_card import BUILTIN_ROLES, RoleCardDomain
 from nanofolks.teams import TeamManager
 
 console = Console()
@@ -22,6 +22,7 @@ console = Console()
 
 class OnboardingState(Enum):
     """States in the onboarding conversation."""
+
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     TEAM_INTRO = "team_intro"
@@ -42,6 +43,7 @@ DOMAIN_DESCRIPTIONS = {
 @dataclass
 class UserProfileAnswers:
     """Collected answers from the user during onboarding."""
+
     name: str = ""
     timezone: str = ""
     language: str = ""
@@ -323,7 +325,7 @@ Need more details on any particular crew member? Just ask!"""
             emoji = theming.get("emoji", "")
 
             # Get role description from domain
-            role_card = BUILTIN_BOTS.get(bot_role)
+            role_card = BUILTIN_ROLES.get(bot_role)
             if role_card:
                 domain = role_card.domain
                 role_desc = DOMAIN_DESCRIPTIONS.get(domain, domain.value)
@@ -354,7 +356,7 @@ Need more details on any particular crew member? Just ask!"""
         greeting = theming.get("greeting", "")
 
         # Get role description
-        role_card = BUILTIN_BOTS.get(bot_role)
+        role_card = BUILTIN_ROLES.get(bot_role)
         if role_card:
             domain = role_card.domain
             role_desc = DOMAIN_DESCRIPTIONS.get(domain, domain.value)
@@ -410,7 +412,9 @@ They can: {capabilities}
         }
 
     @classmethod
-    def from_dict(cls, data: dict, workspace_path: Path, theme_manager: TeamManager) -> "ChatOnboarding":
+    def from_dict(
+        cls, data: dict, workspace_path: Path, theme_manager: TeamManager
+    ) -> "ChatOnboarding":
         """Deserialize from saved state."""
         onboarding = cls(workspace_path, theme_manager)
         onboarding.state = OnboardingState(data.get("state", "not_started"))

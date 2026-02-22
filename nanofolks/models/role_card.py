@@ -720,8 +720,6 @@ BUILTIN_ROLES: Dict[str, RoleCard] = {
     "auditor": AUDITOR_ROLE,
 }
 
-BUILTIN_BOTS = BUILTIN_ROLES  # Alias for backwards compatibility
-
 
 class RoleCardStorage:
     """Storage manager for user-editable role cards.

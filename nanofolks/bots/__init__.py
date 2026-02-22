@@ -12,7 +12,7 @@ from .checks import (
     social_checks,
 )
 from .definitions import (
-    BUILTIN_BOTS,
+    BUILTIN_ROLES,
     BotCapabilities,
     BotRegistry,
     RoleCard,
@@ -59,7 +59,7 @@ __all__ = [
     "RoleCard",
     "RoleCardDomain",
     "BotCapabilities",
-    "BUILTIN_BOTS",
+    "BUILTIN_ROLES",
     "get_role_card",
     "list_bots",
     "is_valid_bot",
