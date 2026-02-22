@@ -130,17 +130,50 @@ class OnboardingWizard:
         """Check and display keyring status."""
         from rich import box
 
-        console.print("[dim]Checking OS keyring configuration...[/dim]")
-        
+        console.print("[dim]Initializing security checks...[/dim]")
+
+        loading_messages = [
+            "Analyzing operative system...",
+            "Checking keyring configuration...",
+            "This could take a few moments...",
+            "Don't worry, our bots are getting ready...",
+            "Just a tiny bit more...",
+        ]
+
+        # Start with first message
+        current_msg = loading_messages[0]
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("Checking keyring...", total=None)
+            task = progress.add_task(current_msg, total=None)
+
+            # Rotate messages every 0.8 seconds
+            import time
+            start_time = time.time()
+            msg_index = 0
+
+            while True:
+                # Check if get_keyring_info is done (we can't easily check that synchronously)
+                # So we'll just run for a reasonable time and rotate messages
+                elapsed = time.time() - start_time
+                new_index = int(elapsed / 0.8) % len(loading_messages)
+
+                if new_index != msg_index:
+                    msg_index = new_index
+                    progress.update(task, description=loading_messages[msg_index])
+
+                # Simulate check completion after reasonable time
+                if elapsed > 2.0:
+                    break
+
+                time.sleep(0.1)
+
             info = get_keyring_info()
-            progress.update(task, completed=True)
+            progress.update(task, description="Done!", completed=True)
 
         status_table = Table(title="Keyring Status", box=box.ROUNDED, show_header=False)
         status_table.add_column("Property", style="cyan")
