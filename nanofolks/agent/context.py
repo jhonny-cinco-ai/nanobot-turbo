@@ -50,7 +50,8 @@ class ContextBuilder:
     def build_system_prompt(
         self,
         skill_names: list[str] | None = None,
-        bot_name: Optional[str] = None
+        bot_name: Optional[str] = None,
+        connected_mcp_servers: set[str] | None = None
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
@@ -114,6 +115,17 @@ Skills with available="false" need dependencies installed first - you can try in
 
 {skills_summary}""")
 
+        # 3. Available MCP Servers - discovery listing
+        mcp_summary = self.build_mcp_summary(bot_name, connected_mcp_servers)
+        if mcp_summary:
+            parts.append(f"""# Available MCP Servers
+
+The following are specialized tool servers available for connection. 
+To access their tools, use the `connect_mcp_server(server_name)` tool.
+Tools for servers marked as 'connected' are already registered and available for use.
+
+{mcp_summary}""")
+
         return "\n\n---\n\n".join(parts)
 
     def build_api_keys_section(self) -> str:
@@ -152,6 +164,49 @@ Skills with available="false" need dependencies installed first - you can try in
         except Exception as e:
             logger.debug(f"Could not build API keys section: {e}")
             return ""
+
+    def build_mcp_summary(
+        self, 
+        bot_name: Optional[str] = None, 
+        connected_mcp_servers: set[str] | None = None
+    ) -> str:
+        """Build summary of available but not necessarily connected MCP servers.
+        
+        Mirroring the skills discovery pattern for MCP.
+        """
+        def escape_xml(s: str) -> str:
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        config = load_config()
+        available = {}
+        
+        # 1. Global servers
+        for name, cfg in config.tools.mcp_servers.items():
+            available[name] = cfg
+            
+        # 2. Bot-specific servers
+        if bot_name and bot_name in config.tools.bot_mcp_servers:
+            for name, cfg in config.tools.bot_mcp_servers[bot_name].items():
+                available[name] = cfg
+
+        if not available:
+            return ""
+
+        lines = ["<mcp_servers>"]
+        connected = connected_mcp_servers or set()
+
+        for name, cfg in available.items():
+            is_connected = name in connected
+            # Only list servers that are NOT connected, or show them as connected
+            status = "connected" if is_connected else "available"
+            desc = escape_xml(getattr(cfg, "description", "") or "Specialized tools")
+            
+            lines.append(f"  <mcp_server name=\"{escape_xml(name)}\" status=\"{status}\">")
+            lines.append(f"    <description>{desc}</description>")
+            lines.append("  </mcp_server>")
+
+        lines.append("</mcp_servers>")
+        return "\n".join(lines)
 
     def _get_tool_permissions(self, bot_name: str) -> Optional[str]:
         """Get tool permissions section for a bot.
@@ -717,6 +772,7 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
         room_id: str | None = None,
         room_type: str | None = None,
         participants: list[str] | None = None,
+        connected_mcp_servers: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
@@ -742,7 +798,8 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
         # System prompt with optional bot personality
         system_prompt = self.build_system_prompt(
             skill_names=skill_names,
-            bot_name=bot_name
+            bot_name=bot_name,
+            connected_mcp_servers=connected_mcp_servers
         )
 
         # Add API keys section (symbolic references only - keys never exposed to LLM)

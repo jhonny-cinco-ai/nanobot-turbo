@@ -9,6 +9,48 @@ from nanofolks.agent.tools.base import Tool
 from nanofolks.agent.tools.registry import ToolRegistry
 
 
+class MCPConnectTool(Tool):
+    """Tool to connect to an MCP server on-demand."""
+
+    def __init__(self, loop):
+        self._loop = loop
+        self._name = "connect_mcp_server"
+        self._description = (
+            "Connect to a specialized MCP server to access its tools. "
+            "Use this when you need tools described in the 'Available MCP Servers' section "
+            "that are not yet connected."
+        )
+        self._parameters = {
+            "type": "object",
+            "properties": {
+                "server_name": {
+                    "type": "string",
+                    "description": "The name of the MCP server to connect to (as seen in the available list)."
+                }
+            },
+            "required": ["server_name"]
+        }
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return self._parameters
+
+    async def execute(self, server_name: str) -> str:
+        try:
+            await self._loop._connect_mcp(server_name=server_name)
+            return f"Successfully connected to MCP server: {server_name}. Its tools are now available for your next iteration."
+        except Exception as e:
+            return f"Failed to connect to MCP server '{server_name}': {e}"
+
+
 class MCPToolWrapper(Tool):
     """Wraps a single MCP server tool as a nanofolks Tool."""
 
@@ -107,13 +149,17 @@ def _resolve_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
 
 
 async def connect_mcp_servers(
-    mcp_servers: dict, registry: ToolRegistry, stack: AsyncExitStack
+    mcp_servers: dict, registry: ToolRegistry, stack: AsyncExitStack, server_name_filter: str | None = None
 ) -> None:
     """Connect to configured MCP servers and register their tools."""
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
     for name, cfg in mcp_servers.items():
+        # If filter provided, only connect that specific server
+        if server_name_filter and name != server_name_filter:
+            continue
+            
         try:
             if cfg.command:
                 resolved_env = _resolve_env_for_mcp(cfg.env)

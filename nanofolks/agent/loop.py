@@ -113,6 +113,7 @@ class AgentLoop:
         self._mcp_stack = None
         self._mcp_lock = asyncio.Lock()
         self._mcp_connected_bots: set[str] = set()
+        self._mcp_connected_servers: set[str] = set()
 
         # Initialize secret sanitizer for security
         self.sanitizer = SecretSanitizer()
@@ -179,6 +180,10 @@ class AgentLoop:
             self.sessions = create_session_manager(workspace, config)
 
         self.tools = ToolRegistry()
+        
+        # Register on-demand MCP connection tool
+        from nanofolks.agent.tools.mcp import MCPConnectTool
+        self.tools.register(MCPConnectTool(self))
 
         # Initialize smart router if enabled
         self.routing_config = routing_config
@@ -962,12 +967,15 @@ class AgentLoop:
         logger.info("Agent loop stopping")
 
 
-    async def _connect_mcp(self, bot_name: str = None) -> None:
-        """Connect to configured MCP servers (lazy, incremental).
+    async def _connect_mcp(self, bot_name: str = None, server_name: str = None) -> None:
+        """Connect to configured MCP servers (lazy, incremental, discovery-aware).
         
         Args:
             bot_name: Optional bot name to load bot-specific MCP servers.
                      Defaults to self.bot_name if not provided.
+            server_name: Optional specific server to connect (manual discovery).
+                        If provided, connects ONLY this server.
+                        If None, connects all servers with auto_connect=True.
         """
         # Ensure we have a lock to prevent concurrent initialization races
         async with self._mcp_lock:
@@ -976,23 +984,37 @@ class AgentLoop:
                 bot_name = self.bot_name
             
             # Determine which servers to connect
-            # We track connected bots to support incremental loading
             to_connect = {}
             
-            # 1. Global servers (only if not already connected)
-            if "__global__" not in self._mcp_connected_bots:
-                to_connect.update(self._mcp_servers)
-                self._mcp_connected_bots.add("__global__")
+            def _filter_servers(server_dict: dict):
+                filtered = {}
+                for name, cfg in server_dict.items():
+                    # Skip if already connected
+                    if name in self._mcp_connected_servers:
+                        continue
+                        
+                    # If specific server requested, connect only that
+                    if server_name:
+                        if name == server_name:
+                            filtered[name] = cfg
+                        continue
+                        
+                    # Otherwise, connect if auto_connect is True
+                    if getattr(cfg, "auto_connect", True):
+                        filtered[name] = cfg
+                return filtered
+
+            # 1. Global servers
+            to_connect.update(_filter_servers(self._mcp_servers))
                 
-            # 2. Bot-specific servers (only if not already connected)
-            if bot_name and bot_name not in self._mcp_connected_bots:
-                if bot_name in self._bot_mcp_servers:
-                    to_connect.update(self._bot_mcp_servers[bot_name])
-                    logger.debug(f"MCP: discovery for bot-specific servers: {bot_name}")
-                self._mcp_connected_bots.add(bot_name)
-            
-            # If nothing new to connect, return early
+            # 2. Bot-specific servers
+            if bot_name and bot_name in self._bot_mcp_servers:
+                to_connect.update(_filter_servers(self._bot_mcp_servers[bot_name]))
+
+            # If nothing new to connect, we still mark the bot/requested server as "processed"
             if not to_connect:
+                if not server_name:
+                    self._mcp_connected_bots.add(bot_name or "__global__")
                 return
                 
             try:
@@ -1005,11 +1027,18 @@ class AgentLoop:
                 
                 # Register new tools into the existing registry
                 await connect_mcp_servers(to_connect, self.tools, self._mcp_stack)
+                
+                # Update connected tracking
+                for name in to_connect.keys():
+                    self._mcp_connected_servers.add(name)
+                
+                if not server_name:
+                    self._mcp_connected_bots.add(bot_name or "__global__")
+                    
                 logger.info(f"MCP: connected {len(to_connect)} new server(s) for {bot_name or 'system'}")
                 
             except Exception as e:
                 logger.error(f"MCP Error: failed to connect servers for {bot_name}: {e}")
-                # We don't remove from connected_bots here to avoid infinite retry loops on failure
 
     async def close_mcp(self) -> None:
         """Close MCP connections."""
@@ -1457,6 +1486,7 @@ class AgentLoop:
             room_id=self._current_room_id,
             room_type=self._current_room_type,
             participants=self._current_room_participants,
+            connected_mcp_servers=self._mcp_connected_servers,
         )
 
         # Select model using smart routing
@@ -1760,6 +1790,7 @@ class AgentLoop:
             channel=origin_channel,
             chat_id=origin_chat_id,
             bot_name=self.bot_name,
+            connected_mcp_servers=self._mcp_connected_servers,
         )
 
         # Select model using smart routing
