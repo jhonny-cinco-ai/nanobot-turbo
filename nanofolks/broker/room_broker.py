@@ -7,7 +7,7 @@ from datetime import datetime
 from loguru import logger
 
 if TYPE_CHECKING:
-    from nanofolks.bus.events import InboundMessage
+    from nanofolks.bus.events import MessageEnvelope
     from nanofolks.storage.cas_storage import CASFileStorage
 
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class QueuedMessage:
     """Message in the room queue with sequence number."""
     seq: int
-    message: "InboundMessage"
+    message: "MessageEnvelope"
     received_at: datetime = field(default_factory=datetime.now)
     claimed_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
@@ -57,7 +57,7 @@ class RoomMessageBroker:
         """Set the agent loop for this broker."""
         self.agent_loop = agent_loop
     
-    async def enqueue(self, message: "InboundMessage") -> bool:
+    async def enqueue(self, message: "MessageEnvelope") -> bool:
         """
         Add message to room queue.
         
@@ -176,7 +176,7 @@ class RoomBrokerManager:
         self._brokers: dict[str, RoomMessageBroker] = {}
         self._lock = asyncio.Lock()
     
-    async def route_message(self, message: "InboundMessage") -> bool:
+    async def route_message(self, message: "MessageEnvelope") -> bool:
         """
         Route message to appropriate room broker.
         

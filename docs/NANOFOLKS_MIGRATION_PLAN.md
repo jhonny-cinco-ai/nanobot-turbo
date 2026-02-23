@@ -37,7 +37,7 @@ Current:                          Target:
 │   ├── providers/                │   ├── providers/
 │   ├── session/                  │   ├── session/
 │   ├── soul/                    │   ├── soul/
-│   ├── themes/                   │   ├── themes/
+│   ├── teams/                   │   ├── teams/
 │   └── utils/                    │   ├── utils/
 ```
 
@@ -104,7 +104,7 @@ from nanofolks.agent.loop import AgentLoop
 |---------|---------|--------|
 | Main CLI | `nanofolks agent` | `nanofolks agent` |
 | Config | `nanofolks configure` | `nanofolks configure` |
-| Theme | `nanofolks theme` | `nanofolks theme` |
+| Team | `nanofolks team` | `nanofolks team` |
 | Memory | `nanofolks memory` | `nanofolks memory` |
 
 ### 6. Bot Role Names
@@ -168,7 +168,7 @@ Every Python file needs:
 - `nanofolks/providers/` (3 files)
 - `nanofolks/session/` (multiple)
 - `nanofolks/soul/` (multiple)
-- `nanofolks/themes/` (3 files)
+- `nanofolks/teams/` (3 files)
 - `nanofolks/utils/` (3 files)
 
 ### Phase 4: Configuration Files & Hardcoded Paths
@@ -176,7 +176,7 @@ Every Python file needs:
 | File | Changes Required |
 |------|------------------|
 | `~/.nanofolks/config.json` | Rename to `~/.nanofolks/config.json` |
-| `~/.nanofolks/theme_config.json` | Migrate to new location |
+| `~/.nanofolks/team_config.json` | Migrate to new location |
 | `~/.nanofolks/bot_custom_names.json` | Migrate to new location |
 | `nanofolks/config/schema.py` | Update hardcoded paths (~/.nanofolks → ~/.nanofolks, NANOBOT_ → NANOFOLKS_) |
 | `nanofolks/config/loader.py` | Update config path |

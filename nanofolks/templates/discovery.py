@@ -1,114 +1,114 @@
-"""Template discovery for scanning and listing available themes."""
+"""Template discovery for scanning and listing available teams."""
 
 from pathlib import Path
 from typing import List, Dict, Optional
 
 from nanofolks.templates import SOUL_TEMPLATES_DIR, BOT_NAMES
-from nanofolks.templates.parser import get_bot_metadata, parse_theme_description
+from nanofolks.templates.parser import get_bot_metadata, parse_team_description
 
 
-def discover_themes() -> List[str]:
-    """Discover all available themes by scanning template directories.
+def discover_teams() -> List[str]:
+    """Discover all available teams by scanning template directories.
     
     Returns:
-        List of theme names (directory names in templates/soul/)
+        List of team names (directory names in templates/soul/)
     """
-    themes = []
+    teams = []
     if SOUL_TEMPLATES_DIR.exists():
         for item in SOUL_TEMPLATES_DIR.iterdir():
             if item.is_dir():
-                themes.append(item.name)
-    return sorted(themes)
+                teams.append(item.name)
+    return sorted(teams)
 
 
-def get_theme(theme_name: str) -> Optional[Dict]:
-    """Get theme data by parsing template files.
+def get_team(team_name: str) -> Optional[Dict]:
+    """Get team data by parsing template files.
     
     Args:
-        theme_name: Name of the theme (directory name)
+        team_name: Name of the team (directory name)
         
     Returns:
-        Dictionary with theme data or None if theme not found
+        Dictionary with team data or None if team not found
     """
-    theme_dir = SOUL_TEMPLATES_DIR / theme_name
-    if not theme_dir.exists():
+    team_dir = SOUL_TEMPLATES_DIR / team_name
+    if not team_dir.exists():
         return None
     
     # Get description from leader or first available bot
-    description = parse_theme_description(theme_name)
+    description = parse_team_description(team_name)
     
-    # Build theme data
-    theme_data = {
-        "name": theme_name,
+    # Build team data
+    team_data = {
+        "name": team_name,
         "description": description,
         "bots": {}
     }
     
     # Get metadata for each bot
     for bot_name in BOT_NAMES:
-        metadata = get_bot_metadata(bot_name, theme_name)
+        metadata = get_bot_metadata(bot_name, team_name)
         if metadata:
-            theme_data["bots"][bot_name] = metadata
+            team_data["bots"][bot_name] = metadata
     
-    return theme_data
+    return team_data
 
 
-def list_themes() -> List[Dict]:
-    """List all available themes with their metadata.
+def list_teams() -> List[Dict]:
+    """List all available teams with their metadata.
     
     Returns:
-        List of theme dictionaries with name, display_name, description, emoji
+        List of team dictionaries with name, display_name, description, emoji
     """
-    themes = []
+    teams = []
     
-    for theme_name in discover_themes():
-        theme_data = get_theme(theme_name)
-        if theme_data:
+    for team_name in discover_teams():
+        team_data = get_team(team_name)
+        if team_data:
             # Get emoji from leader bot
-            leader_metadata = theme_data["bots"].get("leader")
+            leader_metadata = team_data["bots"].get("leader")
             emoji = leader_metadata.emoji if leader_metadata else "👤"
             
-            # Create display name from theme name
-            display_name = theme_name.replace("_", " ").title()
+            # Create display name from team name
+            display_name = team_name.replace("_", " ").title()
             
-            themes.append({
-                "name": theme_name,
+            teams.append({
+                "name": team_name,
                 "display_name": display_name,
-                "description": theme_data["description"],
+                "description": team_data["description"],
                 "emoji": emoji
             })
     
-    return themes
+    return teams
 
 
-def get_bot_theming(bot_name: str, theme_name: str) -> Optional[Dict]:
-    """Get theming for a specific bot in a theme.
+def get_bot_team_profile(bot_name: str, team_name: str) -> Optional[Dict]:
+    """Get team profile for a specific bot in a team.
     
     Args:
         bot_name: Bot role name (leader, researcher, coder, social, creative, auditor)
-        theme_name: Theme name
+        team_name: Team name
         
     Returns:
-        Dictionary with bot theming info or None
+        Dictionary with bot team profile info or None
     """
-    metadata = get_bot_metadata(bot_name, theme_name)
+    metadata = get_bot_metadata(bot_name, team_name)
     if metadata:
         return metadata.to_dict()
     return None
 
 
-def get_all_bots_theming(theme_name: str) -> Dict[str, Dict]:
-    """Get theming for all bots in a theme.
+def get_all_bot_team_profiles(team_name: str) -> Dict[str, Dict]:
+    """Get team profiles for all bots in a team.
     
     Args:
-        theme_name: Theme name
+        team_name: Team name
         
     Returns:
-        Dictionary mapping bot names to their theming
+        Dictionary mapping bot names to their team profiles
     """
-    all_theming = {}
+    all_profiles = {}
     for bot_name in BOT_NAMES:
-        theming = get_bot_theming(bot_name, theme_name)
-        if theming:
-            all_theming[bot_name] = theming
-    return all_theming
+        profile = get_bot_team_profile(bot_name, team_name)
+        if profile:
+            all_profiles[bot_name] = profile
+    return all_profiles

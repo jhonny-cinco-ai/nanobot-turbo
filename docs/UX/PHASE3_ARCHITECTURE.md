@@ -515,7 +515,7 @@ Standard Library
 AdvancedLayout
   └─ Can extend for custom rendering
   └─ Can add animation framework
-  └─ Can integrate with themes
+  └─ Can integrate with teams
 
 LayoutManager
   └─ Can add live update batching
@@ -530,7 +530,7 @@ SidebarManager
 TransitionEffect
   └─ Can add more animation types
   └─ Can make duration configurable
-  └─ Can integrate with theme system
+  └─ Can integrate with team system
 
 ResponsiveLayout
   └─ Can add custom layout modes

@@ -93,8 +93,8 @@ class RoleCard:
     # Functional capabilities
     capabilities: BotCapabilities = field(default_factory=BotCapabilities)
 
-    # Display/identity attributes (typically set by theming, not user-editable in role card)
-    # These are kept here for backward compatibility and theming integration
+    # Display/identity attributes (typically set by team styling, not user-editable in role card)
+    # Kept here for display customization driven by team profiles
     title: str = ""  # Display title (e.g., "Research Director")
     _display_name: str = ""  # Custom display name (private, use getter/setter)
     greeting: str = ""  # Default greeting message

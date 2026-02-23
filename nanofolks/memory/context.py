@@ -18,6 +18,7 @@ from loguru import logger
 from nanofolks.memory.models import Entity
 from nanofolks.memory.store import TurboMemoryStore
 from nanofolks.memory.summaries import SummaryTreeManager
+from nanofolks.utils.ids import room_to_session_id
 
 
 @dataclass
@@ -159,7 +160,7 @@ Use this context to provide personalized and informed responses."""
         Args:
             room_id: Room ID (room-centric)
         """
-        room_node = self.store.get_summary_node(f"room:{room_id}")
+        room_node = self.store.get_summary_node(room_to_session_id(room_id))
         if room_node and room_node.summary:
             return f"Room: {room_id}\n{room_node.summary}"
         return ""

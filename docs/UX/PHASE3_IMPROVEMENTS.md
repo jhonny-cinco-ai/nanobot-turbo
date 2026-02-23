@@ -562,7 +562,7 @@ features:
 1. [ ] Performance optimization
 2. [ ] Additional animations
 3. [ ] User preferences
-4. [ ] Theme integration
+4. [ ] Team integration
 
 ---
 

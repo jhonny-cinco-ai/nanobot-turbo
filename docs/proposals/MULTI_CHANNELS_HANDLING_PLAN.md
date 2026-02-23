@@ -385,7 +385,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from loguru import logger
-from nanofolks.bus.events import InboundMessage, OutboundMessage
+from nanofolks.bus.events import MessageEnvelope, MessageEnvelope
 from nanofolks.storage.cas_storage import SessionCASStorage
 
 
@@ -393,7 +393,7 @@ from nanofolks.storage.cas_storage import SessionCASStorage
 class QueuedMessage:
     """Message in the room queue with sequence number."""
     seq: int  # Monotonic sequence number for ordering
-    message: InboundMessage
+    message: MessageEnvelope
     received_at: datetime = field(default_factory=datetime.now)
     claimed_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
@@ -432,7 +432,7 @@ class RoomMessageBroker:
         self.messages_processed = 0
         self.messages_failed = 0
     
-    async def enqueue(self, message: InboundMessage) -> bool:
+    async def enqueue(self, message: MessageEnvelope) -> bool:
         """
         Add message to room queue.
         
@@ -550,7 +550,7 @@ class RoomBrokerManager:
         self._brokers: dict[str, RoomMessageBroker] = {}
         self._lock = asyncio.Lock()
     
-    async def route_message(self, message: InboundMessage) -> bool:
+    async def route_message(self, message: MessageEnvelope) -> bool:
         """
         Route message to appropriate room broker.
         

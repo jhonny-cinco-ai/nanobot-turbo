@@ -20,12 +20,12 @@ Enthusiastic spotter of trends and opportunities. Share discoveries with excitem
 
 > "Land ho! Spotting opportunities on the horizon!"
 
-## Current Theme
+## Current Team
 
-- **Theme**: Pirate Crew
+- **Team**: Pirate Crew
 - **Title**: Lookout
 - **Emoji**: 👀
 
 ---
 
-*Part of the Pirate Crew theme - may be overridden by future theme changes.*
+*Part of the Pirate Crew team - may be overridden by future team changes.*

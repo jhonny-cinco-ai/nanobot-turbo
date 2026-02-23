@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-All internal files for the multi-bot architecture are now correctly handled. The critical bug where `_build_identity` used hardcoded values has been fixed, enabling the full personality system with 6 themes and 72 template files.
+All internal files for the multi-bot architecture are now correctly handled. The critical bug where `_build_identity` used hardcoded values has been fixed, enabling the full personality system with 6 teams and 72 template files.
 
 ## File Handling Architecture
 
@@ -15,17 +15,17 @@ All internal files for the multi-bot architecture are now correctly handled. The
 
 **Loading Hierarchy:**
 1. `workspace/bots/{bot}/SOUL.md` - User customized version
-2. `templates/soul/{theme}/{bot}_SOUL.md` - Theme default (36 files total)
+2. `templates/soul/{team}/{bot}_SOUL.md` - Team default (36 files total)
 3. `None` - Ultimate fallback
 
 **Examples:**
-- Pirate theme: Captain speaks like a pirate ("Avast, matey!")
-- Executive theme: CEO speaks professionally ("Let's discuss strategy")
-- Space theme: Commander speaks like an explorer ("Houston, we're ready")
+- Pirate team: Captain speaks like a pirate ("Avast, matey!")
+- Executive team: CEO speaks professionally ("Let's discuss strategy")
+- Space team: Commander speaks like an explorer ("Houston, we're ready")
 
 **Method:** `ContextBuilder._load_soul_for_bot()`
 
-**Status:** ✅ Working correctly with theme support
+**Status:** ✅ Working correctly with team support
 
 ### 2. AGENTS.md - Role Instructions ✅
 
@@ -33,9 +33,9 @@ All internal files for the multi-bot architecture are now correctly handled. The
 
 **Loading Hierarchy:**
 1. `workspace/bots/{bot}/AGENTS.md` - User customized version
-2. `None` - No theme fallback (correct - role is constant)
+2. `None` - No team fallback (correct - role is constant)
 
-**Why No Theme:**
+**Why No Team:**
 A researcher's job (analyze data, find information) doesn't change whether they're a pirate navigator or a CSO. The SOUL changes (how they speak), but AGENTS (what they do) stays constant.
 
 **Method:** `ContextBuilder._load_agents_for_bot()`
@@ -48,7 +48,7 @@ A researcher's job (analyze data, find information) doesn't change whether they'
 
 **Loading Hierarchy:**
 1. `workspace/bots/{bot}/IDENTITY.md` - User customized version
-2. `templates/identity/{theme}/{bot}_IDENTITY.md` - Theme default (36 files total)
+2. `templates/identity/{team}/{bot}_IDENTITY.md` - Team default (36 files total)
 3. `role_card` - Fallback from registry
 4. `None` - Ultimate fallback
 
@@ -57,7 +57,7 @@ A researcher's job (analyze data, find information) doesn't change whether they'
 - Pirate: Blackbeard (Captain), Sparrow (Navigator), Cannonball (Gunner)
 - Space: Commander, Nova (Science Officer), Tech (Engineer)
 
-**Critical Fix:** Previously used hardcoded `bot_titles` dict, completely ignoring theme files. Now correctly loads from workspace or templates.
+**Critical Fix:** Previously used hardcoded `bot_titles` dict, completely ignoring team files. Now correctly loads from workspace or templates.
 
 **Method:** `ContextBuilder._load_identity_for_bot()` (FIXED)
 
@@ -96,9 +96,9 @@ A researcher's job (analyze data, find information) doesn't change whether they'
 
 **Status:** ✅ Working (separate system)
 
-## Theme System
+## Team System
 
-### Themes Implemented (6 themes × 12 files = 72 total)
+### Teams Implemented (6 teams × 12 files = 72 total)
 
 1. **pirate_crew** - 12 files (6 SOUL + 6 IDENTITY)
 2. **rock_band** - 12 files (6 SOUL + 6 IDENTITY)
@@ -159,10 +159,10 @@ nanofolks/templates/
 2. **_get_identity("researcher")**
    - Calls `_load_identity_for_bot("researcher")`
    - Checks: `workspace/bots/researcher/IDENTITY.md`
-   - Not found? Falls back to: `templates/identity/{theme}/researcher_IDENTITY.md`
+   - Not found? Falls back to: `templates/identity/{team}/researcher_IDENTITY.md`
    - Returns: "Alexander, CSO, data-driven analyst"
 3. **_load_bootstrap_files("researcher")**
-   - SOUL: Loads `templates/soul/{theme}/researcher_SOUL.md`
+   - SOUL: Loads `templates/soul/{team}/researcher_SOUL.md`
    - AGENTS: Loads `templates/bots/researcher_AGENTS.md`
    - IDENTITY: Already loaded above
 4. **System prompt built** with Alexander's personality
@@ -211,9 +211,9 @@ nano workspace/bots/nanofolks/AGENTS.md
 - [x] All 6 bots have unique SOUL files
 - [x] All 6 bots have unique IDENTITY files
 - [x] All 6 bots have AGENTS files
-- [x] All 6 themes implemented (72 template files)
-- [x] Theme fallback works (SOUL and IDENTITY)
-- [x] Workspace customization overrides themes
+- [x] All 6 teams implemented (72 template files)
+- [x] Team fallback works (SOUL and IDENTITY)
+- [x] Workspace customization overrides teams
 - [x] Proper fallback hierarchy
 - [x] AGENTS correctly workspace-only
 - [x] Tools shared across bots
@@ -241,8 +241,8 @@ The multi-bot architecture is **COMPLETE** and **FULLY FUNCTIONAL**:
 ✅ Each bot has unique personality (SOUL)
 ✅ Each bot has unique identity (IDENTITY)  
 ✅ Each bot has role instructions (AGENTS)
-✅ 6 themes with 72 template files
-✅ Theme support with workspace override
+✅ 6 teams with 72 template files
+✅ Team support with workspace override
 ✅ Proper loading hierarchy
 ✅ Token optimizations active
 ✅ Error handling robust

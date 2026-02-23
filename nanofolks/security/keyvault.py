@@ -22,7 +22,7 @@ from typing import Optional
 
 from loguru import logger
 
-from nanofolks.security.keyring_manager import KeyringManager, get_keyring_manager
+from nanofolks.security.secret_store import SecretStore, get_secret_store
 
 # Pattern for symbolic references: {{key_name}}
 SYMBOLIC_REF_PATTERN = re.compile(r'^\{\{(\w+)\}\}$')
@@ -59,13 +59,13 @@ class KeyVault:
         >>> # actual = "sk-or-v1-abc123"
     """
 
-    def __init__(self, keyring: Optional[KeyringManager] = None):
+    def __init__(self, store: Optional[SecretStore] = None):
         """Initialize the KeyVault.
 
         Args:
-            keyring: Optional KeyringManager instance. Uses global if not provided.
+            store: Optional SecretStore instance. Uses global if not provided.
         """
-        self.keyring = keyring or get_keyring_manager()
+        self.store = store or get_secret_store()
         self._cache: dict[str, str] = {}
 
     def is_symbolic_ref(self, value: str) -> bool:
@@ -126,12 +126,12 @@ class KeyVault:
         # if key_name in self._cache:
         #     return self._cache[key_name]
 
-        # Get from keyring
-        actual_key = self.keyring.get_key(key_name)
+        # Get from store
+        actual_key = self.store.get(key_name)
 
         if not actual_key:
             # Try provider name directly as fallback
-            actual_key = self.keyring.get_key(key_ref)
+            actual_key = self.store.get(key_ref)
 
         if not actual_key:
             raise ValueError(f"Key not found for reference: {key_ref}")
@@ -161,14 +161,14 @@ class KeyVault:
         """
         references = []
 
-        # Get all keys from keyring
-        stored_keys = self.keyring.list_keys()
+        # Get all keys from secret store
+        stored_keys = self.store.list_keys()
 
         # Also check provider key map for known keys
         for provider, key_name in PROVIDER_KEY_MAP.items():
-            if key_name in stored_keys or self.keyring.has_key(key_name):
+            if key_name in stored_keys or self.store.has(key_name):
                 references.append(f"{{{{{key_name}}}}}")
-            elif provider in stored_keys or self.keyring.has_key(provider):
+            elif provider in stored_keys or self.store.has(provider):
                 references.append(f"{{{{{provider}_key}}}}")
 
         return references
@@ -185,7 +185,7 @@ class KeyVault:
         view = {}
 
         for provider, key_name in PROVIDER_KEY_MAP.items():
-            if self.keyring.has_key(key_name) or self.keyring.has_key(provider):
+            if self.store.has(key_name) or self.store.has(provider):
                 view[key_name] = f"{{{{{key_name}}}}}"
 
         return view
@@ -204,7 +204,7 @@ class KeyVault:
             key_name: Name of the key (e.g., "openrouter_key")
             api_key: The actual API key
         """
-        self.keyring.store_key(key_name, api_key)
+        self.store.set(key_name, api_key)
         logger.info(f"Added key to vault: {key_name}")
 
     def has_key(self, key_ref: str) -> bool:
@@ -221,7 +221,7 @@ class KeyVault:
         else:
             key_name = PROVIDER_KEY_MAP.get(key_ref, key_ref)
 
-        return self.keyring.has_key(key_name) or self.keyring.has_key(key_ref)
+        return self.store.has(key_name) or self.store.has(key_ref)
 
 
 # Global KeyVault instance

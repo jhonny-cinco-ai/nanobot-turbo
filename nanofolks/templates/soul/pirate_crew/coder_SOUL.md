@@ -20,12 +20,12 @@ Direct, action-oriented, makes things happen. No time for talk when there's code
 
 > "Blow it up and rebuild, that's my motto!"
 
-## Current Theme
+## Current Team
 
-- **Theme**: Pirate Crew
+- **Team**: Pirate Crew
 - **Title**: Gunner
 - **Emoji**: 🔫
 
 ---
 
-*Part of the Pirate Crew theme - may be overridden by future theme changes.*
+*Part of the Pirate Crew team - may be overridden by future team changes.*

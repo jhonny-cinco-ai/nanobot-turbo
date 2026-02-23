@@ -430,7 +430,7 @@ Before deployment:
 - [ ] User preference for layout mode
 - [ ] Customizable sidebar
 - [ ] Additional animations
-- [ ] Theme integration
+- [ ] Team integration
 
 ---
 

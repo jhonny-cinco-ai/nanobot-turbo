@@ -233,7 +233,7 @@ class AgentLoop:
         from nanofolks.reasoning.config import get_reasoning_config
         self.reasoning_config = get_reasoning_config(bot_name)
     
-    async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+    async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
         # ... existing processing ...
         
         # After tool execution, check if CoT is warranted

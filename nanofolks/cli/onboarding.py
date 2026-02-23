@@ -3,7 +3,7 @@
 This module provides a unified CLI wizard that guides new users through:
 1. Provider selection (API key)
 2. Model selection
-3. Theme/Team selection (with team description)
+3. Team selection (with team description)
 4. #general room creation with all bots
 5. SOUL.md personality file generation
 
@@ -29,7 +29,7 @@ from nanofolks.security.keyring_manager import (
 )
 from nanofolks.soul import SoulManager
 from nanofolks.teams import TeamManager
-from nanofolks.templates import get_theme, list_themes
+from nanofolks.templates import get_team, list_teams
 
 console = Console()
 
@@ -40,7 +40,7 @@ class OnboardingWizard:
     Complete wizard that guides users through:
     1. Provider selection and API key
     2. Model selection
-    3. Theme/Team selection with full team description
+    3. Team selection with full team description
     4. Room creation
     5. SOUL.md personality file generation
     """
@@ -57,8 +57,8 @@ class OnboardingWizard:
 
     def __init__(self):
         """Initialize the onboarding wizard."""
-        self.theme_manager = TeamManager()
-        self.selected_theme: Optional[str] = None
+        self.team_manager = TeamManager()
+        self.selected_team: Optional[str] = None
         self.soul_manager: Optional[SoulManager] = None
         self.config_result: Dict = {}
 
@@ -72,7 +72,7 @@ class OnboardingWizard:
             Dictionary containing:
                 - provider: selected provider name
                 - model: selected model
-                - theme: selected theme name
+                - team: selected team name
                 - workspace_path: workspace path used
                 - general_room: created Room object for #general
         """
@@ -81,7 +81,7 @@ class OnboardingWizard:
         steps = [
             self._check_keyring_status,
             self._configure_provider,
-            self._select_theme,
+            self._select_team,
             self._confirm_and_create
         ]
         
@@ -101,16 +101,16 @@ class OnboardingWizard:
         # Create the #general room
         general_room = self.create_general_room()
 
-        # Apply theme to workspace if path provided
+        # Apply team selection to workspace if path provided
         if workspace_path:
-            self._apply_theme_to_workspace(workspace_path)
+            self._apply_team_to_workspace(workspace_path)
             # Save the general room to disk
             self._save_room(general_room, workspace_path)
 
         return {
             "provider": self.config_result.get("provider"),
             "model": self.config_result.get("model"),
-            "theme": self.selected_theme,
+            "team": self.selected_team,
             "workspace_path": str(workspace_path) if workspace_path else None,
             "general_room": general_room,
         }
@@ -126,7 +126,7 @@ class OnboardingWizard:
                 "  2. [bold]AI Provider[/bold] + Model (with Smart Routing)\n"
                 "  3. [bold]Evolutionary Mode[/bold] (optional)\n"
                 "  4. [bold]Network Security[/bold] (Tailscale + secure ports)\n"
-                "  5. [bold]Team Theme[/bold] - Choose your crew's personality\n"
+                "  5. [bold]Team[/bold] - Choose your crew's personality\n"
                 "  6. [bold]Launch[/bold] - Create your workspace and crew",
                 title="🎉",
                 border_style="cyan",
@@ -496,16 +496,17 @@ Then restart nanofolks for secure access.
             console.print(f"[yellow]⚠ Could not save evolutionary config: {e}[/yellow]")
 
     async def _save_provider_config(self, provider: str, api_key: str) -> None:
-        """Save provider API key to config using OS keyring."""
+        """Save provider API key to config using the secret store (OS keyring)."""
         try:
-            from nanofolks.security.keyring_manager import get_keyring_manager, is_keyring_available
+            from nanofolks.security.keyring_manager import is_keyring_available
+            from nanofolks.security.secret_store import get_secret_store
 
             # Try to store in OS keyring (secure by default)
             keyring_available = is_keyring_available()
 
             if keyring_available:
-                keyring = get_keyring_manager()
-                keyring.store_key(provider, api_key)
+                store = get_secret_store()
+                store.set(provider, api_key)
 
                 # Save empty marker to config (key loaded from keyring)
                 from nanofolks.agent.tools.update_config import UpdateConfigTool
@@ -584,57 +585,57 @@ Then restart nanofolks for secure access.
         }
         return defaults.get(provider, ["default-model"])
 
-    def _select_theme(self) -> None:
-        """Interactive team/theme selection."""
-        console.print("[bold cyan]Step 3: Choose Your Crew Theme[/bold cyan]\n")
+    def _select_team(self) -> None:
+        """Interactive team selection."""
+        console.print("[bold cyan]Step 3: Choose Your Crew Team[/bold cyan]\n")
 
-        themes = list_themes()
-        [t["name"] for t in themes]
+        teams = list_teams()
+        [t["name"] for t in teams]
 
-        # First show just the team theme options
+        # First show just the crew team options
         console.print("Choose your crew's personality:\n")
-        for i, theme in enumerate(themes, 1):
-            console.print(f"  [{i}] {theme['display_name']} - {theme['description']}")
+        for i, team in enumerate(teams, 1):
+            console.print(f"  [{i}] {team['display_name']} - {team['description']}")
         console.print("  [b] Back to previous step")
 
         console.print()
 
         # Let user select
         choice = Prompt.ask(
-            "Select crew theme",
-            choices=[str(i) for i in range(1, len(themes) + 1)] + ["b"],
+            "Select crew team",
+            choices=[str(i) for i in range(1, len(teams) + 1)] + ["b"],
         )
 
         if choice == "b":
             return "back"
 
-        selected_theme = themes[int(choice) - 1]
-        self.selected_theme = selected_theme["name"]
+        selected_team = teams[int(choice) - 1]
+        self.selected_team = selected_team["name"]
 
-        # Now show the full team composition for the selected theme
-        self._show_team_for_theme(selected_theme["name"])
+        # Now show the full team composition for the selected team
+        self._show_team_details(selected_team["name"])
 
         # Confirm with option to go back
         console.print()
-        confirm = Confirm.ask(f"✓ Confirm {selected_theme['display_name']} crew?", default=True)
+        confirm = Confirm.ask(f"✓ Confirm {selected_team['display_name']} crew?", default=True)
 
         if confirm:
-            self.theme_manager.select_team(self.selected_theme)
+            self.team_manager.select_team(self.selected_team)
             console.print()
         else:
             # Let them choose again
-            return self._select_theme()
+            return self._select_team()
 
-    def _show_team_for_theme(self, theme_name: str) -> None:
-        """Show the full team composition for a theme."""
-        from nanofolks.templates import get_theme, get_bot_theming
+    def _show_team_details(self, team_name: str) -> None:
+        """Show the full team composition for a team."""
+        from nanofolks.templates import get_team, get_bot_team_profile
 
-        theme = get_theme(theme_name)
-        if not theme:
+        team = get_team(team_name)
+        if not team:
             return
 
-        console.print(f"\n[bold]Crew: {theme_name}[/bold]\n")
-        console.print(f"[dim]{theme['description']}[/dim]\n")
+        console.print(f"\n[bold]Crew: {team_name}[/bold]\n")
+        console.print(f"[dim]{team['description']}[/dim]\n")
 
         # Create a table showing each team member
         team_table = Table(title="Your Crew Members", box=box.ROUNDED, show_lines=True)
@@ -647,13 +648,13 @@ Then restart nanofolks for secure access.
         bot_roles = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
         for bot_name in bot_roles:
-            bot_theming = get_bot_theming(bot_name, theme_name)
-            if bot_theming:
+            bot_profile = get_bot_team_profile(bot_name, team_name)
+            if bot_profile:
                 team_table.add_row(
-                    bot_theming["bot_name"],
-                    f"{bot_theming['emoji']} {bot_theming['bot_title']}",
+                    bot_profile["bot_name"],
+                    f"{bot_profile['emoji']} {bot_profile['bot_title']}",
                     f"@{bot_name}",
-                    bot_theming["personality"],
+                    bot_profile["personality"],
                 )
 
         console.print(team_table)
@@ -675,10 +676,10 @@ Then restart nanofolks for secure access.
         summary_table.add_row("AI Provider", provider)
         summary_table.add_row("Model", model)
 
-        # Theme info
-        theme_obj = self.theme_manager.get_current_team()
-        theme_name = theme_obj.name.value if theme_obj else self.selected_theme or "Unknown"
-        summary_table.add_row("Crew Theme", theme_name)
+        # Team info
+        team_obj = self.team_manager.get_current_team()
+        team_name = team_obj["name"] if team_obj else self.selected_team or "Unknown"
+        summary_table.add_row("Team", team_name)
         summary_table.add_row("Bots", "6 (all ready)")
         summary_table.add_row("Room", "#general")
 
@@ -754,8 +755,8 @@ Then restart nanofolks for secure access.
         except Exception as e:
             console.print(f"[yellow]⚠ Could not save room: {e}[/yellow]")
 
-    def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
-        """Apply selected theme to all crew members in workspace.
+    def _apply_team_to_workspace(self, workspace_path: Path) -> None:
+        """Apply selected team to all crew members in workspace.
 
         Creates SOUL.md, IDENTITY.md, and ROLE.md personality files for the entire crew.
 
@@ -766,15 +767,15 @@ Then restart nanofolks for secure access.
             # Initialize SoulManager for workspace
             soul_manager = SoulManager(workspace_path)
 
-            if self.selected_theme:
+            if self.selected_team:
                 console.print("\n[cyan]Initializing crew personalities...[/cyan]")
 
-                # Apply theme to entire crew
+                # Apply team to entire crew
                 crew = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
-                # Apply SOUL.md, IDENTITY.md, and ROLE.md themes
-                soul_results = soul_manager.apply_theme_to_team(
-                    self.selected_theme, crew, force=True
+                # Apply SOUL.md, IDENTITY.md, and ROLE.md team styles
+                soul_results = soul_manager.apply_team_to_crew(
+                    self.selected_team, crew, force=True
                 )
 
                 # Show results
@@ -787,19 +788,19 @@ Then restart nanofolks for secure access.
                     console.print("[dim]  (SOUL.md, IDENTITY.md, ROLE.md, AGENTS.md)[/dim]")
 
                 # Show team personalities
-                from nanofolks.templates import get_bot_theming
+                from nanofolks.templates import get_bot_team_profile
 
                 console.print("\n[bold]Crew personalities configured:[/bold]")
                 for bot_name in crew:
-                    theming = get_bot_theming(bot_name, self.selected_theme)
-                    if theming:
-                        console.print(f"  {theming['emoji']} {theming['bot_title']} ({bot_name})")
+                    profile = get_bot_team_profile(bot_name, self.selected_team)
+                    if profile:
+                        console.print(f"  {profile['emoji']} {profile['bot_title']} ({bot_name})")
 
             # Create per-bot files (AGENTS.md, IDENTITY.md if not already created, and HEARTBEAT.md)
             self._create_bot_files(workspace_path)
 
         except Exception as e:
-            console.print(f"[yellow]⚠ Could not apply theme: {e}[/yellow]")
+            console.print(f"[yellow]⚠ Could not apply team selection: {e}[/yellow]")
 
     def _create_bot_files(self, workspace_path: Path) -> None:
         """Create per-bot AGENTS.md, IDENTITY.md, and HEARTBEAT.md files.
@@ -822,9 +823,9 @@ Then restart nanofolks for secure access.
             if agents_count > 0:
                 console.print(f"  [green]✓[/green] Created AGENTS.md for {agents_count} bots")
 
-            # Create IDENTITY.md for each bot from selected theme
+            # Create IDENTITY.md for each bot from selected team
             identity_results = soul_manager.apply_identity_to_team(
-                team, theme=self.selected_theme, force=True
+                team, team_name=self.selected_team, force=True
             )
             identity_count = sum(1 for v in identity_results.values() if v)
 
@@ -871,7 +872,7 @@ Use markdown with checkboxes:
             console.print("\n[green]✓ Bot configuration files ready![/green]")
             console.print("[dim]  - AGENTS.md: Role-specific instructions for each bot[/dim]")
             console.print(
-                "[dim]  - IDENTITY.md: Character definition and relationships (from theme)[/dim]"
+                "[dim]  - IDENTITY.md: Character definition and relationships (from team style)[/dim]"
             )
             console.print("[dim]  - HEARTBEAT.md: Periodic tasks (leave empty if not needed)[/dim]")
 

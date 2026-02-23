@@ -59,7 +59,7 @@ class MultiBotResponseGenerator:
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1024,
-        room_theme: str = "default",
+        room_team: str = "default",
     ):
         """Initialize the multi-bot response generator.
 
@@ -69,14 +69,14 @@ class MultiBotResponseGenerator:
             model: Model to use (defaults to provider default)
             temperature: Temperature for response generation
             max_tokens: Max tokens per bot response
-            room_theme: Theme for affinity customization
+            room_team: Team for affinity customization
         """
         self.provider = provider
         self.workspace = workspace
         self.model = model or provider.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.room_theme = room_theme
+        self.room_team = room_team
 
         self._affinity_builder = None
         self._cross_ref_injector = None
@@ -94,7 +94,7 @@ class MultiBotResponseGenerator:
         """Lazy-load cross-reference injector."""
         if self._cross_ref_injector is None:
             from nanofolks.agent.cross_reference import CrossReferenceInjector
-            self._cross_ref_injector = CrossReferenceInjector(self.room_theme)
+            self._cross_ref_injector = CrossReferenceInjector(self.room_team)
         return self._cross_ref_injector
 
     async def generate_responses(

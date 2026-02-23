@@ -259,7 +259,7 @@ state_manager.complete(
 # Archive project (for Phase 2 session migration)
 state_manager.archive()
 
-return OutboundMessage(
+return MessageEnvelope(
     content="Great work! Let me know if you need anything else.",
     metadata={"flow": "FULL", "completed": True}
 )

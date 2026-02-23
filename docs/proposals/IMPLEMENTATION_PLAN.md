@@ -38,11 +38,11 @@ Phase 1 established the foundational multi-bot infrastructure, enabling bots to 
 
 ### 1.3 Affinity & Relationships ✅
 - Parse IDENTITY.md relationships via `RelationshipParser`
-- Infer relationships from themes (fallback)
+- Infer relationships from teams (fallback)
 - Affinity scores (0.0-1.0)
 - Dynamic context injection via `AffinityContextBuilder`
 - Cross-reference generation via `CrossReferenceInjector`
-- Theme-aware interactions
+- Team-aware interactions
 
 ## Files Created (Phase 1)
 
@@ -294,7 +294,7 @@ class IntentFlowRouter:
         self.intent_detector = IntentDetector()
         self.discovery_coordinator = None  # Initialized when needed
 
-    async def route(self, msg: InboundMessage) -> OutboundMessage:
+    async def route(self, msg: MessageEnvelope) -> MessageEnvelope:
         """Route message to appropriate flow."""
         
         intent = self.intent_detector.detect(msg.content)
@@ -306,7 +306,7 @@ class IntentFlowRouter:
         else:  # "full"
             return await self._handle_full(msg, intent)
 
-    async def _handle_simultaneous(self, msg: InboundMessage, intent: Intent) -> OutboundMessage:
+    async def _handle_simultaneous(self, msg: MessageEnvelope, intent: Intent) -> MessageEnvelope:
         """Handle CHAT intent - simultaneous multi-bot response."""
         # Uses existing Phase 1 multi-bot infrastructure
         return await self.agent._handle_multi_bot_response(
@@ -315,7 +315,7 @@ class IntentFlowRouter:
             mode="simultaneous"
         )
 
-    async def _handle_quick(self, msg: InboundMessage, intent: Intent) -> OutboundMessage:
+    async def _handle_quick(self, msg: MessageEnvelope, intent: Intent) -> MessageEnvelope:
         """Handle ADVICE/RESEARCH - quick 1-2 questions then answer."""
         
         # Check if we have pending questions (quick flow state)
@@ -324,7 +324,7 @@ class IntentFlowRouter:
         else:
             return await self._ask_quick_question(msg, intent)
 
-    async def _handle_full(self, msg: InboundMessage, intent: Intent) -> OutboundMessage:
+    async def _handle_full(self, msg: MessageEnvelope, intent: Intent) -> MessageEnvelope:
         """Handle BUILD/TASK/EXPLORE - full discovery flow."""
         
         # Initialize discovery coordinator
@@ -353,7 +353,7 @@ class AgentLoop:
         # ... existing code ...
         self.hybrid_router = IntentFlowRouter(self)
     
-    async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+    async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
         """Process message with hybrid flow routing."""
         
         # Check for cancellation
@@ -636,7 +636,7 @@ class DiscoveryCoordinator:
         self.room_id = room_id
         self.state_manager = ProjectStateManager(workspace, room_id)
     
-    async def start(self, user_goal: str, intent: Intent) -> OutboundMessage:
+    async def start(self, user_goal: str, intent: Intent) -> MessageEnvelope:
         """Start new discovery flow."""
         
         self.state_manager.start_discovery(user_goal, intent.intent_type.value)
@@ -652,9 +652,9 @@ class DiscoveryCoordinator:
         
         self.state_manager.log_discovery_entry(first_bot, response, is_question=True)
         
-        return OutboundMessage(content=response, metadata={'phase': 'discovery', 'bot': first_bot})
+        return MessageEnvelope(content=response, metadata={'phase': 'discovery', 'bot': first_bot})
     
-    async def continue_flow(self, user_response: str) -> OutboundMessage:
+    async def continue_flow(self, user_response: str) -> MessageEnvelope:
         """Continue discovery after user responds."""
         
         state = self.state_manager.state
@@ -668,7 +668,7 @@ class DiscoveryCoordinator:
         elif state.phase == ProjectPhase.REVIEW:
             return await self._handle_review(user_response)
     
-    async def _handle_discovery(self, user_response: str) -> OutboundMessage:
+    async def _handle_discovery(self, user_response: str) -> MessageEnvelope:
         """Handle discovery phase continuation."""
         
         # Log user's response
@@ -681,7 +681,7 @@ class DiscoveryCoordinator:
             self.state_manager.set_synthesis(synthesis)
             
             # Present to user for approval
-            return OutboundMessage(
+            return MessageEnvelope(
                 content=self._format_synthesis(synthesis),
                 metadata={'phase': 'approval'}
             )
@@ -693,9 +693,9 @@ class DiscoveryCoordinator:
         response = await self._generate_bot_response(next_bot, context, user_response)
         self.state_manager.log_discovery_entry(next_bot, response, is_question=True)
         
-        return OutboundMessage(content=response, metadata={'phase': 'discovery', 'bot': next_bot})
+        return MessageEnvelope(content=response, metadata={'phase': 'discovery', 'bot': next_bot})
     
-    async def _handle_approval(self, user_response: str) -> OutboundMessage:
+    async def _handle_approval(self, user_response: str) -> MessageEnvelope:
         """Handle approval response."""
         
         approved = self._check_approval(user_response)
@@ -704,7 +704,7 @@ class DiscoveryCoordinator:
             self.state_manager.handle_approval(approved=True)
             
             # Start execution
-            return OutboundMessage(
+            return MessageEnvelope(
                 content=self._get_execution_context(),
                 metadata={'phase': 'execution'}
             )
@@ -718,26 +718,26 @@ class DiscoveryCoordinator:
             response = f"Noted! {self._get_next_question(next_bot, context)}"
             self.state_manager.log_discovery_entry(next_bot, response, is_question=True)
             
-            return OutboundMessage(content=response, metadata={'phase': 'discovery'})
+            return MessageEnvelope(content=response, metadata={'phase': 'discovery'})
     
-    async def _handle_execution(self, user_response: str) -> OutboundMessage:
+    async def _handle_execution(self, user_response: str) -> MessageEnvelope:
         """Handle execution completion."""
         
         # Mark complete and move to review
         self.state_manager.state.phase = ProjectPhase.REVIEW
         self.state_manager._save_state()
         
-        return OutboundMessage(
+        return MessageEnvelope(
             content="All tasks complete! Ready for review. Let me know if anything needs changes.",
             metadata={'phase': 'review'}
         )
     
-    async def _handle_review(self, user_response: str) -> OutboundMessage:
+    async def _handle_review(self, user_response: str) -> MessageEnvelope:
         """Handle final review."""
         
         self.state_manager.complete_review()
         
-        return OutboundMessage(
+        return MessageEnvelope(
             content="Great work! Let me know if you need anything else.",
             metadata={'phase': 'idle'}
         )
@@ -930,7 +930,7 @@ nanofolks/
 - [x] Session list functionality works
 - [x] Session stats work
 - [x] AgentLoop uses RoomSessionManager
-- [x] InboundMessage.session_key returns room format
+- [x] MessageEnvelope.session_key returns room format
 - [x] Memory system uses room format session keys
 - [x] Work logs use room format session IDs
 - [x] All channels (CLI, Telegram, Discord, Slack, WhatsApp, Email) use room format

@@ -28,7 +28,7 @@ from nanofolks.agent.tools.update_config import UpdateConfigTool
 from nanofolks.agent.tools.web import WebFetchTool, WebSearchTool
 from nanofolks.agent.work_log import RoomType
 from nanofolks.agent.work_log_manager import LogLevel, get_work_log_manager
-from nanofolks.bus.events import InboundMessage, OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.config.schema import RoutingConfig
 from nanofolks.providers.base import LLMProvider
@@ -37,6 +37,7 @@ from nanofolks.security.sanitizer import SecretSanitizer
 from nanofolks.session.dual_mode import create_session_manager
 from nanofolks.session.manager import Session
 from nanofolks.teams import TeamManager
+from nanofolks.utils.ids import normalize_room_id, room_to_session_id, session_key_for_message
 
 
 class AgentLoop:
@@ -377,8 +378,8 @@ class AgentLoop:
         self.hybrid_router = None
         self._hybrid_router_enabled = True  # Can be disabled via config if needed
 
-        # Ensure theme is applied to nanobot SOUL on first agent start
-        self._apply_theme_if_needed()
+        # Ensure team styling is applied to leader SOUL on first agent start
+        self._apply_team_if_needed()
 
     def _init_chat_onboarding(self) -> None:
         """Initialize chat onboarding system."""
@@ -400,14 +401,14 @@ class AgentLoop:
             self._chat_onboarding = ChatOnboarding.from_dict(
                 onboarding_data,
                 self.workspace,
-                self._theme_manager
+                self._team_manager
             )
         elif self._chat_onboarding is None:
             # Create new instance
-            self._theme_manager = TeamManager()
+            self._team_manager = TeamManager()
             self._chat_onboarding = ChatOnboarding(
                 workspace_path=self.workspace,
-                theme_manager=self._theme_manager
+                team_manager=self._team_manager
             )
 
         return self._chat_onboarding
@@ -442,18 +443,18 @@ class AgentLoop:
         return True
 
     async def _handle_chat_onboarding(
-        self, msg: InboundMessage, session: Session
-    ) -> OutboundMessage | None:
+        self, msg: MessageEnvelope, session: Session
+    ) -> MessageEnvelope | None:
         """Handle conversational onboarding for first-time users."""
         from nanofolks.agent.chat_onboarding import ChatOnboarding, OnboardingState
         from nanofolks.teams import TeamManager
 
         # Initialize onboarding
         if not hasattr(self, "_chat_onboarding") or self._chat_onboarding is None:
-            self._theme_manager = TeamManager()
+            self._team_manager = TeamManager()
             self._chat_onboarding = ChatOnboarding(
                 workspace_path=self.workspace,
-                theme_manager=self._theme_manager
+                team_manager=self._team_manager
             )
 
         onboarding = self._chat_onboarding
@@ -464,7 +465,7 @@ class AgentLoop:
 
         # Handle /help during onboarding
         if cmd == "/help":
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content="🐚 I'm getting to know you first! Answer a few questions "
@@ -486,7 +487,7 @@ class AgentLoop:
             actual_bot = bot_map.get(bot_name, bot_name)
             if actual_bot in ["leader", "researcher", "coder", "creative", "social", "auditor"]:
                 intro = onboarding.introduce_bot(actual_bot)
-                return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=intro)
+                return MessageEnvelope(channel=msg.channel, chat_id=msg.chat_id, content=intro)
 
         # Check onboarding state
         if onboarding.state == OnboardingState.NOT_STARTED:
@@ -494,9 +495,9 @@ class AgentLoop:
             onboarding.state = OnboardingState.IN_PROGRESS
             first_question = onboarding.get_next_question()
 
-            # Get leader greeting from theme
-            team = self._theme_manager.get_current_team()
-            greeting = team.leader.greeting if team else "Ahoy there!"
+            # Get leader greeting from team profile
+            profile = self._team_manager.get_bot_team_profile("leader") if self._team_manager else None
+            greeting = profile.get("greeting") if profile else "Ahoy there!"
 
             response = f"{greeting} 🎉\n\nI'm excited to get to know you! "
             if first_question:
@@ -508,7 +509,7 @@ class AgentLoop:
             session.add_message("assistant", response)
             self.sessions.save(session)
 
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=response,
@@ -531,7 +532,7 @@ class AgentLoop:
             session.add_message("assistant", response)
             self.sessions.save(session)
 
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=response,
@@ -553,7 +554,7 @@ class AgentLoop:
                 actual_bot = bot_map.get(bot_name, bot_name)
                 if actual_bot in ["leader", "researcher", "coder", "creative", "social", "auditor"]:
                     intro = onboarding.introduce_bot(actual_bot)
-                    return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=intro)
+                    return MessageEnvelope(channel=msg.channel, chat_id=msg.chat_id, content=intro)
 
             # Otherwise, normal conversation after onboarding
             onboarding.complete()
@@ -616,10 +617,10 @@ class AgentLoop:
 
     async def _handle_multi_bot_response(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         dispatch_result: dict,
         session: Session,
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle multi-bot response generation.
 
         Args:
@@ -649,14 +650,14 @@ class AgentLoop:
             }
         )
 
-        # Get room theme for affinity customization
-        room_theme = "default"
+        # Get room team for affinity customization
+        room_team = "default"
         try:
             from nanofolks.teams import TeamManager
             team_manager = TeamManager()
             current_team = team_manager.get_current_team()
             if current_team:
-                room_theme = current_team.name.value
+                room_team = current_team["name"]
         except Exception:
             pass
 
@@ -685,7 +686,7 @@ class AgentLoop:
             model=self.model,
             temperature=self.temperature,
             max_tokens=1024,
-            room_theme=room_theme,
+            room_team=room_team,
         )
 
         try:
@@ -721,7 +722,7 @@ class AgentLoop:
             self.sessions.save(session)
             logger.debug("Multi-bot exchange saved to session")
 
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=combined_content,
@@ -735,14 +736,14 @@ class AgentLoop:
 
         except Exception as e:
             logger.error(f"Multi-bot response generation failed: {e}")
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=f"❌ Error generating multi-bot response: {str(e)}",
             )
 
-    def _apply_theme_if_needed(self) -> None:
-        """Apply the selected theme to all team members' SOUL files on first start.
+    def _apply_team_if_needed(self) -> None:
+        """Apply the selected team to all team members' SOUL files on first start.
 
         This ensures all bots are ready to use immediately, whether in rooms or via DM.
         Team includes: leader (Leader), researcher, coder, social, creative, auditor
@@ -751,29 +752,29 @@ class AgentLoop:
             from nanofolks.soul import SoulManager
             from nanofolks.teams import TeamManager
 
-            # Check if theme has been applied already (use leader as indicator)
+            # Check if team styling has been applied already (use leader as indicator)
             soul_file = self.workspace / "bots" / "leader" / "SOUL.md"
             if soul_file.exists():
-                # Theme already applied to team
+                # Team already applied to crew
                 logger.debug("Team SOUL files already initialized")
                 return
 
-            # Get the current theme from theme manager
-            theme_manager = TeamManager()
-            theme_name = theme_manager.get_current_team_name()
+            # Get the current team from team manager
+            team_manager = TeamManager()
+            team_name = team_manager.get_current_team_name()
 
-            if not theme_name:
-                # No theme selected, skip
-                logger.debug("No theme configured, skipping SOUL generation for team")
+            if not team_name:
+                # No team selected, skip
+                logger.debug("No team configured, skipping SOUL generation for team")
                 return
 
             # Define the complete team (all available bots)
             crew = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
-            # Apply the theme to all team members
+            # Apply the team to all crew members
             soul_manager = SoulManager(self.workspace)
-            results = soul_manager.apply_theme_to_team(
-                theme_name,
+            results = soul_manager.apply_team_to_crew(
+                team_name,
                 crew,
                 force=False
             )
@@ -925,7 +926,7 @@ class AgentLoop:
                 except Exception as e:
                     logger.error(f"Error processing message: {e}")
                     # Send error response
-                    await self.bus.publish_outbound(OutboundMessage(
+                    await self.bus.publish_outbound(MessageEnvelope(
                         channel=msg.channel,
                         chat_id=msg.chat_id,
                         content=f"Sorry, I encountered an error: {str(e)}"
@@ -933,7 +934,7 @@ class AgentLoop:
             except asyncio.TimeoutError:
                 continue
 
-    async def process_inbound(self, msg: InboundMessage) -> None:
+    async def process_inbound(self, msg: MessageEnvelope) -> None:
         """Public entry-point for per-room broker message delivery.
 
         Called by RoomBrokerManager for each dequeued message instead of
@@ -949,7 +950,7 @@ class AgentLoop:
                 await self.bus.publish_outbound(response)
         except Exception as e:
             logger.error(f"[broker] Error processing message in room {msg.room_id}: {e}")
-            await self.bus.publish_outbound(OutboundMessage(
+            await self.bus.publish_outbound(MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=f"Sorry, I encountered an error: {str(e)}",
@@ -1049,7 +1050,7 @@ class AgentLoop:
                 pass  # MCP SDK cancel scope cleanup is noisy but harmless
             self._mcp_stack = None
 
-    async def _select_model(self, msg: InboundMessage, session: Session) -> str:
+    async def _select_model(self, msg: MessageEnvelope, session: Session) -> str:
         """
         Select the appropriate model using smart routing.
 
@@ -1135,7 +1136,7 @@ class AgentLoop:
             )
             return self.model
 
-    async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+    async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
         """
         Process a single inbound message.
 
@@ -1198,14 +1199,14 @@ class AgentLoop:
         if cmd == "/new":
             session.clear()
             self.sessions.save(session)
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content="🐈 New session started.",
                 room_id=msg.room_id or self._current_room_id,
             )
         if cmd == "/help":
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content="🐈 nanofolks commands:\n/new — Start a new conversation\n/help — Show available commands",
@@ -1733,7 +1734,7 @@ class AgentLoop:
                 )
                 return None
 
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=final_content,
@@ -1741,7 +1742,7 @@ class AgentLoop:
             metadata=response_metadata,  # Includes context usage if enabled
         )
 
-    async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
+    async def _process_system_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
         """
         Process a system message (e.g., subagent announce).
 
@@ -1761,11 +1762,7 @@ class AgentLoop:
             origin_chat_id = msg.chat_id
 
         # Use the origin session for context (room-centric format)
-        # Prefer room_id from message, fallback to constructing from origin info
-        if msg.room_id:
-            session_key = f"room:{msg.room_id}"
-        else:
-            session_key = f"room:{origin_channel}_{origin_chat_id}"
+        session_key = session_key_for_message(msg.room_id, origin_channel, origin_chat_id)
         session = self.sessions.get_or_create(session_key)
 
         # Update tool contexts
@@ -1847,7 +1844,7 @@ class AgentLoop:
         session.add_message("assistant", final_content)
         self.sessions.save(session)
 
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=origin_channel,
             chat_id=origin_chat_id,
             content=final_content,
@@ -1882,14 +1879,15 @@ class AgentLoop:
         Returns:
             The agent's response.
         """
-        # Set room context for this session
+        # Normalize and set room context for this session
+        room_id = normalize_room_id(room_id) or "general"
         self._current_room_id = room_id
         self._current_room_type = room_type
         self._current_room_participants = participants or ["leader"]
 
         # Construct session_key from room_id if not provided (room-centric)
         if session_key is None:
-            session_key = f"room:{room_id}"
+            session_key = room_to_session_id(room_id)
 
         # Start work log session for transparency with room context
         self.work_log_manager.start_session(
@@ -1901,7 +1899,7 @@ class AgentLoop:
         )
 
         try:
-            msg = InboundMessage(
+            msg = MessageEnvelope(
                 channel=channel,
                 sender_id="user",
                 chat_id=chat_id,
@@ -1946,7 +1944,7 @@ class AgentLoop:
 
         return False
 
-    async def _memory_flush_hook(self, session: Session, msg: InboundMessage) -> None:
+    async def _memory_flush_hook(self, session: Session, msg: MessageEnvelope) -> None:
         """
         Pre-compaction memory flush hook.
 
@@ -2122,7 +2120,7 @@ class AgentLoop:
             reasoning_content=full_reasoning,
         )
 
-    async def _send_onboarding_message(self, msg: InboundMessage) -> OutboundMessage:
+    async def _send_onboarding_message(self, msg: MessageEnvelope) -> MessageEnvelope:
         """Send onboarding message when config is missing."""
         logger.info(f"Sending onboarding message to {msg.channel}:{msg.sender_id}")
 
@@ -2148,7 +2146,7 @@ I need at least one LLM provider configured. Popular options:
 
 Once configured, we can start chatting! 🤖"""
 
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=content,

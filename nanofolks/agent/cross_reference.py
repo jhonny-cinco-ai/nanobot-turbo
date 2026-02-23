@@ -13,13 +13,13 @@ from nanofolks.agent.multi_bot_generator import BotResponse
 class CrossReferenceInjector:
     """Inject cross-references between bot responses."""
 
-    def __init__(self, room_theme: str = "default"):
+    def __init__(self, room_team: str = "default"):
         """Initialize CrossReferenceInjector.
 
         Args:
-            room_theme: Theme for style customization
+            room_team: Team for style customization
         """
-        self.room_theme = room_theme
+        self.room_team = room_team
 
     def inject_references(
         self,
@@ -73,44 +73,44 @@ class CrossReferenceInjector:
         Returns:
             Reference string or None
         """
-        references = self._get_theme_references()
+        references = self._get_team_references()
 
         ref = random.choice(references)
         return ref.format(to_bot=to_bot)
 
-    def _get_theme_references(self) -> List[str]:
-        """Get reference templates based on room theme.
+    def _get_team_references(self) -> List[str]:
+        """Get reference templates based on room team.
 
         Returns:
             List of reference format strings
         """
-        theme = self.room_theme.lower()
+        team = self.room_team.lower()
 
-        if "pirate" in theme:
+        if "pirate" in team:
             return [
                 "Arr, {to_bot} be right about this. ",
                 "As {to_bot} would say... ",
                 "{to_bot} speaks true, me hearties. ",
             ]
-        elif "rock" in theme or "band" in theme:
+        elif "rock" in team or "band" in team:
             return [
                 "{to_bot} is totally on the same wavelength. ",
                 "Like {to_bot} always says, ",
                 " {to_bot} really gets the vibe. ",
             ]
-        elif "space" in theme:
+        elif "space" in team:
             return [
                 "Commander {to_bot} confirms this. ",
                 "As noted in the briefing by {to_bot}, ",
                 "{to_bot}'s analysis is correct. ",
             ]
-        elif "executive" in theme or "corp" in theme:
+        elif "executive" in team or "corp" in team:
             return [
                 "I agree with {to_bot}'s assessment. ",
                 "Building on {to_bot}'s point... ",
                 "{to_bot} raises an important consideration. ",
             ]
-        elif "swat" in theme:
+        elif "swat" in team:
             return [
                 "{to_bot} has eyes on this. ",
                 "Per {to_bot}'s intel... ",

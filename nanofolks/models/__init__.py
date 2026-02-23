@@ -10,6 +10,7 @@ from .role_card import (
     list_bots,
     BUILTIN_ROLES,
 )
+from .message_envelope import MessageDirection, MessageEnvelope
 from .room import Message, Room, RoomType, SharedContext
 
 # Legacy aliases for backwards compatibility
@@ -22,6 +23,9 @@ __all__ = [
     "RoomType",
     "Message",
     "SharedContext",
+    # Message Envelope
+    "MessageEnvelope",
+    "MessageDirection",
     # Workspace (legacy alias for backwards compatibility)
     "Workspace",
     "WorkspaceType",

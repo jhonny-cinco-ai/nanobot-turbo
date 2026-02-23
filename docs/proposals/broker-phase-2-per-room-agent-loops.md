@@ -64,7 +64,7 @@ When `route_message()` creates a new broker for an unknown room, it calls
 `room_agent_loop_factory(room_id)` instead of the global lambda:
 
 ```python
-async def route_message(self, message: InboundMessage) -> bool:
+async def route_message(self, message: MessageEnvelope) -> bool:
     room_id = message.room_id
     async with self._lock:
         if room_id not in self._brokers:

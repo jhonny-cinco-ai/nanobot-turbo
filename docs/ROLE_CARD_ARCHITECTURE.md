@@ -35,7 +35,7 @@ hard_bans:
 ### 2. IDENTITY.md (Personality & Relationships)
 **Purpose:** Defines WHO the bot is
 
-**File:** `bots/{bot_name}/IDENTITY.md` or theme template
+**File:** `bots/{bot_name}/IDENTITY.md` or team template
 
 **Contains:**
 - Who am I (backstory, origin)
@@ -58,7 +58,7 @@ I am Xalt, the Social Media Director. I'm edgy, bold, and impatient...
 ### 3. SOUL.md (Voice & Tone)
 **Purpose:** Defines HOW the bot speaks
 
-**File:** `bots/{bot_name}/SOUL.md` or theme template
+**File:** `bots/{bot_name}/SOUL.md` or team template
 
 **Contains:**
 - Voice directives (speaking style)

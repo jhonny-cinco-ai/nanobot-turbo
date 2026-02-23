@@ -17,6 +17,7 @@ from nanofolks.agent.learning_exchange import (
 )
 from nanofolks.agent.work_log import LogLevel, WorkLog, WorkLogEntry, WorkspaceType
 from nanofolks.config.loader import get_data_dir
+from nanofolks.utils.ids import normalize_room_id
 
 
 class WorkLogManager:
@@ -148,13 +149,15 @@ the current active log.
         Returns:
             The created WorkLog instance
         """
+        normalized_workspace_id = normalize_room_id(workspace_id) or "general"
+
         if not self.enabled:
             # Return a dummy log that doesn't store anything
             return WorkLog(
                 session_id=session_id,
                 query=query,
                 start_time=datetime.now(),
-                workspace_id=workspace_id or "general",
+                workspace_id=normalized_workspace_id,
                 workspace_type=workspace_type or WorkspaceType.OPEN,
                 participants=participants or ["leader"],
                 coordinator=coordinator
@@ -163,14 +166,14 @@ the current active log.
         # Initialize Learning Exchange for this session
         self.learning_exchange = LearningExchange(
             bot_name=self.bot_name,
-            workspace_id=workspace_id or "general"
+            workspace_id=normalized_workspace_id
         )
 
         self.current_log = WorkLog(
             session_id=session_id,
             query=query,
             start_time=datetime.now(),
-            workspace_id=workspace_id or "general",
+            workspace_id=normalized_workspace_id,
             workspace_type=workspace_type or WorkspaceType.OPEN,
             participants=participants or ["leader"],
             coordinator=coordinator
@@ -184,7 +187,7 @@ the current active log.
                        (id, session_id, query, start_time, workspace_id, workspace_type, participants_json, coordinator)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (session_id, session_id, query, self.current_log.start_time.isoformat(),
-                     workspace_id, (workspace_type or WorkspaceType.OPEN).value,
+                     normalized_workspace_id, (workspace_type or WorkspaceType.OPEN).value,
                      json.dumps(participants or ["leader"]), coordinator)
                 )
         except sqlite3.IntegrityError:
@@ -195,7 +198,7 @@ the current active log.
                         """UPDATE work_logs
                            SET workspace_id = ?, workspace_type = ?, participants_json = ?, coordinator = ?
                            WHERE session_id = ?""",
-                        (workspace_id, (workspace_type or WorkspaceType.OPEN).value,
+                        (normalized_workspace_id, (workspace_type or WorkspaceType.OPEN).value,
                          json.dumps(participants or ["leader"]), coordinator, session_id)
                     )
             except Exception:

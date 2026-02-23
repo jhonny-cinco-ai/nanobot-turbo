@@ -5,7 +5,7 @@ import json
 
 from loguru import logger
 
-from nanofolks.bus.events import OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.channels.base import BaseChannel
 from nanofolks.config.schema import WhatsAppConfig
@@ -74,7 +74,7 @@ class WhatsAppChannel(BaseChannel):
             await self._ws.close()
             self._ws = None
 
-    async def send(self, msg: OutboundMessage) -> None:
+    async def send(self, msg: MessageEnvelope) -> None:
         """Send a message through WhatsApp."""
         if not self._ws or not self._connected:
             logger.warning("WhatsApp bridge not connected")

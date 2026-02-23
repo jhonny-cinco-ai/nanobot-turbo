@@ -47,7 +47,7 @@ Analysis of the ADVANCED_CLI_UX_DESIGN.md document versus what's currently imple
   - Gets user confirmation before creating
   - Creates room and invites recommended bots
   - Switches to new room automatically
-  - Shows themed bot names (via ThemeManager)
+  - Shows team-styled bot names (via TeamManager)
 
 #### 5. **Interactive CLI Loop**
 - [x] **Prompt toolkit integration** - Full setup at commands.py
@@ -167,7 +167,7 @@ Analysis of the ADVANCED_CLI_UX_DESIGN.md document versus what's currently imple
 2. **AI-assisted creation** - Smart bot recommendations with user confirmation
 3. **Commands are intuitive** - `/create`, `/invite`, `/switch` are discoverable
 4. **Persistent storage** - Rooms survive CLI restarts
-5. **Theme integration** - Uses ThemeManager for bot display names
+5. **Team integration** - Uses TeamManager for bot display names
 6. **Type safety** - Proper Room and RoomType models
 7. **Error handling** - Graceful fallbacks and messages
 
@@ -236,7 +236,7 @@ Analysis of the ADVANCED_CLI_UX_DESIGN.md document versus what's currently imple
 ## Integration Points
 
 ### With Other Systems
-- **ThemeManager** - Already used for bot theming in room creation
+- **TeamManager** - Already used for bot team styling in room creation
 - **MessageBus** - Used in agent loop for coordination
 - **Session Manager** - Could track room-specific context
 - **Memory System** - Could store room-specific knowledge
@@ -296,7 +296,7 @@ Tasks:
 - [ ] Invite bots to current room
 - [ ] List all rooms with /list-rooms
 - [ ] Room persistence across CLI restarts
-- [ ] Theme names display correctly
+- [ ] Team names display correctly
 - [ ] Error handling for invalid inputs
 - [ ] Room context shown in prompts
 - [ ] AI-assisted creation displays summary

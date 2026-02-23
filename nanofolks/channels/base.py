@@ -6,7 +6,7 @@ from typing import Any
 from loguru import logger
 
 from nanofolks.bots.room_manager import get_room_manager
-from nanofolks.bus.events import InboundMessage, OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 
 
@@ -53,7 +53,7 @@ class BaseChannel(ABC):
         pass
 
     @abstractmethod
-    async def send(self, msg: OutboundMessage) -> None:
+    async def send(self, msg: MessageEnvelope) -> None:
         """
         Send a message through this channel.
 
@@ -153,11 +153,12 @@ class BaseChannel(ABC):
                 return
 
             # ── Normal message → forward to agent ────────────────────────────
-            msg = InboundMessage(
+            msg = MessageEnvelope(
                 channel=self.name,
                 sender_id=str(sender_id),
                 chat_id=str(chat_id),
                 content=content,
+                direction="inbound",
                 media=media or [],
                 metadata=metadata or {},
             )
@@ -194,13 +195,14 @@ class BaseChannel(ABC):
                 f"[{self.name}:{chat_id}] Room '{target_room_id}' not found — "
                 f"switch ignored"
             )
-            reply = OutboundMessage(
+            reply = MessageEnvelope(
                 channel=self.name,
                 chat_id=chat_id,
                 content=(
                     f"❌ Room '{target_room_id}' not found. "
                     f"You are still in '{current_room_id}'."
                 ),
+                direction="outbound",
             )
             await self.send(reply)
             return
@@ -211,7 +213,7 @@ class BaseChannel(ABC):
             f"{current_room_id} → {target_room_id}"
         )
         bots = ", ".join(f"@{b}" for b in room.participants) or "none"
-        reply = OutboundMessage(
+        reply = MessageEnvelope(
             channel=self.name,
             chat_id=chat_id,
             content=(
@@ -219,6 +221,7 @@ class BaseChannel(ABC):
                 f"Participants: {bots}\n"
                 f"Send *!rooms* to list all rooms."
             ),
+            direction="outbound",
         )
         await self.send(reply)
 
@@ -242,10 +245,11 @@ class BaseChannel(ABC):
             bots = r["participant_count"]
             lines.append(f"{marker} *{r['id']}* ({r['type']}, {bots} bots)")
         lines.append("\nSwitch with: *!room <room_id>*")
-        reply = OutboundMessage(
+        reply = MessageEnvelope(
             channel=self.name,
             chat_id=chat_id,
             content="\n".join(lines),
+            direction="outbound",
         )
         await self.send(reply)
 
@@ -253,4 +257,3 @@ class BaseChannel(ABC):
     def is_running(self) -> bool:
         """Check if the channel is running."""
         return self._running
-

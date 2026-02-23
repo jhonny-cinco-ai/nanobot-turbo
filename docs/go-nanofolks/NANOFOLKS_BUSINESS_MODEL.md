@@ -82,7 +82,7 @@ Nanofolks follows an **Open Core business model**: a fully-featured open-source 
 - ✅ Self-hosted gateway
 - ✅ WebSocket/REST API
 - ✅ Import/export functionality
-- ✅ Theme support
+- ✅ Team support
 
 **Setup Required:**
 ```bash

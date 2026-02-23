@@ -9,7 +9,7 @@ from slack_sdk.socket_mode.response import SocketModeResponse
 from slack_sdk.socket_mode.websockets import SocketModeClient
 from slack_sdk.web.async_client import AsyncWebClient
 
-from nanofolks.bus.events import OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.channels.base import BaseChannel
 from nanofolks.config.schema import SlackConfig
@@ -70,7 +70,7 @@ class SlackChannel(BaseChannel):
                 logger.warning(f"Slack socket close failed: {e}")
             self._socket_client = None
 
-    async def send(self, msg: OutboundMessage) -> None:
+    async def send(self, msg: MessageEnvelope) -> None:
         """Send a message through Slack."""
         if not self._web_client:
             logger.warning("Slack client not running")

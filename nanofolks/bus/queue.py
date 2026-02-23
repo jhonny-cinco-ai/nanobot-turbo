@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any, Optional
 
-from nanofolks.bus.events import InboundMessage, OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 
 
 class MessageBus:
@@ -19,8 +19,8 @@ class MessageBus:
     """
 
     def __init__(self):
-        self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()
-        self.outbound: asyncio.Queue[OutboundMessage] = asyncio.Queue()
+        self.inbound: asyncio.Queue[MessageEnvelope] = asyncio.Queue()
+        self.outbound: asyncio.Queue[MessageEnvelope] = asyncio.Queue()
         self._room_manager: Optional[Any] = None  # Set via set_room_manager()
         self._broker: Optional[Any] = None        # Set via set_broker()
 
@@ -44,26 +44,28 @@ class MessageBus:
         """
         self._broker = broker
 
-    async def publish_inbound(self, msg: InboundMessage) -> None:
+    async def publish_inbound(self, msg: MessageEnvelope) -> None:
         """Publish a message from a channel to the agent.
 
         Routes through the per-room broker if one is attached, otherwise
         falls back to the flat inbound queue consumed by AgentLoop.run().
         """
+        msg.direction = "inbound"
         if self._broker is not None:
             await self._broker.route_message(msg)
         else:
             await self.inbound.put(msg)
 
-    async def consume_inbound(self) -> InboundMessage:
+    async def consume_inbound(self) -> MessageEnvelope:
         """Consume the next inbound message (blocks until available)."""
         return await self.inbound.get()
 
-    async def publish_outbound(self, msg: OutboundMessage) -> None:
+    async def publish_outbound(self, msg: MessageEnvelope) -> None:
         """Publish a response from the agent to channels."""
+        msg.direction = "outbound"
         await self.outbound.put(msg)
 
-    async def consume_outbound(self) -> OutboundMessage:
+    async def consume_outbound(self) -> MessageEnvelope:
         """Consume the next outbound message (blocks until available)."""
         return await self.outbound.get()
 
@@ -76,4 +78,3 @@ class MessageBus:
     def outbound_size(self) -> int:
         """Number of pending outbound messages."""
         return self.outbound.qsize()
-

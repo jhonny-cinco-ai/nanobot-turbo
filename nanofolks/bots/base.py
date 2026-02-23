@@ -31,7 +31,7 @@ class SpecialistBot(ABC):
         role_card: RoleCard,
         bus=None,
         workspace_id: Optional[str] = None,
-        theme_manager: Optional[TeamManager] = None,
+        team_manager: Optional[TeamManager] = None,
         custom_name: Optional[str] = None,
         workspace_path: Optional["Path"] = None
     ):
@@ -41,15 +41,15 @@ class SpecialistBot(ABC):
             role_card: Role card defining bot's personality and constraints
             bus: InterBotBus for communication with coordinator
             workspace_id: Workspace context ID
-            theme_manager: Optional theme manager for applying themed display names
-            custom_name: Optional custom display name (overrides theme)
+            team_manager: Optional team manager for applying team-styled display names
+            custom_name: Optional custom display name (overrides team style)
             workspace_path: Path to workspace for DM room logging
         """
         self.role_card = role_card
         self.bus = bus
         self.workspace_id = workspace_id
         self._workspace_path = workspace_path
-        self._theme_manager = theme_manager
+        self._team_manager = team_manager
         self._dm_room_manager = None  # Lazy initialized
         self.private_memory: Dict[str, Any] = {
             "learnings": [],  # Lessons learned by this bot
@@ -65,9 +65,9 @@ class SpecialistBot(ABC):
         # private_memory, making observations visible to ContextAssembler.
         self._learning_manager: Optional[Any] = None
 
-        # Apply theme if available
-        if theme_manager and theme_manager.current_theme:
-            self._apply_theme_to_role_card()
+        # Apply team styling if available
+        if team_manager and team_manager.current_team:
+            self._apply_team_to_role_card()
 
         # Apply custom name if provided (highest priority)
         if custom_name:
@@ -115,32 +115,32 @@ class SpecialistBot(ABC):
             bot_name=self.role_card.bot_name,
         )
 
-    def _apply_theme_to_role_card(self) -> None:
-        """Apply current theme to role card display name and personality."""
-        if not self._theme_manager or not self._theme_manager.current_theme:
+    def _apply_team_to_role_card(self) -> None:
+        """Apply current team style to role card display name and personality."""
+        if not self._team_manager or not self._team_manager.current_team:
             return
 
         try:
-            theming = self._theme_manager.get_bot_theming(self.role_card.bot_name)
-            if theming:
-                # Update display name from theme (use title as default display name)
-                title = theming.get("title")
+            profile = self._team_manager.get_bot_team_profile(self.role_card.bot_name)
+            if profile:
+                # Update display name from team profile (use title as default display name)
+                title = profile.get("bot_title")
                 if title:
                     self.role_card.set_display_name(title)
                     logger.debug(
-                        f"[{self.role_card.bot_name}] Applied theme display name: {title}"
+                        f"[{self.role_card.bot_name}] Applied team display name: {title}"
                     )
 
-                # Update greeting if theme provides one
-                if theming.get("greeting"):
-                    self.role_card.greeting = theming["greeting"]
+                # Update greeting if team profile provides one
+                if profile.get("greeting"):
+                    self.role_card.greeting = profile["greeting"]
 
-                # Update voice if theme provides one
-                if theming.get("voice"):
-                    self.role_card.voice = theming["voice"]
+                # Update voice if team profile provides one
+                if profile.get("voice"):
+                    self.role_card.voice = profile["voice"]
 
         except Exception as e:
-            logger.warning(f"[{self.role_card.bot_name}] Failed to apply theme: {e}")
+            logger.warning(f"[{self.role_card.bot_name}] Failed to apply team styling: {e}")
 
     @property
     def name(self) -> str:
@@ -180,11 +180,11 @@ class SpecialistBot(ABC):
         )
 
     def reset_display_name(self) -> None:
-        """Reset display name to default (uses title or themed name)."""
+        """Reset display name to default (uses title or team-styled name)."""
         self.role_card.set_display_name("")
-        # Re-apply theme if available
-        if self._theme_manager and self._theme_manager.current_theme:
-            self._apply_theme_to_role_card()
+        # Re-apply team styling if available
+        if self._team_manager and self._team_manager.current_team:
+            self._apply_team_to_role_card()
 
     def can_perform_action(self, action: str, context: Optional[Dict] = None) -> tuple[bool, Optional[str]]:
         """Validate if bot can perform an action (check hard bans).

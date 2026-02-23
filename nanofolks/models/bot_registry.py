@@ -44,16 +44,16 @@ class BotRegistry:
 
         # Get from soul/ templates
         if self.soul_dir.exists():
-            for theme_dir in self.soul_dir.iterdir():
-                if theme_dir.is_dir():
-                    for f in theme_dir.glob("*_SOUL.md"):
+            for team_dir in self.soul_dir.iterdir():
+                if team_dir.is_dir():
+                    for f in team_dir.glob("*_SOUL.md"):
                         bots.add(f.stem.replace("_SOUL", ""))
 
         # Get from identity/ templates
         if self.identity_dir.exists():
-            for theme_dir in self.identity_dir.iterdir():
-                if theme_dir.is_dir():
-                    for f in theme_dir.glob("*_IDENTITY.md"):
+            for team_dir in self.identity_dir.iterdir():
+                if team_dir.is_dir():
+                    for f in team_dir.glob("*_IDENTITY.md"):
                         bots.add(f.stem.replace("_IDENTITY", ""))
 
         return sorted(bots)
@@ -66,9 +66,9 @@ class BotRegistry:
         """Check if bot has SOUL.md template."""
         if not self.soul_dir.exists():
             return False
-        for theme_dir in self.soul_dir.iterdir():
-            if theme_dir.is_dir():
-                soul_file = theme_dir / f"{bot_name}_SOUL.md"
+        for team_dir in self.soul_dir.iterdir():
+            if team_dir.is_dir():
+                soul_file = team_dir / f"{bot_name}_SOUL.md"
                 if soul_file.exists():
                     return True
         return False
@@ -77,9 +77,9 @@ class BotRegistry:
         """Check if bot has IDENTITY.md template."""
         if not self.identity_dir.exists():
             return False
-        for theme_dir in self.identity_dir.iterdir():
-            if theme_dir.is_dir():
-                identity_file = theme_dir / f"{bot_name}_IDENTITY.md"
+        for team_dir in self.identity_dir.iterdir():
+            if team_dir.is_dir():
+                identity_file = team_dir / f"{bot_name}_IDENTITY.md"
                 if identity_file.exists():
                     return True
         return False
@@ -89,16 +89,16 @@ class BotRegistry:
         agents_file = self.bots_dir / f"{bot_name}_AGENTS.md"
         return agents_file.exists()
 
-    def get_soul_content(self, bot_name: str, theme: str = "pirate_crew") -> Optional[str]:
-        """Get SOUL.md content for a bot and theme."""
-        soul_file = self.soul_dir / theme / f"{bot_name}_SOUL.md"
+    def get_soul_content(self, bot_name: str, team_name: str = "pirate_crew") -> Optional[str]:
+        """Get SOUL.md content for a bot and team."""
+        soul_file = self.soul_dir / team_name / f"{bot_name}_SOUL.md"
         if soul_file.exists():
             return soul_file.read_text(encoding="utf-8")
         return None
 
-    def get_identity_content(self, bot_name: str, theme: str = "pirate_crew") -> Optional[str]:
-        """Get IDENTITY.md content for a bot and theme."""
-        identity_file = self.identity_dir / theme / f"{bot_name}_IDENTITY.md"
+    def get_identity_content(self, bot_name: str, team_name: str = "pirate_crew") -> Optional[str]:
+        """Get IDENTITY.md content for a bot and team."""
+        identity_file = self.identity_dir / team_name / f"{bot_name}_IDENTITY.md"
         if identity_file.exists():
             return identity_file.read_text(encoding="utf-8")
         return None
@@ -110,8 +110,8 @@ class BotRegistry:
             return agents_file.read_text(encoding="utf-8")
         return None
 
-    def get_available_themes(self) -> list[str]:
-        """Get list of available themes."""
+    def get_available_teams(self) -> list[str]:
+        """Get list of available teams."""
         if not self.soul_dir.exists():
             return []
         return [d.name for d in self.soul_dir.iterdir() if d.is_dir()]

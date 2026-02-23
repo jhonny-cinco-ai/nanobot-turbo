@@ -9,7 +9,7 @@ import httpx
 import websockets
 from loguru import logger
 
-from nanofolks.bus.events import OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.channels.base import BaseChannel
 from nanofolks.config.schema import DiscordConfig
@@ -92,7 +92,7 @@ class DiscordChannel(BaseChannel):
             await self._http.aclose()
             self._http = None
 
-    async def send(self, msg: OutboundMessage) -> None:
+    async def send(self, msg: MessageEnvelope) -> None:
         """Send a message through Discord REST API."""
         if not self._http:
             logger.warning("Discord HTTP client not initialized")

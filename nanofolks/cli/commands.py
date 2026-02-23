@@ -516,7 +516,7 @@ def onboard():
     This wizard will guide you through:
     1. AI Provider & API key configuration
     2. Model selection
-    3. Team theme selection with full team preview
+    3. Team selection with full crew preview
     4. Workspace creation with all bots ready
     """
     from nanofolks.cli.onboarding import OnboardingWizard
@@ -706,6 +706,7 @@ def gateway(
     from nanofolks.heartbeat.dashboard import DashboardService
     from nanofolks.heartbeat.dashboard_server import DashboardHTTPServer
     from nanofolks.heartbeat.multi_manager import MultiHeartbeatManager
+    from nanofolks.utils.ids import room_to_session_id
 
     from nanofolks.utils.logging import configure_logging
     if verbose:
@@ -789,23 +790,24 @@ def gateway(
         # Regular user job - process through agent
         response = await agent.process_direct(
             job.payload.message,
-            session_key=f"room:cron_{job.id}",
+            session_key=room_to_session_id(f"cron_{job.id}"),
             channel=job.payload.channel or "cli",
             chat_id=job.payload.to or "direct",
         )
         if job.payload.deliver and job.payload.to:
-            from nanofolks.bus.events import OutboundMessage
-            await bus.publish_outbound(OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            await bus.publish_outbound(MessageEnvelope(
                 channel=job.payload.channel or "cli",
                 chat_id=job.payload.to,
-                content=response or ""
+                content=response or "",
+                direction="outbound",
             ))
         return response
     cron.on_job = on_cron_job
 
     # Create multi-heartbeat manager with all 6 bots
     try:
-        # Load appearance configuration (themes and custom names)
+        # Load appearance configuration (teams and custom names)
         from nanofolks.bots.appearance_config import get_appearance_config
         from nanofolks.bots.implementations import (
             AuditorBot,
@@ -816,49 +818,49 @@ def gateway(
             SocialBot,
         )
         appearance_config = get_appearance_config()
-        theme_manager = appearance_config.theme_manager
+        team_manager = appearance_config.team_manager
 
         # Create bot instances with auto-initialization and appearance config
         researcher = ResearcherBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("researcher")
         )
         coder = CoderBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("coder")
         )
         social = SocialBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("social")
         )
         auditor = AuditorBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("auditor")
         )
         creative = CreativeBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("creative")
         )
         leader = BotLeader(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
-            theme_manager=theme_manager,
+            team_manager=team_manager,
             custom_name=appearance_config.get_custom_name("leader")
         )
 
@@ -1035,20 +1037,20 @@ def _format_room_status(room) -> str:
     return f"[dim]Room:[/dim] [bold cyan]#{room.id}[/bold cyan] • [dim]Type:[/dim] [green]{room.type.value}[/green]"
 
 
-def _render_team_roster(current_participants: list, theme_manager) -> str:
-    """Render team roster with themed character names.
+def _render_team_roster(current_participants: list, team_manager) -> str:
+    """Render team roster with team-styled character names.
 
     Args:
         current_participants: List of bot names in current room
-        theme_manager: TeamManager instance for themed names
+        team_manager: TeamManager instance for team-styled names
 
     Returns:
         Formatted team roster string
     """
     from nanofolks.teams import TeamManager
 
-    if theme_manager is None:
-        theme_manager = TeamManager()
+    if team_manager is None:
+        team_manager = TeamManager()
 
     all_bots = [
         ("leader", "Leader"),
@@ -1062,12 +1064,12 @@ def _render_team_roster(current_participants: list, theme_manager) -> str:
     output = "[bold cyan]TEAM[/bold cyan]\n"
 
     for bot_role, role in all_bots:
-        theming = theme_manager.get_bot_theming(bot_role)
+        team_profile = team_manager.get_bot_team_profile(bot_role)
 
-        if theming and isinstance(theming, dict):
-            bot_name = theming.get('bot_name') or theming.get('bot_title', bot_role)
-            emoji = theming.get('emoji', '•')
-            bot_title = theming.get('bot_title', role)
+        if team_profile and isinstance(team_profile, dict):
+            bot_name = team_profile.get('bot_name') or team_profile.get('bot_title', bot_role)
+            emoji = team_profile.get('emoji', '•')
+            bot_title = team_profile.get('bot_title', role)
         else:
             bot_name = bot_role
             emoji = "•"
@@ -1118,28 +1120,28 @@ def _render_room_list(room_manager, current_room_id: str) -> str:
     return output
 
 
-def _render_status_bar(room_id: str, participants: list, theme_manager) -> str:
+def _render_status_bar(room_id: str, participants: list, team_manager) -> str:
     """Render status bar with current room and team.
 
     Args:
         room_id: Current room ID
         participants: List of participant bot names
-        theme_manager: TeamManager instance
+        team_manager: TeamManager instance
 
     Returns:
         Formatted status bar string
     """
-    if theme_manager is None:
+    if team_manager is None:
         from nanofolks.teams import TeamManager
-        theme_manager = TeamManager()
+        team_manager = TeamManager()
 
     # Get emojis for actual participants
     emojis = []
     if participants and isinstance(participants, list):
         for bot in participants:
-            theming = theme_manager.get_bot_theming(bot)
-            if theming and isinstance(theming, dict):
-                emojis.append(theming.get('emoji', '•'))
+            team_profile = team_manager.get_bot_team_profile(bot)
+            if team_profile and isinstance(team_profile, dict):
+                emojis.append(team_profile.get('emoji', '•'))
 
     emoji_str = " ".join(emojis) if emojis else ""
     count = len(participants) if isinstance(participants, list) else 0
@@ -1273,8 +1275,8 @@ async def _handle_room_creation_intent(
 
     room_manager = get_room_manager()
 
-    # Get themed bot names
-    theme_manager = TeamManager()
+    # Get team-styled bot names
+    team_manager = TeamManager()
     roster = TeamRoster()
 
     # Display the recommendation
@@ -1284,19 +1286,19 @@ async def _handle_room_creation_intent(
     summary_text = Text(f"{intent.get('summary', '')}\n", style="dim")
     console.print(Panel(summary_text, title="🔍 Analysis", border_style="blue"))
 
-    # Show recommended bots with themed names
+    # Show recommended bots with team-styled names
     console.print("\n[bold]Recommended team:[/bold]")
 
     for bot in intent.get("recommended_bots", []):
         bot_role = bot.get("name", "")
         reason = bot.get("reason", "")
 
-        # Get themed info (returns dict, not object)
-        theming = theme_manager.get_bot_theming(bot_role)
-        if theming and isinstance(theming, dict):
-            display_name = theming.get('bot_name') or theming.get('bot_title', bot_role)
-            emoji = theming.get('emoji', '•')
-            bot_title = theming.get('bot_title', '')
+        # Get team-styled info (returns dict, not object)
+        team_profile = team_manager.get_bot_team_profile(bot_role)
+        if team_profile and isinstance(team_profile, dict):
+            display_name = team_profile.get('bot_name') or team_profile.get('bot_title', bot_role)
+            emoji = team_profile.get('emoji', '•')
+            bot_title = team_profile.get('bot_title', '')
             console.print(f"  {emoji} @{display_name:12} ({bot_title} - {reason})")
         else:
             # Fallback to roster
@@ -1331,7 +1333,7 @@ async def _handle_room_creation_intent(
             )
         console.print(f"\n✅ Created room [bold cyan]#{new_room.id}[/bold cyan] ({room_type})\n")
 
-        # Invite recommended bots with themed names
+        # Invite recommended bots with team-styled names
         invited = []
         for bot in intent.get("recommended_bots", []):
             bot_role = bot.get("name", "")
@@ -1339,11 +1341,11 @@ async def _handle_room_creation_intent(
                 invite_success = room_manager.invite_bot(new_room.id, bot_role)
 
             if invite_success:
-                # Get themed info (returns dict)
-                theming = theme_manager.get_bot_theming(bot_role)
-                if theming and isinstance(theming, dict):
-                    display_name = theming.get('bot_name') or theming.get('bot_title', bot_role)
-                    emoji = theming.get('emoji', '•')
+                # Get team-styled info (returns dict)
+                team_profile = team_manager.get_bot_team_profile(bot_role)
+                if team_profile and isinstance(team_profile, dict):
+                    display_name = team_profile.get('bot_name') or team_profile.get('bot_title', bot_role)
+                    emoji = team_profile.get('emoji', '•')
                     console.print(f"  {emoji} Invited @{display_name}")
                     invited.append(display_name)
                 else:
@@ -1379,6 +1381,7 @@ def chat(
     from nanofolks.agent.loop import AgentLoop
     from nanofolks.bots.room_manager import get_room_manager
     from nanofolks.bus.queue import MessageBus
+    from nanofolks.utils.ids import normalize_room_id, room_to_session_id
 
     config = load_config()
 
@@ -1389,6 +1392,9 @@ def chat(
         console.print(f"[yellow]Room '{room}' not found. Using 'general' room.[/yellow]")
         current_room = room_manager.default_room
         room = current_room.id
+    room = normalize_room_id(room) or "general"
+    if not session_id:
+        session_id = room_to_session_id(room)
 
     bus = MessageBus()
     bus.set_room_manager(room_manager)  # Enable cross-channel broadcast
@@ -1476,11 +1482,11 @@ def chat(
         # Interactive mode
         _init_prompt_session()
 
-        # Get theme manager for themed names
+        # Get team manager for team-styled names
         from nanofolks.bots.room_manager import get_room_manager
         from nanofolks.teams import TeamManager
 
-        theme_manager = TeamManager()
+        team_manager = TeamManager()
         room_manager_local = get_room_manager()
 
         # Ensure current_room and room_manager are available
@@ -1490,14 +1496,14 @@ def chat(
         # Display enhanced UI with team roster and room list
         console.print(f"{__logo__} Interactive mode\n")
 
-        # Team roster with themed character names
-        console.print(_render_team_roster(current_room.participants, theme_manager))
+        # Team roster with team-styled character names
+        console.print(_render_team_roster(current_room.participants, team_manager))
 
         # Room list
         console.print(_render_room_list(room_manager_local, room))
 
         # Status bar
-        console.print(_render_status_bar(room, current_room.participants, theme_manager))
+        console.print(_render_status_bar(room, current_room.participants, team_manager))
 
         console.print()
         console.print("[dim]Commands:[/dim]")
@@ -1775,7 +1781,7 @@ def chat(
                         # AgentLoop loads the new room's history and memory.
                         room = new_room_id
                         current_room = new_room
-                        session_id = f"room:{new_room_id}"
+                        session_id = room_to_session_id(new_room_id)
 
                         console.print(f"\n✅ Switched to [bold cyan]#{new_room_id}[/bold cyan]\n")
 
@@ -1894,7 +1900,7 @@ def chat(
                                 if switched:
                                     room = new_room.id
                                     current_room = new_room
-                                    session_id = f"room:{new_room.id}"  # migrate session key
+                                    session_id = room_to_session_id(new_room.id)  # migrate session key
                                     console.print(f"\n🔀 Switched to [bold cyan]#{room}[/bold cyan]\n")
                             # After handling room creation (or cancellation),
                             # either continue to agent or ask user what to do next
@@ -3273,72 +3279,76 @@ def skills_list(
 app.add_typer(skills_app, name="skills")
 
 # ============================================================================
-# Theme Commands
+# Team Commands
 # ============================================================================
 
-theme_app = typer.Typer(help="Manage crew themes and bot personalities")
+team_app = typer.Typer(help="Manage crew teams and bot personalities")
 
 
-@theme_app.command("list")
-def theme_list():
-    """List available crew themes."""
-    from nanofolks.templates import list_themes
+@team_app.command("list")
+def team_list():
+    """List available crew teams."""
+    from nanofolks.templates import list_teams
 
-    themes = list_themes()
+    teams = list_teams()
 
-    if not themes:
-        console.print("[yellow]No themes available.[/yellow]")
+    if not teams:
+        console.print("[yellow]No teams available.[/yellow]")
         return
 
-    table = Table(title="Available Crew Themes")
-    table.add_column("Theme", style="cyan")
+    table = Table(title="Available Crew Teams")
+    table.add_column("Team", style="cyan")
     table.add_column("Description")
     table.add_column("Emoji", justify="center")
 
-    for theme in themes:
+    for team in teams:
         table.add_row(
-            theme["display_name"],
-            theme["description"],
-            theme["emoji"]
+            team["display_name"],
+            team["description"],
+            team["emoji"]
         )
 
     console.print(table)
-    console.print("\n[dim]Use 'nanofolks theme set <theme_name>' to change your crew's theme[/dim]")
+    console.print("\n[dim]Use 'nanofolks team set <team_name>' to change your crew's team[/dim]")
 
 
-@theme_app.command("set")
-def theme_set(
-    theme_name: str = typer.Argument(..., help="Theme name (pirate_crew, rock_band, swat_team, feral_clowder, executive_suite, space_crew)"),
+@team_app.command("set")
+def team_set(
+    team_name: str = typer.Argument(..., help="Team name (pirate_crew, rock_band, swat_team, feral_clowder, executive_suite, space_crew)"),
 ):
-    """Set the crew theme."""
+    """Set the crew team."""
     import json
 
-    from nanofolks.templates import get_theme
+    from nanofolks.templates import get_team, get_bot_team_profile
 
-    # Validate theme
-    team = get_theme(theme_name)
+    # Validate team
+    team = get_team(team_name)
     if not team:
-        console.print(f"[red]❌ Unknown theme: {theme_name}[/red]")
-        console.print("\n[dim]Available themes:[/dim]")
-        theme_list()
+        console.print(f"[red]❌ Unknown team: {team_name}[/red]")
+        console.print("\n[dim]Available teams:[/dim]")
+        team_list()
         raise typer.Exit(1)
 
-    # Save theme preference
+    # Save team preference
     config_dir = get_data_dir()
-    theme_config_file = config_dir / "theme_config.json"
+    team_config_file = config_dir / "team_config.json"
 
-    theme_config = {
-        "current_theme": theme_name,
-        "theme_display_name": team.name.value.replace("_", " ").title(),
-        "emoji": team.leader.emoji,
+    display_name = team_name.replace("_", " ").title()
+    leader_profile = team.get("bots", {}).get("leader")
+    leader_emoji = leader_profile.emoji if leader_profile else "👤"
+
+    team_config = {
+        "current_team": team_name,
+        "team_display_name": display_name,
+        "emoji": leader_emoji,
     }
 
-    theme_config_file.write_text(json.dumps(theme_config, indent=2))
+    team_config_file.write_text(json.dumps(team_config, indent=2))
 
-    console.print(f"\n{team.leader.emoji} [green]✓ Theme set to:[/green] {team.name.value.replace('_', ' ').title()}")
-    console.print(f"[dim]{team.description}[/dim]\n")
+    console.print(f"\n{leader_emoji} [green]✓ Team set to:[/green] {display_name}")
+    console.print(f"[dim]{team.get('description', '')}[/dim]\n")
 
-    # Show bot personalities in this theme
+    # Show bot personalities in this team
     table = Table(title="Your Crew")
     table.add_column("Bot", style="cyan")
     table.add_column("Role")
@@ -3355,46 +3365,51 @@ def theme_set(
     ]
 
     for bot_name, role in bot_mappings:
-        theming = team.get_bot_theming(bot_name)
-        if theming:
+        profile = get_bot_team_profile(bot_name, team_name)
+        if profile:
+            personality = profile.get("personality", "")
             table.add_row(
                 role,
-                theming.title,
-                theming.personality[:40] + "..." if len(theming.personality) > 40 else theming.personality,
-                theming.emoji
+                profile.get("bot_title", role),
+                personality[:40] + "..." if len(personality) > 40 else personality,
+                profile.get("emoji", "•")
             )
 
     console.print(table)
-    console.print("\n[dim]Restart nanofolks to apply the new theme to your crew.[/dim]")
+    console.print("\n[dim]Restart nanofolks to apply the new team to your crew.[/dim]")
 
 
-@theme_app.command("show")
-def theme_show():
-    """Show current theme settings."""
+@team_app.command("show")
+def team_show():
+    """Show current team settings."""
     import json
 
     from nanofolks.teams import TeamManager
 
-    # Load saved theme
+    # Load saved team
     config_dir = get_data_dir()
-    theme_config_file = config_dir / "theme_config.json"
+    team_config_file = config_dir / "team_config.json"
 
-    if theme_config_file.exists():
-        theme_config = json.loads(theme_config_file.read_text())
-        current_theme_name = theme_config.get("current_theme", "pirate_crew")
+    if team_config_file.exists():
+        team_config = json.loads(team_config_file.read_text())
+        current_team_name = team_config.get("current_team", "pirate_crew")
     else:
-        current_theme_name = "pirate_crew"
+        current_team_name = "pirate_crew"
 
-    # Get theme
-    theme_manager = TeamManager(current_theme_name)
-    team = theme_manager.get_current_team()
+    # Get team
+    team_manager = TeamManager(current_team_name)
+    team = team_manager.get_current_team()
 
     if not team:
-        console.print("[yellow]No theme currently set.[/yellow]")
+        console.print("[yellow]No team currently set.[/yellow]")
         return
 
-    console.print(f"\n{team.leader.emoji} [bold]{team.name.value.replace('_', ' ').title()}[/bold]")
-    console.print(f"[dim]{team.description}[/dim]\n")
+    leader_profile = team.get("bots", {}).get("leader") if team else None
+    leader_emoji = leader_profile.emoji if leader_profile else "👤"
+    display_name = current_team_name.replace("_", " ").title()
+
+    console.print(f"\n{leader_emoji} [bold]{display_name}[/bold]")
+    console.print(f"[dim]{team.get('description', '') if team else ''}[/dim]\n")
 
     table = Table(title="Current Crew")
     table.add_column("Bot", style="cyan")
@@ -3411,19 +3426,20 @@ def theme_show():
     ]
 
     for bot_name, role in bot_roles:
-        theming = team.get_bot_theming(bot_name)
-        if theming:
-            greeting = theming.greeting[:50] + "..." if len(theming.greeting) > 50 else theming.greeting
+        profile = team_manager.get_bot_team_profile(bot_name)
+        if profile:
+            greeting = profile.get("greeting", "")
+            greeting = greeting[:50] + "..." if len(greeting) > 50 else greeting
             table.add_row(
-                f"{theming.emoji} {role}",
-                theming.title,
+                f"{profile.get('emoji', '•')} {role}",
+                profile.get("bot_title", role),
                 f"[dim]'{greeting}'[/dim]"
             )
 
     console.print(table)
 
 
-app.add_typer(theme_app, name="theme")
+app.add_typer(team_app, name="team")
 
 # ============================================================================
 # Bot Management Commands

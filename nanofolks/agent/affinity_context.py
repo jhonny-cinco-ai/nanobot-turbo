@@ -121,55 +121,55 @@ class AffinityContextBuilder:
         self,
         from_bot: str,
         to_bot: str,
-        room_theme: str = "default",
+        room_team: str = "default",
     ) -> Optional[str]:
         """Generate a cross-reference to another bot.
 
         Args:
             from_bot: Bot making the reference
             to_bot: Bot being referenced
-            room_theme: Theme for style customization
+            room_team: Team for style customization
 
         Returns:
             Reference string or None
         """
         affinity = self.get_affinity_score(from_bot, to_bot)
 
-        references = self._get_theme_references(room_theme, affinity)
+        references = self._get_team_references(room_team, affinity)
 
         return random.choice(references) if references else None
 
-    def _get_theme_references(self, theme: str, affinity: float) -> List[str]:
-        """Get reference templates based on theme and affinity.
+    def _get_team_references(self, team: str, affinity: float) -> List[str]:
+        """Get reference templates based on team and affinity.
 
         Args:
-            theme: Room theme
+            team: Room team
             affinity: Affinity score
 
         Returns:
             List of reference templates
         """
-        theme_lower = theme.lower()
+        team_lower = team.lower()
 
-        if "pirate" in theme_lower or "pirate" in theme_lower:
+        if "pirate" in team_lower or "pirate" in team_lower:
             refs = [
                 "Arr, @{to_bot} be right about this. ",
                 "As @{to_bot} would say, ",
                 "@{to_bot} speaks true, me hearties. ",
             ]
-        elif "rock" in theme_lower or "band" in theme_lower:
+        elif "rock" in team_lower or "band" in team_lower:
             refs = [
                 "@{to_bot} is on the same wavelength. ",
                 "Like @{to_bot} always says, ",
                 " @{to_bot} really gets it. ",
             ]
-        elif "space" in theme_lower:
+        elif "space" in team_lower:
             refs = [
                 "Commander @{to_bot} confirms. ",
                 "As noted in the briefing by @{to_bot}, ",
                 "@{to_bot}'s analysis is correct. ",
             ]
-        elif "executive" in theme_lower or "corp" in theme_lower:
+        elif "executive" in team_lower or "corp" in team_lower:
             refs = [
                 "I agree with @{to_bot}'s assessment. ",
                 "Building on @{to_bot}'s point... ",

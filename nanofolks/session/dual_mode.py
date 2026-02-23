@@ -13,6 +13,7 @@ from loguru import logger
 
 from nanofolks.session.manager import Session, SessionManager
 from nanofolks.utils.helpers import safe_filename
+from nanofolks.utils.ids import room_to_session_id, session_to_room_id
 
 if TYPE_CHECKING:
     from nanofolks.config.schema import Config
@@ -77,7 +78,7 @@ class RoomSessionManager(SessionManager):
             Path to session file
         """
         # Extract room_id from key (e.g., "room:general" -> "general")
-        room_id = room_key.replace("room:", "")
+        room_id = session_to_room_id(room_key) or room_key
         safe_id = safe_filename(room_id)
         return self.room_sessions_dir / f"{safe_id}.jsonl"
 
@@ -230,7 +231,7 @@ class RoomSessionManager(SessionManager):
                         data = json.loads(first_line)
                         if data.get("_type") == "metadata":
                             room_id = path.stem
-                            key = f"room:{room_id}"
+                            key = room_to_session_id(room_id)
                             sessions.append({
                                 "key": key,
                                 "type": "room",

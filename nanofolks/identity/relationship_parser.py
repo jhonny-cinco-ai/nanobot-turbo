@@ -22,7 +22,7 @@ class BotRelationship:
 
 
 class RelationshipParser:
-    """Parse relationship sections from IDENTITY.md files or infer from themes."""
+    """Parse relationship sections from IDENTITY.md files or infer from teams."""
 
     def __init__(self, workspace: Path):
         """Initialize RelationshipParser.
@@ -48,7 +48,7 @@ class RelationshipParser:
         relationships = self._load_from_identity_file(bot_name)
 
         if not relationships:
-            relationships = self._infer_from_theme(bot_name)
+            relationships = self._infer_from_team(bot_name)
 
         self._relationship_cache[bot_name] = relationships
         return relationships
@@ -244,8 +244,8 @@ class RelationshipParser:
         text = ' '.join(text.split())
         return text.strip()
 
-    def _infer_from_theme(self, bot_name: str) -> List[BotRelationship]:
-        """Infer relationships from the current theme's personality data.
+    def _infer_from_team(self, bot_name: str) -> List[BotRelationship]:
+        """Infer relationships from the current team's personality data.
 
         This provides a fallback when IDENTITY.md doesn't exist.
 
@@ -256,22 +256,22 @@ class RelationshipParser:
             List of inferred BotRelationship objects
         """
         from nanofolks.teams import TeamManager
-        from nanofolks.templates import get_bot_theming
+        from nanofolks.templates import get_bot_team_profile
 
         relationships = []
 
         try:
             team_manager = TeamManager()
-            current_theme_name = team_manager.get_current_team_name()
+            current_team_name = team_manager.get_current_team_name()
 
-            if not current_theme_name:
+            if not current_team_name:
                 return relationships
 
             bots = ["leader", "researcher", "coder", "social", "creative", "auditor"]
             bots.remove(bot_name)  # Remove self
 
             for other_bot in bots:
-                profile = get_bot_theming(other_bot, current_theme_name)
+                profile = get_bot_team_profile(other_bot, current_team_name)
                 if profile:
                     inferred_affinity = self._infer_affinity_from_profile(
                         bot_name, other_bot, profile
@@ -284,7 +284,7 @@ class RelationshipParser:
                     ))
 
         except Exception as e:
-            logger.debug(f"Could not infer relationships from theme: {e}")
+            logger.debug(f"Could not infer relationships from team: {e}")
 
         return relationships
 

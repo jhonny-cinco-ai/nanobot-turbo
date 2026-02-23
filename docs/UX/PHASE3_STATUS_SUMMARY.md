@@ -319,7 +319,7 @@ Tasks:
 - [ ] All terminals supported
 
 ### Nice to Have 🌟
-- [ ] Theme integration
+- [ ] Team integration
 - [ ] User preferences
 - [ ] Advanced animations
 - [ ] Custom layouts

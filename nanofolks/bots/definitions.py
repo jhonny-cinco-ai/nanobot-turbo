@@ -3,8 +3,8 @@
 This file now just re-exports from the central role_card module.
 All bot personality data comes from template files:
 - bots/ - AGENTS.md templates
-- soul/ - SOUL.md templates (per theme)
-- identity/ - IDENTITY.md templates (per theme)
+- soul/ - SOUL.md templates (per team)
+- identity/ - IDENTITY.md templates (per team)
 
 Use BotRegistry to access bot configurations.
 """
@@ -24,7 +24,7 @@ from nanofolks.models.role_card import (
     list_bots,
 )
 
-# Re-export for backward compatibility
+# Re-export for compatibility within the codebase
 __all__ = [
     "RoleCard",
     "RoleCardDomain",

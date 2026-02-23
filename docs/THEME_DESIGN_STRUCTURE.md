@@ -1,4 +1,4 @@
-| Theme             | Shape                 | Color            | Emotion                          |
+| Team             | Shape                 | Color            | Emotion                          |
 |------------------|----------------------|------------------|----------------------------------|
 | Pirate Crew       | Rhombus              | Burnished Gold   | Improvisation, Navigation, Freedom |
 | Rock Band         | Parallelogram        | Electric Crimson | Energy, Rhythm, Expression       |

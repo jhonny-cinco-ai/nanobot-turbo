@@ -33,6 +33,11 @@ from nanofolks.security.keyvault import (
     get_keyvault,
     resolve_key,
 )
+from nanofolks.security.secret_store import (
+    KeyringSecretStore,
+    SecretStore,
+    get_secret_store,
+)
 from nanofolks.security.sanitizer import (
     SecretMatch,
     SecretSanitizer,
@@ -79,6 +84,11 @@ __all__ = [
     "get_keyvault",
     "resolve_key",
     "PROVIDER_KEY_MAP",
+
+    # Secret Store
+    "SecretStore",
+    "KeyringSecretStore",
+    "get_secret_store",
 
     # Secure Memory
     "SecureString",

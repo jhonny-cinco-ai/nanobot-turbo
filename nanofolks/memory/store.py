@@ -192,7 +192,7 @@ class TurboMemoryStore:
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts(subject_entity_id);")
 
-        # Topics table - theme clusters
+        # Topics table - topic clusters
         conn.execute("""
             CREATE TABLE IF NOT EXISTS topics (
                 id TEXT PRIMARY KEY,

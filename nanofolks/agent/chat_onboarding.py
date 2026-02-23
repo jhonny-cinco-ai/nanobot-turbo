@@ -62,7 +62,7 @@ class ChatOnboarding:
     """Handles conversational user onboarding."""
 
     workspace_path: Path
-    theme_manager: TeamManager
+    team_manager: TeamManager
     state: OnboardingState = OnboardingState.NOT_STARTED
     answers: UserProfileAnswers = field(default_factory=UserProfileAnswers)
     current_question: int = 0
@@ -227,7 +227,7 @@ Information about the user to help personalize interactions.
 - **Name**: {self.answers.name or "(your name)"}
 - **Timezone**: {self.answers.timezone or "(your timezone)"}
 - **Language**: {self.answers.language or "(preferred language)"}
-- **Team Name**: {self.answers.team_name or "(default from theme)"}
+- **Team Name**: {self.answers.team_name or "(default from team)"}
 
 ## Preferences
 
@@ -286,9 +286,9 @@ Information about the user to help personalize interactions.
         """Get the team introduction message."""
         table = self._build_team_table()
 
-        # Get the team's name (custom or default from theme)
-        team = self.theme_manager.get_current_team()
-        default_team_name = team.name.value.replace("_", " ").title() if team else "Crew"
+        # Get the team's name (custom or default from team)
+        team = self.team_manager.get_current_team()
+        default_team_name = team["name"].replace("_", " ").title() if team else "Crew"
         team_name = self.answers.team_name or default_team_name
 
         return f"""Great to know you better, {self.answers.name or "friend"}! 🎉
@@ -302,7 +302,7 @@ That's your team! We're all here to help you with your {self.answers.projects or
 Need more details on any particular crew member? Just ask!"""
 
     def _build_team_table(self) -> Table:
-        """Build a themed table of all bots."""
+        """Build a team-styled table of all bots."""
         table = Table(show_header=True, header_style="bold magenta")
 
         # Add columns: Name, Title, Role
@@ -310,19 +310,19 @@ Need more details on any particular crew member? Just ask!"""
         table.add_column("Title", style="yellow", width=15)
         table.add_column("Role", style="green", width=50)
 
-        # Get theme emoji for header
-        self.theme_manager.get_current_team()
+        # Ensure team is loaded
+        self.team_manager.get_current_team()
 
         # Get all bots in order
         bot_order = ["leader", "researcher", "coder", "creative", "social", "auditor"]
 
         for bot_role in bot_order:
-            # Get theme info
-            theming = self.theme_manager.get_bot_theming(bot_role)
+            # Get team profile info
+            team_profile = self.team_manager.get_bot_team_profile(bot_role)
 
-            bot_name = theming.get("bot_name", theming.get("bot_title", bot_role))
-            bot_title = theming.get("bot_title", bot_role)
-            emoji = theming.get("emoji", "")
+            bot_name = team_profile.get("bot_name", team_profile.get("bot_title", bot_role))
+            bot_title = team_profile.get("bot_title", bot_role)
+            emoji = team_profile.get("emoji", "")
 
             # Get role description from domain
             role_card = BUILTIN_ROLES.get(bot_role)
@@ -346,14 +346,14 @@ Need more details on any particular crew member? Just ask!"""
 
     def introduce_bot(self, bot_role: str) -> str:
         """Introduce a specific bot in detail."""
-        # Get theme info
-        theming = self.theme_manager.get_bot_theming(bot_role)
+        # Get team profile info
+        team_profile = self.team_manager.get_bot_team_profile(bot_role)
 
-        bot_name = theming.get("bot_name", theming.get("bot_title", bot_role))
-        bot_title = theming.get("bot_title", bot_role)
-        emoji = theming.get("emoji", "")
-        personality = theming.get("personality", "")
-        greeting = theming.get("greeting", "")
+        bot_name = team_profile.get("bot_name", team_profile.get("bot_title", bot_role))
+        bot_title = team_profile.get("bot_title", bot_role)
+        emoji = team_profile.get("emoji", "")
+        personality = team_profile.get("personality", "")
+        greeting = team_profile.get("greeting", "")
 
         # Get role description
         role_card = BUILTIN_ROLES.get(bot_role)
@@ -413,10 +413,10 @@ They can: {capabilities}
 
     @classmethod
     def from_dict(
-        cls, data: dict, workspace_path: Path, theme_manager: TeamManager
+        cls, data: dict, workspace_path: Path, team_manager: TeamManager
     ) -> "ChatOnboarding":
         """Deserialize from saved state."""
-        onboarding = cls(workspace_path, theme_manager)
+        onboarding = cls(workspace_path, team_manager)
         onboarding.state = OnboardingState(data.get("state", "not_started"))
         onboarding.current_question = data.get("current_question", 0)
 

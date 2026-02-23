@@ -17,7 +17,7 @@ import pino from 'pino';
 
 const VERSION = '0.1.0';
 
-export interface InboundMessage {
+export interface MessageEnvelope {
   id: string;
   sender: string;
   pn: string;
@@ -28,7 +28,7 @@ export interface InboundMessage {
 
 export interface WhatsAppClientOptions {
   authDir: string;
-  onMessage: (msg: InboundMessage) => void;
+  onMessage: (msg: MessageEnvelope) => void;
   onQR: (qr: string) => void;
   onStatus: (status: string) => void;
 }

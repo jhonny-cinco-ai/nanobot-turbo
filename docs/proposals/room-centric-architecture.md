@@ -578,9 +578,9 @@ Bots can mention and respond to each other's points:
 - Inject relationship context into bot prompts
 - Encourage natural disagreement/agreement patterns
 
-#### **3. Theme-Specific Dynamics**
+#### **3. Team-Specific Dynamics**
 
-Each theme (Pirate, Space, Rock Band, etc.) has unique crew chemistry:
+Each team (Pirate, Space, Rock Band, etc.) has unique crew chemistry:
 
 **Pirate Crew (Camaraderie + Sass):**
 ```
@@ -608,9 +608,9 @@ User: @all Budget review?
 ```
 
 **Implementation:**
-- Load theme-specific relationship dynamics
-- Adjust tone based on theme (casual vs formal vs playful)
-- Use theme-specific banter patterns
+- Load team-specific relationship dynamics
+- Adjust tone based on team (casual vs formal vs playful)
+- Use team-specific banter patterns
 
 ### Room + Communal Integration
 
@@ -710,7 +710,7 @@ async def generate_crew_responses(
     responses = await asyncio.gather(*tasks)
     
     # 3. Add cross-references (bots mentioning each other)
-    responses = add_affinity_references(responses, room.theme)
+    responses = add_affinity_references(responses, room.team)
     
     return responses
 ```
@@ -789,7 +789,7 @@ def build_communal_context(bot_name, other_bots, room, user_message):
 | **Transparency** | See how crew collaborates on tasks |
 | **Engagement** | More entertaining and immersive experience |
 | **Expertise Visibility** | Learn what each bot is good at naturally |
-| **Theme Immersion** | Pirate crew feels like pirates, not just labels |
+| **Team Immersion** | Pirate crew feels like pirates, not just labels |
 
 ### Integration with Room-Centric Design
 

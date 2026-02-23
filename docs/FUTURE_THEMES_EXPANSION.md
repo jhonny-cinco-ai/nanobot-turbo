@@ -1,22 +1,22 @@
-# Future Personality Themes (Expansion Pack)
+# Future Personality Teams (Expansion Pack)
 
 **Status:** Future Ideas - Not in MVP  
-**Document Purpose:** Archive of personality themes for future implementation based on user demand
+**Document Purpose:** Archive of personality teams for future implementation based on user demand
 
 ---
 
 ## Overview
 
-These themes extend the core nanofolks experience with specialized vibes for different user personalities and work styles. While the MVP launches with 4-5 core themes, these are ready-to-implement expansions.
+These teams extend the core nanofolks experience with specialized vibes for different user personalities and work styles. While the MVP launches with 4-5 core teams, these are ready-to-implement expansions.
 
-**Launch Themes (MVP)**:
+**Launch Teams (MVP)**:
 - 🏴‍☠️ Pirate Crew (Bold, adventurous)
 - 🎸 Rock Band (Creative, collaborative)
 - 🎯 SWAT Team (Tactical, precise)
 - 🐱 Feral Clowder (Scrappy street cats)
 - 💼 Executive Suite (Corporate, strategic)
 
-**Future Expansion Themes** (this document):
+**Future Expansion Teams** (this document):
 - 🥷 Ninja Clan (Stealth, precision)
 - 🏭 Startup Garage (Lean, scrappy, MVP-focused)
 - 🔧 Workshop Collective (Crafters, makers)
@@ -26,7 +26,7 @@ These themes extend the core nanofolks experience with specialized vibes for dif
 
 ---
 
-## Theme 1: 🥷 Ninja Clan
+## Team 1: 🥷 Ninja Clan
 
 **Vibe**: Silent precision, shadow operations, surgical strikes  
 **Best for**: Users who want minimal noise, clean execution, "set it and forget it" reliability
@@ -88,7 +88,7 @@ THEME = {
 
 ---
 
-## Theme 2: 🏭 Startup Garage
+## Team 2: 🏭 Startup Garage
 
 **Vibe**: Lean startup mentality, move fast, break things, iterate  
 **Best for**: Entrepreneurs, builders, people who value "done is better than perfect"
@@ -151,7 +151,7 @@ THEME = {
 
 ---
 
-## Theme 3: 🔧 Workshop Collective
+## Team 3: 🔧 Workshop Collective
 
 **Vibe**: Makers, crafters, artisans, hands-on building  
 **Best for**: DIY enthusiasts, tinkerers, people who value craft over mass production
@@ -214,7 +214,7 @@ THEME = {
 
 ---
 
-## Theme 4: 🌲 Forest Circle
+## Team 4: 🌲 Forest Circle
 
 **Vibe**: Organic growth, community, natural cycles, harmony  
 **Best for**: Community builders, environmentalists, people who prefer slow and sustainable
@@ -277,7 +277,7 @@ THEME = {
 
 ---
 
-## Theme 5: 🐪 Desert Caravan
+## Team 5: 🐪 Desert Caravan
 
 **Vibe**: Nomadic traders, survivalists, adaptability, journey-focused  
 **Best for**: Digital nomads, remote workers, people who work across multiple contexts
@@ -340,7 +340,7 @@ THEME = {
 
 ---
 
-## Theme 6: 🎪 Circus Troupe
+## Team 6: 🎪 Circus Troupe
 
 **Vibe**: Performance, variety acts, entertainment, showmanship  
 **Best for**: Content creators, performers, people who want work to feel like play
@@ -423,18 +423,18 @@ THEME = {
 ## User Selection Flow
 
 ```
-User: "I want to change my theme"
+User: "I want to change my team"
 
 nanofolks: "Choose your team's personality:
 
-[Launch Themes - Battle-Tested]
+[Launch Teams - Battle-Tested]
 [1] 🏴‍☠️ Pirate Crew     - Bold adventures, treasure hunting
 [2] 🎸 Rock Band        - Creative collaboration, making hits
 [3] 🎯 SWAT Team        - Tactical precision, mission-focused
 [4] 🐱 Feral Clowder    - Street cats who fight, survive, scavenge
 [5] 💼 Executive Suite   - Professional, corporate, structured
 
-[Expansion Themes - Fresh Ideas]
+[Expansion Teams - Fresh Ideas]
 [6] 🥷 Ninja Clan       - Silent precision, shadow ops ← NEW!
 [7] 🏭 Startup Garage    - Lean, MVP-focused, move fast ← NEW!
 [8] 🔧 Workshop Collective - Crafters, artisans, makers ← NEW!
@@ -447,9 +447,9 @@ Selection: _"
 
 ---
 
-## Cross-Theme Combinations
+## Cross-Team Combinations
 
-Users could potentially mix themes per workspace:
+Users could potentially mix teams per workspace:
 
 ```
 #general workspace → Rock Band (creative hub)
@@ -463,7 +463,7 @@ This allows different vibes for different contexts while keeping the core team s
 ---
 
 **Next Steps**:
-1. Monitor which themes users select most in MVP
-2. Prioritize expansion themes based on demand
-3. Gather user feedback on theme personality accuracy
-4. Consider allowing custom theme creation (advanced users)
+1. Monitor which teams users select most in MVP
+2. Prioritize expansion teams based on demand
+3. Gather user feedback on team personality accuracy
+4. Consider allowing custom team creation (advanced users)

@@ -15,6 +15,7 @@ from nanofolks.memory.embeddings import EmbeddingProvider
 from nanofolks.memory.store import TurboMemoryStore
 from nanofolks.security.keyvault import get_keyvault
 from nanofolks.soul import SoulManager
+from nanofolks.utils.ids import room_to_session_id
 
 
 class ContextBuilder:
@@ -307,7 +308,7 @@ Tools for servers marked as 'connected' are already registered and available for
         """Build identity section customized for the bot using IDENTITY.md files.
 
         This method loads the bot's personality from IDENTITY.md (workspace-specific
-        or theme template), NOT from hardcoded templates. This enables the multi-bot
+        or team template), NOT from hardcoded templates. This enables the multi-bot
         architecture where each bot has unique personality, relationships, and quirks.
 
         Falls back to generic template only if no IDENTITY.md exists.
@@ -320,7 +321,7 @@ Tools for servers marked as 'connected' are already registered and available for
         identity_content = self._load_identity_for_bot(safe_bot_name)
 
         if identity_content:
-            # Use the loaded identity (from workspace or theme template)
+            # Use the loaded identity (from workspace or team template)
             # Remove the "## IDENTITY.md" header to get just the content
             if identity_content.startswith("## IDENTITY.md"):
                 identity_body = identity_content.split("\n\n", 1)[1] if "\n\n" in identity_content else ""
@@ -530,7 +531,7 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
         except Exception as e:
             logger.warning(f"Failed to load IDENTITY.md for {bot_name}: {e}")
 
-        # Fall back to template IDENTITY.md from theme
+        # Fall back to template IDENTITY.md from team
         try:
             from nanofolks.templates import get_identity_template_for_bot
             template_content = get_identity_template_for_bot(bot_name)
@@ -705,7 +706,10 @@ Your workspace is at: {workspace_path}/bots/{safe_bot_name}/"""
                 recent_events = []
                 try:
                     # Try to get events by session (room:general)
-                    recent_events = self.memory.get_events_by_session(session_key="room:general", limit=recent_limit)
+                    recent_events = self.memory.get_events_by_session(
+                        session_key=room_to_session_id("general"),
+                        limit=recent_limit,
+                    )
                 except Exception:
                     # Fallback to getting all events
                     recent_events = []

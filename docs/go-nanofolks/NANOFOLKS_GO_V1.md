@@ -691,7 +691,7 @@ Settings
 │   └── Allowed File Paths
 │
 ├── 🎨 Appearance
-│   ├── Theme (Dark/Light/System)
+│   ├── Team (Dark/Light/System)
 │   ├── Font Size
 │   ├── Compact Mode (Toggle)
 │   └── Message Density
@@ -983,7 +983,7 @@ frontend/e2e/*.spec.ts
 
 ### 13.3 Manual Testing Checklist
 
-- [ ] Create room with each theme
+- [ ] Create room with each team
 - [ ] Send messages with @mentions
 - [ ] Test DM conversations
 - [ ] Configure all providers

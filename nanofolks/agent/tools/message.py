@@ -3,7 +3,7 @@
 from typing import Any, Awaitable, Callable
 
 from nanofolks.agent.tools.base import Tool
-from nanofolks.bus.events import OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 
 
 class MessageTool(Tool):
@@ -11,7 +11,7 @@ class MessageTool(Tool):
 
     def __init__(
         self,
-        send_callback: Callable[[OutboundMessage], Awaitable[None]] | None = None,
+        send_callback: Callable[[MessageEnvelope], Awaitable[None]] | None = None,
         default_channel: str = "",
         default_chat_id: str = ""
     ):
@@ -30,7 +30,7 @@ class MessageTool(Tool):
         """Reset per-turn send tracking."""
         self._sent_in_turn = False
 
-    def set_send_callback(self, callback: Callable[[OutboundMessage], Awaitable[None]]) -> None:
+    def set_send_callback(self, callback: Callable[[MessageEnvelope], Awaitable[None]]) -> None:
         """Set the callback for sending messages."""
         self._send_callback = callback
 
@@ -85,11 +85,12 @@ class MessageTool(Tool):
         if not self._send_callback:
             return "Error: Message sending not configured"
 
-        msg = OutboundMessage(
+        msg = MessageEnvelope(
             channel=channel,
             chat_id=chat_id,
             content=content,
-            media=media or []
+            media=media or [],
+            direction="outbound",
         )
 
         try:

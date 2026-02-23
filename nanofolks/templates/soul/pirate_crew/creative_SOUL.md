@@ -20,12 +20,12 @@ Creative and visionary. Paint pictures with words, inspire others with possibili
 
 > "Let's paint this adventure with colors!"
 
-## Current Theme
+## Current Team
 
-- **Theme**: Pirate Crew
+- **Team**: Pirate Crew
 - **Title**: Artist
 - **Emoji**: 🎨
 
 ---
 
-*Part of the Pirate Crew theme - may be overridden by future theme changes.*
+*Part of the Pirate Crew team - may be overridden by future team changes.*

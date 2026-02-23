@@ -17,7 +17,7 @@ from typing import Optional
 from loguru import logger
 
 from nanofolks.security.credential_detector import CredentialDetector, CredentialMatch
-from nanofolks.security.keyring_manager import KeyringManager
+from nanofolks.security.secret_store import SecretStore, get_secret_store
 
 
 @dataclass
@@ -42,7 +42,7 @@ class SymbolicConverter:
     def __init__(self):
         """Initialize the converter."""
         self.detector = CredentialDetector()
-        self.keyring = KeyringManager()
+        self.store: SecretStore = get_secret_store()
         self._session_keys: dict[str, str] = {}  # Temporary session-based keys
 
     def convert(self, text: str, session_id: Optional[str] = None) -> ConversionResult:
@@ -74,7 +74,7 @@ class SymbolicConverter:
             # Generate symbolic reference
             key_ref = self._generate_key_ref(cred, session_id)
 
-            # Store in session keys (temporary) or keyring
+            # Store in session keys (temporary) or secret store
             self._store_credential(key_ref, cred.value, session_id)
 
             # Replace in text (from end to preserve positions)
@@ -122,7 +122,7 @@ class SymbolicConverter:
         return f"{{{{{cred.service}_{cred.credential_type}}}}}"
 
     def _store_credential(self, key_ref: str, value: str, session_id: Optional[str]) -> None:
-        """Store credential in session or keyring.
+        """Store credential in session or secret store.
 
         Args:
             key_ref: The symbolic reference
@@ -138,7 +138,7 @@ class SymbolicConverter:
             logger.debug(f"Stored session key: {key_name}")
         else:
             # Ask user if they want to persist (for now, just log)
-            logger.info(f"Credential detected: {key_name} (consider storing in keyring)")
+            logger.info(f"Credential detected: {key_name} (consider storing in secret store)")
 
     def resolve(self, key_ref: str, session_id: Optional[str] = None) -> Optional[str]:
         """Resolve a symbolic reference to its actual value.
@@ -157,8 +157,8 @@ class SymbolicConverter:
         if key_name in self._session_keys:
             return self._session_keys[key_name]
 
-        # Then check keyring
-        return self.keyring.get_key(key_name)
+        # Then check secret store
+        return self.store.get(key_name)
 
     def clear_session_keys(self, session_id: Optional[str] = None) -> None:
         """Clear session-scoped keys.

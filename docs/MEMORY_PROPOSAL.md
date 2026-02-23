@@ -68,7 +68,7 @@ User message → Session (JSONL, last 50 msgs) → System prompt
 │  Entities: people, orgs, tools, concepts (with embeddings)   │
 │  Edges: relationships between entities (with strength)     │
 │  Facts: subject-predicate-object triplets                    │
-│  Topics: theme clusters linked to events                     │
+│  Topics: team clusters linked to events                     │
 └─────────────────────┬───────────────────────────────────────┘
                       │ Staleness-driven refresh
                       │ Batch summarization when threshold reached
@@ -113,7 +113,7 @@ Tables:
 - `entities` - People, orgs, concepts
 - `edges` - Relationships between entities
 - `facts` - Subject-predicate-object triplets
-- `topics` - Theme clusters
+- `topics` - Team clusters
 - `event_topics` - Junction table
 - `summary_nodes` - Hierarchical summary tree
 - `learnings` - Self-improvement records
@@ -970,7 +970,7 @@ class AgentLoop:
         # Existing shutdown...
         logger.info("Agent loop stopped")
     
-    async def process_message(self, message: InboundMessage):
+    async def process_message(self, message: MessageEnvelope):
         """Process a user message."""
         # Mark user activity
         if self.activity_tracker:

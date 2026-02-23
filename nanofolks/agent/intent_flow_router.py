@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any, List, Optional
 from loguru import logger
 
 from nanofolks.agent.intent_detector import FlowType, Intent, IntentDetector, IntentType
+from nanofolks.utils.ids import session_to_room_id
 
 if TYPE_CHECKING:
-    from nanofolks.bus.events import InboundMessage, OutboundMessage
+    from nanofolks.bus.events import MessageEnvelope
     from nanofolks.session.manager import Session
     from nanofolks.agent.loop import AgentLoop
     from nanofolks.agent.project_state import ProjectStateManager
@@ -39,7 +40,7 @@ class IntentFlowRouter:
         self.intent_detector = IntentDetector()
         self._quick_flow_state: dict = {}
 
-    async def route(self, msg: "InboundMessage", session: "Session") -> "OutboundMessage":
+    async def route(self, msg: "MessageEnvelope", session: "Session") -> "MessageEnvelope":
         """Route message to appropriate flow based on intent.
 
         Args:
@@ -47,7 +48,7 @@ class IntentFlowRouter:
             session: Current session
 
         Returns:
-            OutboundMessage with appropriate response
+            MessageEnvelope with appropriate response
         """
         intent = self.intent_detector.detect(msg.content)
 
@@ -71,12 +72,12 @@ class IntentFlowRouter:
         content_lower = content.lower()
         return any(kw in content_lower for kw in self.CANCEL_KEYWORDS)
 
-    async def _handle_cancellation(self, msg: "InboundMessage") -> "OutboundMessage":
+    async def _handle_cancellation(self, msg: "MessageEnvelope") -> "MessageEnvelope":
         """Handle cancellation request."""
         logger.info("User requested cancellation")
 
-        from nanofolks.bus.events import OutboundMessage
-        return OutboundMessage(
+        from nanofolks.bus.events import MessageEnvelope
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content="Okay, cancelled. Let me know if you need anything else.",
@@ -85,10 +86,10 @@ class IntentFlowRouter:
 
     async def _handle_simultaneous(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         intent: Intent,
         session: "Session"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle CHAT intent - simultaneous multi-bot response.
 
         Uses existing Phase 1 multi-bot infrastructure for communal experience.
@@ -111,10 +112,10 @@ class IntentFlowRouter:
 
     async def _handle_quick(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         intent: Intent,
         session: "Session"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle ADVICE/RESEARCH intents - quick 1-2 questions then answer.
 
         This flow asks 1-2 clarifying questions, then provides the answer.
@@ -122,7 +123,7 @@ class IntentFlowRouter:
         """
         from nanofolks.agent.project_state import ProjectStateManager
 
-        room_id = msg.session_key
+        room_id = session_to_room_id(msg.session_key) or "general"
         state_manager = ProjectStateManager(self.agent.workspace, room_id)
 
         quick_state = state_manager.get_quick_flow_state()
@@ -131,8 +132,8 @@ class IntentFlowRouter:
             state_manager.start_quick_flow(intent.intent_type.value, msg.content)
             quick_state = state_manager.get_quick_flow_state()
             if quick_state is None:
-                from nanofolks.bus.events import OutboundMessage
-                return OutboundMessage(
+                from nanofolks.bus.events import MessageEnvelope
+                return MessageEnvelope(
                     channel=msg.channel,
                     chat_id=msg.chat_id,
                     content="Sorry, I couldn't start the quick flow. Please try again.",
@@ -147,8 +148,8 @@ class IntentFlowRouter:
             quick_state.questions_asked += 1
             state_manager.update_quick_flow_state(quick_state.questions_asked, quick_state.user_answers)
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=question,
@@ -163,8 +164,8 @@ class IntentFlowRouter:
             answer = await self._generate_quick_answer_llm(intent, quick_state, msg.content)
             state_manager.clear_quick_flow_state()
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=answer,
@@ -176,10 +177,10 @@ class IntentFlowRouter:
 
     async def _handle_full(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         intent: Intent,
         session: "Session"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle BUILD/TASK/EXPLORE intents - full discovery flow.
 
         This starts the structured discovery → synthesis → approval → execution flow.
@@ -190,7 +191,7 @@ class IntentFlowRouter:
         from nanofolks.agent.project_state import ProjectPhase, ProjectStateManager
         from nanofolks.bots.room_manager import get_room_manager
 
-        room_id = msg.session_key
+        room_id = session_to_room_id(msg.session_key) or "general"
         is_new_project = False
 
         if room_id == "general" or not room_id:
@@ -220,8 +221,8 @@ class IntentFlowRouter:
 
             state_manager.log_discovery_entry(first_bot, question, is_question=True)
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=question,
@@ -327,10 +328,10 @@ class IntentFlowRouter:
 
     async def _continue_full_flow(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         state_manager: "ProjectStateManager",
         session: "Session"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Continue an existing full discovery flow."""
         from nanofolks.agent.project_state import ProjectPhase
 
@@ -345,8 +346,8 @@ class IntentFlowRouter:
         elif state.phase == ProjectPhase.REVIEW:
             return await self._handle_review(msg, state_manager)
 
-        from nanofolks.bus.events import OutboundMessage
-        return OutboundMessage(
+        from nanofolks.bus.events import MessageEnvelope
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content="I'm not sure what to do next. Let's start fresh!",
@@ -355,9 +356,9 @@ class IntentFlowRouter:
 
     async def _continue_discovery(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         state_manager: "ProjectStateManager"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Continue discovery phase."""
 
         state_manager.log_discovery_entry("user", msg.content, is_question=False)
@@ -370,8 +371,8 @@ class IntentFlowRouter:
 
             formatted = self._format_synthesis(synthesis)
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=formatted,
@@ -382,8 +383,8 @@ class IntentFlowRouter:
         question = await self._generate_discovery_question_llm(next_bot, state_manager, None)
         state_manager.log_discovery_entry(next_bot, question, is_question=True)
 
-        from nanofolks.bus.events import OutboundMessage
-        return OutboundMessage(
+        from nanofolks.bus.events import MessageEnvelope
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=question,
@@ -392,9 +393,9 @@ class IntentFlowRouter:
 
     async def _handle_approval(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         state_manager: "ProjectStateManager"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle approval response."""
         approved = self._check_approval(msg.content)
 
@@ -403,8 +404,8 @@ class IntentFlowRouter:
 
             execution_content = self._get_execution_context(state_manager)
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=execution_content,
@@ -417,8 +418,8 @@ class IntentFlowRouter:
             question = f"Noted! {await self._generate_discovery_question_llm(next_bot, state_manager, None)}"
             state_manager.log_discovery_entry(next_bot, question, is_question=True)
 
-            from nanofolks.bus.events import OutboundMessage
-            return OutboundMessage(
+            from nanofolks.bus.events import MessageEnvelope
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=question,
@@ -427,16 +428,16 @@ class IntentFlowRouter:
 
     async def _handle_execution(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         state_manager: "ProjectStateManager"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle execution phase."""
         from nanofolks.agent.project_state import ProjectPhase
         state_manager.state.phase = ProjectPhase.REVIEW
         state_manager._save_state()
 
-        from nanofolks.bus.events import OutboundMessage
-        return OutboundMessage(
+        from nanofolks.bus.events import MessageEnvelope
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content="All tasks complete! Ready for review. Let me know if anything needs changes.",
@@ -445,14 +446,14 @@ class IntentFlowRouter:
 
     async def _handle_review(
         self,
-        msg: "InboundMessage",
+        msg: "MessageEnvelope",
         state_manager: "ProjectStateManager"
-    ) -> "OutboundMessage":
+    ) -> "MessageEnvelope":
         """Handle final review."""
         state_manager.complete_review()
 
-        from nanofolks.bus.events import OutboundMessage
-        return OutboundMessage(
+        from nanofolks.bus.events import MessageEnvelope
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content="Great work! Let me know if you need anything else.",

@@ -141,7 +141,7 @@ Check for cancellation keywords at any point.
 ```python
 if is_cancellation(message):
     ProjectStateManager(room_id).reset_to_idle()
-    return OutboundMessage(
+    return MessageEnvelope(
         content="Okay, cancelled. Let me know if you need anything else.",
         metadata={"cancelled": True}
     )

@@ -12,7 +12,7 @@
 
 **All 5 phases have been successfully implemented:**
 - ✅ Phase 1: Foundation (Workspace model, role cards, 6-bot team)
-- ✅ Phase 2: Personalization (Themes, onboarding, SOUL.md integration)
+- ✅ Phase 2: Personalization (Teams, onboarding, SOUL.md integration)
 - ✅ Phase 3: Memory (Hybrid architecture, cross-pollination)
 - ✅ Phase 4: Coordination (Autonomous collaboration, escalations)
 - ✅ Phase 5: Polish (Persistence, decision-making, transparency, performance)
@@ -36,7 +36,7 @@ This document outlines the concrete implementation steps to bring the Workspace 
 
 **Implementation Timeline (Actual):**
 - **Phase 1 (Day 1):** ✅ Foundation - Workspace model, tagging, role cards, leader + 5 specialist bots
-- **Phase 2 (Day 1):** ✅ Personalization - 5 personality themes, onboarding wizard  
+- **Phase 2 (Day 1):** ✅ Personalization - 5 personality teams, onboarding wizard  
 - **Phase 3 (Day 1):** ✅ Memory - Hybrid architecture with cross-pollination
 - **Phase 4 (Day 1):** ✅ Coordination - Inter-bot bus, coordinator bot, autonomous collaboration
 - **Phase 5 (Day 2):** ✅ Polish - Persistence, decision-making, transparency, performance optimization
@@ -356,7 +356,7 @@ Contains role cards for all 5 bots (1 coordinator + 4 specialists):
 NANOBOT_ROLE = RoleCard(
     bot_name="nanofolks",
     domain=BotDomain.COORDINATION,
-    title="Your Companion",  # Themed: "Captain", "Lead Singer", "Commander", etc.
+    title="Your Companion",  # Team-styled: "Captain", "Lead Singer", "Commander", etc.
     description="Team coordinator, user interface, relationship builder",
     inputs=["User messages", "Team requests", "Workspace management", "Escalations"],
     outputs=["Routed messages", "Team summaries", "Decisions", "Notifications"],
@@ -738,24 +738,24 @@ class AuditorBot(SpecialistBot):
 ## Phase 2: Personalization ✅ COMPLETE
 
 ### Objectives
-- ✅ Implement 5 personality themes
+- ✅ Implement 5 personality teams
 - ✅ Build interactive onboarding
-- ✅ Integrate themes with SOUL.md
-- ✅ Enable theme switching
+- ✅ Integrate teams with SOUL.md
+- ✅ Enable team switching
 
-**Status:** All themes defined and SOUL.md integration complete (120 tests passing)
+**Status:** All teams defined and SOUL.md integration complete (120 tests passing)
 
 ### Deliverables
 
-#### 2.1: Theme System
-**File:** `nanofolks/themes/theme_system.py`
+#### 2.1: Team System
+**File:** `nanofolks/teams/team_system.py`
 
 ```python
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Any
 
-class ThemeName(Enum):
+class TeamName(Enum):
     PIRATE_CREW = "pirate_crew"
     ROCK_BAND = "rock_band"
     SWAT_TEAM = "swat_team"
@@ -763,8 +763,8 @@ class ThemeName(Enum):
     SPACE_CREW = "space_crew"
 
 @dataclass
-class BotTheming:
-    """Bot personality within a theme."""
+class BotTeamProfile:
+    """Bot personality within a team."""
     title: str  # "Captain", "Lead Singer", "Commander"
     personality: str  # Brief description
     greeting: str
@@ -772,36 +772,36 @@ class BotTheming:
     emoji: str = ""
 
 @dataclass
-class Theme:
-    """Complete personality theme for team."""
-    name: ThemeName
+class Team:
+    """Complete personality definition for a team."""
+    name: TeamName
     description: str
-    nanofolks: BotTheming
-    researcher: BotTheming
-    coder: BotTheming
-    social: BotTheming
-    auditor: BotTheming
+    nanofolks: BotTeamProfile
+    researcher: BotTeamProfile
+    coder: BotTeamProfile
+    social: BotTeamProfile
+    auditor: BotTeamProfile
     affinity_modifiers: Dict[str, float] = None
     
-    def get_bot_theming(self, bot_name: str) -> BotTheming:
-        """Get theming for a specific bot."""
+    def get_bot_team_profile(self, bot_name: str) -> BotTeamProfile:
+        """Get team profile for a specific bot."""
         return getattr(self, bot_name)
 ```
 
-**File:** `nanofolks/themes/presets.py`
+**File:** `nanofolks/teams/presets.py`
 
 ```python
-PIRATE_CREW = Theme(
-    name=ThemeName.PIRATE_CREW,
+PIRATE_CREW = Team(
+    name=TeamName.PIRATE_CREW,
     description="Bold adventurers exploring uncharted territories",
-    nanofolks=BotTheming(
+    nanofolks=BotTeamProfile(
         title="Captain",
         personality="Commanding, bold, decisive",
         greeting="Ahoy! What treasure we seeking today?",
         voice_directive="Speak with authority and adventure spirit",
         emoji="🏴‍☠️"
     ),
-    researcher=BotTheming(
+    researcher=BotTeamProfile(
         title="Navigator",
         personality="Explores unknown waters, maps territories",
         greeting="Charted these waters before, Captain. Beware the reef of misinformation.",
@@ -811,10 +811,10 @@ PIRATE_CREW = Theme(
     # ... more bots
 )
 
-ROCK_BAND = Theme(
-    name=ThemeName.ROCK_BAND,
+ROCK_BAND = Team(
+    name=TeamName.ROCK_BAND,
     description="Creative team making hits together",
-    nanofolks=BotTheming(
+    nanofolks=BotTeamProfile(
         title="Lead Singer",
         personality="Charismatic frontman, sets the vibe",
         greeting="Hey! Ready to make some hits?",
@@ -824,73 +824,73 @@ ROCK_BAND = Theme(
     # ... more bots
 )
 
-SWAT_TEAM = Theme(
-    name=ThemeName.SWAT_TEAM,
+SWAT_TEAM = Team(
+    name=TeamName.SWAT_TEAM,
     description="Elite tactical unit handling critical operations",
-    # ... all bots with tactical theming
+    # ... all bots with tactical team profiles
 )
 
-PROFESSIONAL = Theme(
-    name=ThemeName.PROFESSIONAL,
+PROFESSIONAL = Team(
+    name=TeamName.PROFESSIONAL,
     description="Formal, structured, business-focused team",
-    # ... all bots with professional theming
+    # ... all bots with professional team profiles
 )
 
-SPACE_CREW = Theme(
-    name=ThemeName.SPACE_CREW,
+SPACE_CREW = Team(
+    name=TeamName.SPACE_CREW,
     description="Exploratory team discovering new frontiers",
-    # ... all bots with space exploration theming
+    # ... all bots with space exploration team profiles
 )
 
-AVAILABLE_THEMES = [PIRATE_CREW, ROCK_BAND, SWAT_TEAM, PROFESSIONAL, SPACE_CREW]
+AVAILABLE_TEAMS = [PIRATE_CREW, ROCK_BAND, SWAT_TEAM, PROFESSIONAL, SPACE_CREW]
 ```
 
-**File:** `nanofolks/themes/theme_manager.py`
+**File:** `nanofolks/teams/team_manager.py`
 
 ```python
-class ThemeManager:
-    """Manage theme selection and application."""
+class TeamManager:
+    """Manage team selection and application."""
     
     def __init__(self, config_path: str):
         self.config_path = config_path
-        self.current_theme: Optional[Theme] = None
+        self.current_team: Optional[Team] = None
     
-    def list_themes(self) -> List[Dict[str, str]]:
-        """Return list of available themes with descriptions."""
+    def list_teams(self) -> List[Dict[str, str]]:
+        """Return list of available teams with descriptions."""
         return [
             {
-                "id": theme.name.value,
-                "name": theme.name.value.replace("_", " ").title(),
-                "description": theme.description,
+                "id": team.name.value,
+                "name": team.name.value.replace("_", " ").title(),
+                "description": team.description,
             }
-            for theme in AVAILABLE_THEMES
+            for team in AVAILABLE_TEAMS
         ]
     
-    def select_theme(self, theme_name: str) -> Theme:
-        """Select a theme and apply it."""
-        for theme in AVAILABLE_THEMES:
-            if theme.name.value == theme_name:
-                self.current_theme = theme
-                self._apply_theme(theme)
-                return theme
-        raise ValueError(f"Unknown theme: {theme_name}")
+    def select_team(self, team_name: str) -> Team:
+        """Select a team and apply it."""
+        for team in AVAILABLE_TEAMS:
+            if team.name.value == team_name:
+                self.current_team = team
+                self._apply_team(team)
+                return team
+        raise ValueError(f"Unknown team: {team_name}")
     
-    def _apply_theme(self, theme: Theme):
-        """Apply theme to SOUL.md and bot configs."""
+    def _apply_team(self, team: Team):
+        """Apply team to SOUL.md and bot configs."""
         # Update SOUL.md with new personality
         # Update role cards with new greetings/voice
         # Save to user config
         pass
     
-    def get_current_theme(self) -> Optional[Theme]:
-        """Get currently active theme."""
-        return self.current_theme
+    def get_current_team(self) -> Optional[Team]:
+        """Get currently active team."""
+        return self.current_team
 ```
 
 **Acceptance Criteria:**
-- 5 themes fully defined with all bots
-- Theme manager loads and applies themes
-- Themes can be switched without data loss
+- 5 teams fully defined with all bots
+- Team manager loads and applies teams
+- Teams can be switched without data loss
 - Affinity modifiers work correctly
 
 ---
@@ -909,27 +909,27 @@ class OnboardingWizard:
         """Run complete onboarding flow."""
         print("\n🤖 Welcome to nanofolks! Let's set up your AI team.\n")
         
-        # Step 1: Theme selection
-        theme_choice = self._select_theme()
+        # Step 1: Team selection
+        team_choice = self._select_team()
         
         # Step 2: Capability selection
         capabilities = self._select_capabilities()
         
         # Step 3: Team composition
-        team = self._recommend_team(capabilities, theme_choice)
+        team = self._recommend_team(capabilities, team_choice)
         
         # Step 4: Workspace setup
         self._create_general_workspace(team)
         
         return {
-            "theme": theme_choice,
+            "team": team_choice,
             "capabilities": capabilities,
             "team": team,
         }
     
-    def _select_theme(self) -> str:
-        """Guide user to choose personality theme."""
-        themes = [
+    def _select_team(self) -> str:
+        """Guide user to choose personality team."""
+        teams = [
             ("🏴‍☠️ Pirate Crew (Bold, adventurous)", "pirate_crew"),
             ("🎸 Rock Band (Creative, collaborative)", "rock_band"),
             ("🎯 SWAT Team (Tactical, precise)", "swat_team"),
@@ -939,14 +939,14 @@ class OnboardingWizard:
         
         questions = [
             inquirer.List(
-                'theme',
-                message="Choose your team's personality theme:",
-                choices=themes,
+                'team',
+                message="Choose your team's personality team:",
+                choices=teams,
             ),
         ]
         
         answers = inquirer.prompt(questions)
-        return answers['theme']
+        return answers['team']
     
     def _select_capabilities(self) -> List[str]:
         """Let user choose what they need help with."""
@@ -968,7 +968,7 @@ class OnboardingWizard:
         answers = inquirer.prompt(questions)
         return answers['capabilities']
     
-    def _recommend_team(self, capabilities: List[str], theme: str) -> Dict[str, Any]:
+    def _recommend_team(self, capabilities: List[str], team: str) -> Dict[str, Any]:
         """Recommend which specialists based on capabilities."""
         team = {"nanofolks": {"role": "Coordinator"}}
         
@@ -985,7 +985,7 @@ class OnboardingWizard:
             team["auditor"] = {"role": "Quality and Review"}
         
         # Print recommendation
-        print(f"\n✨ Recommended team for {theme.replace('_', ' ').title()}:")
+        print(f"\n✨ Recommended team for {team.replace('_', ' ').title()}:")
         for bot, info in team.items():
             print(f"  - @{bot} ({info['role']})")
         
@@ -1011,7 +1011,7 @@ class OnboardingWizard:
 
 **Acceptance Criteria:**
 - Onboarding wizard guides through all steps
-- Theme selection works
+- Team selection works
 - Capability matching suggests appropriate bots
 - Workspace created after onboarding
 - User can see recommended team before confirming
@@ -1021,7 +1021,7 @@ class OnboardingWizard:
 #### 2.3: SOUL.md Integration (Multi-Bot Architecture)
 **File:** `nanofolks/soul/soul_manager.py`
 
-Integrate theme system with per-bot SOUL.md personality definitions. Each of the 6 bots (nanofolks + 5 specialists) has its own personality file that gets updated when themes are applied.
+Integrate team system with per-bot SOUL.md personality definitions. Each of the 6 bots (nanofolks + 5 specialists) has its own personality file that gets updated when teams are applied.
 
 **Key Change from v1.0:** Single-bot SOUL.md → Multi-bot per-file architecture
 
@@ -1041,7 +1041,7 @@ workspace/
 │   │   └── SOUL.md           # Innovation personality
 │   └── auditor/
 │       └── SOUL.md           # Quality personality
-└── SOUL.md                   # Fallback for backward compatibility
+└── SOUL.md                   # Default fallback if per-bot files are missing
 ```
 
 **SoulManager Implementation:**
@@ -1056,16 +1056,16 @@ class SoulManager:
         self.bots_dir = self.workspace / "bots"
         self.bots_dir.mkdir(parents=True, exist_ok=True)
     
-    def apply_theme_to_team(
+    def apply_team_to_team(
         self,
-        theme: Theme,
+        team: Team,
         team: List[str],
         force: bool = False
     ) -> Dict[str, bool]:
-        """Apply theme to all team members' SOUL files.
+        """Apply team to all team members' SOUL files.
         
         Args:
-            theme: Theme object to apply
+            team: Team object to apply
             team: List of bot names in team
             force: If True, overwrite existing SOUL files
         
@@ -1076,12 +1076,12 @@ class SoulManager:
         
         for bot_name in team:
             try:
-                bot_theming = theme.get_bot_theming(bot_name)
-                if bot_theming:
-                    self.apply_theme_to_bot(
+                bot_team_profile = team.get_bot_team_profile(bot_name)
+                if bot_team_profile:
+                    self.apply_team_to_bot(
                         bot_name,
-                        bot_theming,
-                        theme,
+                        bot_team_profile,
+                        team,
                         force=force
                     )
                     results[bot_name] = True
@@ -1092,19 +1092,19 @@ class SoulManager:
         
         return results
     
-    def apply_theme_to_bot(
+    def apply_team_to_bot(
         self,
         bot_name: str,
-        theming: BotTheming,
-        theme: Theme,
+        team_profile: BotTeamProfile,
+        team: Team,
         force: bool = False
     ) -> bool:
-        """Update a specific bot's SOUL.md with theme personality.
+        """Update a specific bot's SOUL.md with team personality.
         
         Args:
             bot_name: Name of the bot
-            theming: Bot theming from theme
-            theme: Theme object (for context)
+            team_profile: Bot team profile from team
+            team: Team object (for context)
             force: If True, overwrite existing file
         
         Returns:
@@ -1119,7 +1119,7 @@ class SoulManager:
         if soul_file.exists() and not force:
             return False
         
-        content = self._generate_soul_content(bot_name, theming, theme)
+        content = self._generate_soul_content(bot_name, team_profile, team)
         soul_file.write_text(content, encoding="utf-8")
         
         return True
@@ -1127,15 +1127,15 @@ class SoulManager:
     def _generate_soul_content(
         self,
         bot_name: str,
-        theming: BotTheming,
-        theme: Theme
+        team_profile: BotTeamProfile,
+        team: Team
     ) -> str:
-        """Generate SOUL.md content from theme.
+        """Generate SOUL.md content from team.
         
         Args:
             bot_name: Name of the bot
-            theming: Bot theming from theme
-            theme: Theme object
+            team_profile: Bot team profile from team
+            team: Team object
         
         Returns:
             Formatted SOUL.md content
@@ -1145,9 +1145,9 @@ class SoulManager:
         
         return f"""# Soul: {bot_name.title()}
 
-{theming.emoji} **{theming.title}**
+{team_profile.emoji} **{team_profile.title}**
 
-I am the {theming.title}, part of the collaborative team.
+I am the {team_profile.title}, part of the collaborative team.
 
 ## Role & Purpose
 
@@ -1155,28 +1155,28 @@ I am the {theming.title}, part of the collaborative team.
 
 ## Personality Traits
 
-{theming.personality}
+{team_profile.personality}
 
 ## Communication Style
 
-{theming.voice_directive}
+{team_profile.voice_directive}
 
 ## Greeting
 
-> {theming.greeting}
+> {team_profile.greeting}
 
-## Current Theme
+## Current Team
 
-- **Theme**: {theme.name.value}
-- **Title**: {theming.title}
-- **Emoji**: {theming.emoji}
+- **Team**: {team.name.value}
+- **Title**: {team_profile.title}
+- **Emoji**: {team_profile.emoji}
 - **Updated**: {timestamp}
 
 ## Team Context
 
-This SOUL.md is generated by the theme system. Each bot has distinct personality that changes with themes.
+This SOUL.md is generated by the team system. Each bot has distinct personality that changes with teams.
 
-Custom edits persist until theme is reapplied with `force=True`.
+Custom edits persist until team is reapplied with `force=True`.
 
 ---
 *Generated by SoulManager - Part of multi-agent orchestration*
@@ -1283,17 +1283,17 @@ def _load_bootstrap_files(self, bot_name: str = None) -> str:
 
 **Integration with OnboardingWizard:**
 
-After theme and team are selected, apply theme to all team members:
+After team and team are selected, apply team to all team members:
 
 ```python
-def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
-    """Apply selected theme to team in workspace."""
+def _apply_team_to_workspace(self, workspace_path: Path) -> None:
+    """Apply selected team to team in workspace."""
     soul_manager = SoulManager(workspace_path)
-    theme = get_theme(self.selected_theme)
+    team = get_team(self.selected_team)
     
-    if theme:
-        results = soul_manager.apply_theme_to_team(
-            theme,
+    if team:
+        results = soul_manager.apply_team_to_team(
+            team,
             self.recommended_team,
             force=True
         )
@@ -1301,32 +1301,32 @@ def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
         # Log results
         successful = sum(1 for v in results.values() if v)
         console.print(
-            f"[green]✓ Applied theme to {successful}/{len(self.recommended_team)} bots[/green]"
+            f"[green]✓ Applied team to {successful}/{len(self.recommended_team)} bots[/green]"
         )
 ```
 
 **Acceptance Criteria:**
 - ✅ SoulManager handles all 6 bots (not just nanofolks)
 - ✅ Each bot gets `bots/{name}/SOUL.md` file
-- ✅ Theme application updates all team members' SOUL files atomically
+- ✅ Team application updates all team members' SOUL files atomically
 - ✅ ContextBuilder loads bot-specific SOUL when bot is activated
-- ✅ SOUL.md maintains backward compatibility (workspace/SOUL.md fallback)
-- ✅ Users can manually edit SOUL files (persist until theme reapplied)
-- ✅ Theme switching updates all bot personalities
+- ✅ SOUL.md falls back to workspace/SOUL.md when per-bot files are missing
+- ✅ Users can manually edit SOUL files (persist until team reapplied)
+- ✅ Team switching updates all bot personalities
 - ✅ Each bot has distinct role-specific personality in system prompt
 
 ---
 
 ### Phase 2 Success Metrics
-- ✅ 5 themes fully defined and working
+- ✅ 5 teams fully defined and working
 - ✅ Onboarding wizard completes successfully
 - ✅ SOUL.md integration functional for all 6 bots
 - ✅ Each bot has distinct personality in system prompt
-- ✅ Theme switching updates all team members' personalities atomically
+- ✅ Team switching updates all team members' personalities atomically
 - ✅ Per-bot SOUL.md files created in `workspace/bots/{name}/`
 - ✅ ContextBuilder loads bot-specific personality when bot activated
 - ✅ Backward compatibility maintained with workspace/SOUL.md fallback
-- ✅ User can select theme or manually customize bot personalities
+- ✅ User can select team or manually customize bot personalities
 
 ---
 
@@ -1437,14 +1437,14 @@ def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
 | Team dynamics too complex | Medium | High | Simplify affinities, test extensively |
 | Memory conflicts | Medium | Medium | Clear conflict resolution rules |
 | Autonomous decisions wrong | Medium | High | Conservative escalation thresholds |
-| UX too complex | Low | High | Onboarding wizard, themes |
+| UX too complex | Low | High | Onboarding wizard, teams |
 | Performance degradation | Low | Medium | Query optimization, caching |
 
 ---
 
 ## Success Criteria (Overall)
 
-✅ Users can create workspaces with theme-based bots  
+✅ Users can create workspaces with team-based bots  
 ✅ Bots respect hard bans and constraints  
 ✅ Memory system shares learnings across team  
 ✅ Coordinator mode handles routine tasks  
@@ -1496,4 +1496,3 @@ def _apply_theme_to_workspace(self, workspace_path: Path) -> None:
 **Completed:** February 13, 2026  
 **Plan Owner:** Rick Ovelar  
 **Status:** 🎉 **PRODUCTION READY**  
-

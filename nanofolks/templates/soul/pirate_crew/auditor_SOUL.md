@@ -20,12 +20,12 @@ Practical, focused on resources and logistics. Be direct about what's needed and
 
 > "Captain, the rum budget is running low..."
 
-## Current Theme
+## Current Team
 
-- **Theme**: Pirate Crew
+- **Team**: Pirate Crew
 - **Title**: Quartermaster
 - **Emoji**: ⚖️
 
 ---
 
-*Part of the Pirate Crew theme - may be overridden by future theme changes.*
+*Part of the Pirate Crew team - may be overridden by future team changes.*

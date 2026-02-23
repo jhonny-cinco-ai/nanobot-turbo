@@ -21,7 +21,7 @@
 
 **Key Innovations:**
 1. **Workspace Model** - Contextual conversations (not one-size-fits-all)
-2. **Personality Themes** - Pirate crew, Rock band, SWAT team (accessible UX)
+2. **Personality Teams** - Pirate crew, Rock band, SWAT team (accessible UX)
 3. **Hybrid Memory** - Private learnings + shared knowledge
 4. **Tagging System** - @botname, #workspace (familiar UX)
 5. **Coordinator Mode** - nanofolks manages when you're away
@@ -65,7 +65,7 @@ User (You, the Boss)
 2. **Workspaces are contextual** - Right bots for right job, no notification spam
 3. **Bots talk without you** - Autonomous collaboration, you're notified of decisions
 4. **Memory is hybrid** - Private insights + shared knowledge (cross-pollination)
-5. **UX is accessible** - Themes for beginners, power-user mode for experts
+5. **UX is accessible** - Teams for beginners, power-user mode for experts
 
 ---
 
@@ -271,15 +271,15 @@ role_card = {
 
 ---
 
-## 3. Personality Themes (Accessibility Layer)
+## 3. Personality Teams (Accessibility Layer)
 
 ### Problem: JSON editing is intimidating
 
-**Solution:** Pre-built themes users select
+**Solution:** Pre-built teams users select
 
-### Available Themes:
+### Available Teams:
 
-#### Theme 1: 🏴‍☠️ Pirate Crew
+#### Team 1: 🏴‍☠️ Pirate Crew
 ```python
 THEME = {
     "name": "Pirate Crew",
@@ -317,7 +317,7 @@ THEME = {
 }
 ```
 
-#### Theme 2: 🎸 Rock Band
+#### Team 2: 🎸 Rock Band
 ```python
 THEME = {
     "name": "Rock Band",
@@ -352,7 +352,7 @@ THEME = {
 }
 ```
 
-#### Theme 3: 🎯 SWAT Team
+#### Team 3: 🎯 SWAT Team
 ```python
 THEME = {
     "name": "SWAT Team",
@@ -387,9 +387,9 @@ THEME = {
 }
 ```
 
-### How Themes Work:
+### How Teams Work:
 
-1. **User selects theme** during onboarding (or later)
+1. **User selects team** during onboarding (or later)
 2. **Auto-configures:**
    - Role card titles
    - Voice directives
@@ -624,7 +624,7 @@ nanofolks
 
 Welcome to nanofolks! Let's set up your AI team.
 
-Step 1: Choose your companion's personality theme:
+Step 1: Choose your companion's personality team:
 [1] 🏴‍☠️ Pirate Crew (Bold, adventurous)
 [2] 🎸 Rock Band (Creative, collaborative)  
 [3] 🎯 SWAT Team (Tactical, precise)
@@ -678,10 +678,10 @@ echo "{"hard_bans": ["no_direct_posting"]}" | nanofolks role-card edit social --
 - [ ] Basic specialist bots (researcher, coder, social)
 
 ### Phase 2: Personalization (Week 3)
-- [ ] Personality themes (Pirate, Rockstar, SWAT, etc.)
+- [ ] Personality teams (Pirate, Rockstar, SWAT, etc.)
 - [ ] Interactive onboarding wizard
-- [ ] SOUL.md integration with themes
-- [ ] Theme switching
+- [ ] SOUL.md integration with teams
+- [ ] Team switching
 
 ### Phase 3: Memory (Week 4)
 - [ ] Hybrid memory architecture
@@ -719,13 +719,13 @@ echo "{"hard_bans": ["no_direct_posting"]}" | nanofolks role-card edit social --
 - ✅ Personal relationship (nanofolks as companion)
 - ✅ Contextual teams (workspaces like Discord channels)
 - ✅ Autonomous collaboration (bots work while you sleep)
-- ✅ Accessible UX (personality themes, no JSON required)
+- ✅ Accessible UX (personality teams, no JSON required)
 - ✅ Smart memory (private + shared, cross-pollination)
 
 **Next Steps:**
 1. Create GitHub issues for Phase 1
 2. Implement Workspace data model
-3. Design personality theme system
+3. Design personality team system
 4. Prototype with 2-3 specialist bots
 
 **This is achievable, practical, and brings real value while keeping nanofolks lightweight and accessible.** 🚀

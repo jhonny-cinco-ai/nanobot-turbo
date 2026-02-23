@@ -687,7 +687,7 @@ class MultiBotResponseGenerator:
 ```python
 # nanofolks/agent/loop.py - Modifications to handle multi-bot
 
-async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
     """Process a message with multi-bot support."""
     
     # ... existing code ...
@@ -708,11 +708,11 @@ async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
 
 async def _handle_multi_bot_response(
     self,
-    msg: InboundMessage,
+    msg: MessageEnvelope,
     dispatch: DispatchResult,
     room: Room,
     session: Session
-) -> OutboundMessage:
+) -> MessageEnvelope:
     """Handle responses from multiple bots."""
     
     from nanofolks.agent.multi_bot_generator import MultiBotResponseGenerator
@@ -742,7 +742,7 @@ async def _handle_multi_bot_response(
             }
         )
     
-    return OutboundMessage(
+    return MessageEnvelope(
         channel=msg.channel,
         chat_id=msg.chat_id,
         content=combined_content,
@@ -1125,7 +1125,7 @@ class CrossReferenceInjector:
     def inject_references(
         self,
         responses: List[BotResponse],
-        room_theme: str
+        room_team: str
     ) -> List[BotResponse]:
         """Add cross-references where bots mention each other."""
         
@@ -1146,17 +1146,17 @@ class CrossReferenceInjector:
                     reference = self._generate_reference(
                         from_bot=response.bot_name,
                         to_bot=target.bot_name,
-                        theme=room_theme
+                        team=room_team
                     )
                     
                     response.content = f"{reference} {response.content}"
         
         return responses
     
-    def _generate_reference(self, from_bot: str, to_bot: str, theme: str) -> str:
+    def _generate_reference(self, from_bot: str, to_bot: str, team: str) -> str:
         """Generate a natural reference."""
         
-        # Theme-specific references
+        # Team-specific references
         references = {
             "pirate": [
                 f"Aye, {to_bot} has the right of it. ",
@@ -1181,17 +1181,17 @@ class CrossReferenceInjector:
         }
         
         import random
-        refs = references.get(theme, references["default"])
+        refs = references.get(team, references["default"])
         return random.choice(refs)
 ```
 
 #### Testing Checklist
-- [x] Relationships parsed from IDENTITY.md (or inferred from themes)
+- [x] Relationships parsed from IDENTITY.md (or inferred from teams)
 - [x] Affinity scores extracted correctly
 - [x] High affinity bots show agreement
 - [x] Low affinity bots show productive tension
 - [x] Cross-references added naturally
-- [x] Theme-specific interaction styles work
+- [x] Team-specific interaction styles work
 - [x] Context size manageable (not too large)
 
 ---
@@ -1216,11 +1216,11 @@ class CrossReferenceInjector:
 
 3. **Affinity & Relationships** ✅ COMPLETE
    - ✅ Parse IDENTITY.md relationships (RelationshipParser)
-   - ✅ Infer relationships from themes (fallback)
+   - ✅ Infer relationships from teams (fallback)
    - ✅ Affinity scores (0.0-1.0)
    - ✅ Dynamic context injection (AffinityContextBuilder)
    - ✅ Cross-reference generation (CrossReferenceInjector)
-   - ✅ Theme-aware interactions
+   - ✅ Team-aware interactions
 
 ### Files Created/Modified (Phase 1 Complete - All 3 Weeks):
 ```

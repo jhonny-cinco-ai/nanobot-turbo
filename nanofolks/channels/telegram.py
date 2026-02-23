@@ -10,7 +10,7 @@ from telegram import BotCommand, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from telegram.request import HTTPXRequest
 
-from nanofolks.bus.events import OutboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.channels.base import BaseChannel
 from nanofolks.config.schema import TelegramConfig
@@ -230,7 +230,7 @@ class TelegramChannel(BaseChannel):
         else:
             return "document"
 
-    async def send(self, msg: OutboundMessage) -> None:
+    async def send(self, msg: MessageEnvelope) -> None:
         """Send a message through Telegram."""
         if not self._app:
             logger.warning("Telegram bot not running")

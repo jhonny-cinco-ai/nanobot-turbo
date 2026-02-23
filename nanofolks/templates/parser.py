@@ -1,4 +1,4 @@
-"""Template parser for extracting bot and theme metadata from markdown files."""
+"""Template parser for extracting bot and team metadata from markdown files."""
 
 import re
 from pathlib import Path
@@ -125,27 +125,27 @@ def parse_identity_file(content: str) -> dict:
     return metadata
 
 
-def get_bot_metadata(bot_name: str, theme: str) -> Optional[BotMetadata]:
-    """Get metadata for a bot in a theme by parsing template files.
+def get_bot_metadata(bot_name: str, team_name: str) -> Optional[BotMetadata]:
+    """Get metadata for a bot in a team by parsing template files.
     
     Tries to extract from both SOUL.md and IDENTITY.md, combining the data.
     
     Args:
         bot_name: Bot role name (leader, researcher, coder, social, creative, auditor)
-        theme: Theme name (pirate_crew, executive_suite, etc.)
+        team_name: Team name (pirate_crew, executive_suite, etc.)
         
     Returns:
         BotMetadata object or None if templates not found
     """
     # Try to load SOUL.md
-    soul_file = SOUL_TEMPLATES_DIR / theme / f"{bot_name}_SOUL.md"
+    soul_file = SOUL_TEMPLATES_DIR / team_name / f"{bot_name}_SOUL.md"
     soul_metadata = {}
     if soul_file.exists():
         soul_content = soul_file.read_text(encoding='utf-8')
         soul_metadata = parse_soul_file(soul_content)
     
     # Try to load IDENTITY.md
-    identity_file = IDENTITY_TEMPLATES_DIR / theme / f"{bot_name}_IDENTITY.md"
+    identity_file = IDENTITY_TEMPLATES_DIR / team_name / f"{bot_name}_IDENTITY.md"
     identity_metadata = {}
     if identity_file.exists():
         identity_content = identity_file.read_text(encoding='utf-8')
@@ -168,25 +168,25 @@ def get_bot_metadata(bot_name: str, theme: str) -> Optional[BotMetadata]:
     )
 
 
-def parse_theme_description(theme: str) -> str:
-    """Parse theme description from TEAM.md or any bot's SOUL.md file.
+def parse_team_description(team_name: str) -> str:
+    """Parse team description from TEAM.md or any bot's SOUL.md file.
     
     Args:
-        theme: Theme name
+        team_name: Team name
         
     Returns:
-        Theme description or empty string
+        Team description or empty string
     """
     # Priority 1: Check for dedicated TEAM.md file (team-oriented description)
-    team_file = SOUL_TEMPLATES_DIR / theme / "TEAM.md"
+    team_file = SOUL_TEMPLATES_DIR / team_name / "TEAM.md"
     if team_file.exists():
         return team_file.read_text(encoding='utf-8').strip()
 
     # Priority 2: Fallback to leader's SOUL.md (legacy/default)
-    soul_file = SOUL_TEMPLATES_DIR / theme / "leader_SOUL.md"
+    soul_file = SOUL_TEMPLATES_DIR / team_name / "leader_SOUL.md"
     if soul_file.exists():
         content = soul_file.read_text(encoding='utf-8')
-        # Look for theme description in "Role & Purpose" section
+        # Look for team description in "Role & Purpose" section
         role_match = re.search(r'##\s*Role & Purpose\s*\n+(.+?)(?=\n##|\Z)', content, re.DOTALL)
         if role_match:
             return role_match.group(1).strip().split('\n')[0]

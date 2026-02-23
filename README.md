@@ -144,7 +144,7 @@ This will guide you through:
 | **2. Model Selection** | Choose default model |
 | **3. Smart Routing** | Enable automatic model tier selection |
 | **4. Evolutionary Mode** | Optional self-improvement features |
-| **5. Team Theme** | Choose your crew's personality |
+| **5. Team** | Choose your crew's personality |
 
 ### Your Team
 
@@ -311,15 +311,15 @@ Nanofolks supports multiple AI characters working together as a crew.
 
 A "crew" is a group of 6 AI characters, each with:
 
-- **Personality** - How they respond (from the theme)
+- **Personality** - How they respond (from the team)
 - **Role** - What they're good at
 - **Expertise** - Specific knowledge domains
 
-### Themes & Personalities
+### Teams & Personalities
 
-Nanofolks comes with **built-in themes** that give your crew distinct personalities:
+Nanofolks comes with **built-in teams** that give your crew distinct personalities:
 
-| Theme | Vibe | Example |
+| Team | Vibe | Example |
 |-------|------|---------|
 | **Pirate Crew** | Bold, adventurous | "Arr, let's find that treasure!" |
 | **Space Crew** | Sci-fi, mission-focused | "Engaging warp drive..." |
@@ -328,7 +328,7 @@ Nanofolks comes with **built-in themes** that give your crew distinct personalit
 | **SWAT Team** | Tactical, precise | "Moving in for the takedown" |
 | **Feral Clowder** | Chaotic, cat-like | "*knocks things off desk*"
 
-Choose a theme during setup to give your crew personality!
+Choose a team during setup to give your crew personality!
 
 ### Your Team
 
@@ -347,9 +347,9 @@ Each Nanofolks crew has 6 bots:
 
 ```
 Workspace/
-├── identity/            # Bot personalities & themes
-│   ├── pirate_crew/   # Pirate crew theme
-│   ├── space_crew/    # Space crew theme
+├── identity/            # Bot personalities & team styles
+│   ├── pirate_crew/   # Pirate crew style
+│   ├── space_crew/    # Space crew style
 │   └── ...
 ├── role/               # Bot roles (Leader, Coder, Researcher...)
 ├── soul/               # Bot soul files (personality, greeting)

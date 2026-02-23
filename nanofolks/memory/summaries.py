@@ -14,6 +14,7 @@ from loguru import logger
 
 from nanofolks.memory.models import SummaryNode
 from nanofolks.memory.store import TurboMemoryStore
+from nanofolks.utils.ids import room_to_session_id
 
 
 class SummaryTreeManager:
@@ -284,7 +285,7 @@ class SummaryTreeManager:
         summaries = []
 
         # Get room summary (room-centric)
-        room_node = self.store.get_summary_node(f"room:{room_id}")
+        room_node = self.store.get_summary_node(room_to_session_id(room_id))
         if room_node and room_node.summary:
             summaries.append(f"## Room: {room_id}\n{room_node.summary}")
 

@@ -272,7 +272,7 @@ No new components were needed. All functionality was built with existing infrast
 - [x] Get help with /help
 - [x] Get help with /? alias
 - [x] Room persistence across restarts
-- [x] Theme names display correctly
+- [x] Team names display correctly
 - [x] Error handling for invalid inputs
 - [x] Room context shown in prompts
 - [x] AI-assisted creation displays summary and roster
@@ -357,7 +357,7 @@ None identified
 | Get help | ✅ New |
 | AI-assisted creation | ✅ |
 | Persistent storage | ✅ |
-| Theme integration | ✅ |
+| Team integration | ✅ |
 
 ---
 

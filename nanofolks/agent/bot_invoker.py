@@ -15,11 +15,12 @@ from loguru import logger
 
 from nanofolks.agent.tools.registry import ToolRegistry
 from nanofolks.agent.work_log import LogLevel
-from nanofolks.bus.events import InboundMessage
+from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
 from nanofolks.config.schema import ExecToolConfig
 from nanofolks.providers.base import LLMProvider
 from nanofolks.security.sanitizer import SecretSanitizer
+from nanofolks.utils.ids import room_to_session_id
 
 # Available specialist bots that can be invoked
 AVAILABLE_BOTS = {
@@ -103,7 +104,7 @@ class BotInvoker:
         bot_role: str,
         task: str,
         context: Optional[str] = None,
-        session_id: str = "room:invoke_general",
+        session_id: str | None = None,
         origin_channel: str = "cli",
         origin_chat_id: str = "direct",
     ) -> str:
@@ -131,6 +132,7 @@ class BotInvoker:
             return "Error: Cannot invoke leader (Leader) - use @leader directly"
 
         invocation_id = str(uuid.uuid4())[:8]
+        session_id = room_to_session_id(session_id or "invoke_general")
 
         # Always async - fire and forget
         return await self._invoke_async(
@@ -257,11 +259,12 @@ Result:
 Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not mention technical details like 'invocation' or task IDs."""
 
         # Inject as system message to trigger main agent
-        msg = InboundMessage(
+        msg = MessageEnvelope(
             channel="system",
             sender_id=f"invoke:{bot_role}",
             chat_id=f"{origin_channel}:{origin_chat_id}",
             content=announce_content,
+            direction="inbound",
         )
 
         await self.bus.publish_inbound(msg)

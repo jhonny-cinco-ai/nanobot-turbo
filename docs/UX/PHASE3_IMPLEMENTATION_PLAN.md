@@ -355,7 +355,7 @@ features:
 ⚠️ **Nice to Have:**
 1. Animation effects
 2. Responsive layout modes
-3. Theme-aware rendering
+3. Team-aware rendering
 4. Customizable layout
 
 ---
@@ -424,7 +424,7 @@ features:
 ### Future
 - [ ] Performance optimization
 - [ ] Additional animations
-- [ ] Theme integration
+- [ ] Team integration
 - [ ] Custom layout configurations
 
 ---

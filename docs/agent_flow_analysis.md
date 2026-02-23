@@ -64,13 +64,13 @@ The core message processing engine with these key responsibilities:
 - Initializes tools registry
 - Sets up work_log_manager for transparency
 - Creates BotInvoker for delegating to specialist bots
-- Applies theme to SOUL files on first start
+- Applies team to SOUL files on first start
 - Configures memory system (if enabled)
 - Sets up routing stage for smart model selection
 
 **Message Processing** (lines 553-977):
 ```python
-async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
     """Process a single inbound message."""
     # 1. Handle system messages (bot announcements)
     if msg.channel == "system":
@@ -112,7 +112,7 @@ async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
     session.add_message("assistant", sanitized_assistant_content)
     
     # 10. Return outbound message
-    return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=final_content)
+    return MessageEnvelope(channel=msg.channel, chat_id=msg.chat_id, content=final_content)
 ```
 
 ---
@@ -181,16 +181,16 @@ from nanofolks.bots.implementations import (
     AuditorBot, CreativeBot, NanobotLeader
 )
 
-# Load appearance configuration (themes and custom names)
+# Load appearance configuration (teams and custom names)
 appearance_config = get_appearance_config()
-theme_manager = appearance_config.theme_manager
+team_manager = appearance_config.team_manager
 
 # Create bot instances with auto-initialization
 researcher = ResearcherBus(
     bus=bus,
     workspace_id=str(config.workspace_path),
     workspace=config.workspace_path,
-    theme_manager=theme_manager,
+    team_manager=team_manager,
     custom_name=appearance_config.get_custom_name("researcher")
 )
 # ... similar for coder, social, auditor, creative, nanofolks
@@ -581,8 +581,8 @@ Summarize this naturally for the user...
 ```python
 # All communication goes through MessageBus
 class MessageBus:
-    inbound: asyncio.Queue[InboundMessage]    # External → Agent
-    outbound: asyncio.Queue[OutboundMessage]  # Agent → External
+    inbound: asyncio.Queue[MessageEnvelope]    # External → Agent
+    outbound: asyncio.Queue[MessageEnvelope]  # Agent → External
     system: asyncio.Queue[SystemMessage]      # Internal coordination
 ```
 

@@ -121,7 +121,7 @@ class Fact:
 
 @dataclass
 class Topic:
-    """A theme or subject that groups related events.
+    """A topic or subject that groups related events.
 
     Topics provide a higher-level organization of events beyond individual
     entities. They help with clustering and retrieval.
@@ -149,7 +149,7 @@ class SummaryNode:
     - Root: Overall summary
     - Channel: Per-chat-platform summary
     - Entity: Summary of everything known about an entity
-    - Topic: Summary of a theme
+    - Topic: Summary of a topic
     """
     id: str
     node_type: str  # "root", "channel", "entity", "topic", "user_preferences"

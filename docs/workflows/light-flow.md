@@ -185,7 +185,7 @@ state_manager.complete(
     user_satisfaction="high"  # or "moderate"
 )
 
-return OutboundMessage(
+return MessageEnvelope(
     content=f"""
 Great choice: **{chosen.title}**!
 

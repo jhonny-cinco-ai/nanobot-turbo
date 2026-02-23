@@ -307,7 +307,7 @@ class IntentDetector:
 ```python
 # In agent/loop.py - Modified _process_message
 
-async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
     """Process message with intent detection."""
     
     # Step 1: Detect intent
@@ -1381,7 +1381,7 @@ class ApprovalGate:
 class AgentLoop:
     # ... existing code ...
     
-    async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
+    async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
         """Process message with discovery flow support."""
         
         room = self._get_or_create_room(msg)
@@ -1426,10 +1426,10 @@ class AgentLoop:
     
     async def _handle_new_project(
         self, 
-        msg: InboundMessage, 
+        msg: MessageEnvelope, 
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Start a new project discovery flow."""
         
         # Begin discovery
@@ -1444,7 +1444,7 @@ class AgentLoop:
             user_message=msg.content
         )
         
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=response,
@@ -1453,10 +1453,10 @@ class AgentLoop:
     
     async def _handle_discovery(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle discovery phase."""
         
         coordinator = DiscoveryCoordinator(self.workspace, room.id)
@@ -1487,14 +1487,14 @@ class AgentLoop:
             approval_gate = ApprovalGate(self.workspace, room.id)
             approval_content = await approval_gate.request_approval(synthesis)
             
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=approval_content,
                 metadata={'phase': 'approval'}
             )
         
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=response,
@@ -1522,10 +1522,10 @@ class AgentLoop:
     
     async def _handle_synthesis(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle synthesis (triggered after discovery complete)."""
         
         # Actually handled in discovery completion
@@ -1534,7 +1534,7 @@ class AgentLoop:
         synthesis = state_manager.state.synthesis
         content = await approval_gate.request_approval(synthesis)
         
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content=content,
@@ -1543,10 +1543,10 @@ class AgentLoop:
     
     async def _handle_approval(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle approval phase."""
         
         approval_gate = ApprovalGate(self.workspace, room.id)
@@ -1556,7 +1556,7 @@ class AgentLoop:
             # Start execution
             execution_context = approval_gate.get_execution_context()
             
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=execution_context,
@@ -1569,7 +1569,7 @@ class AgentLoop:
                 ['leader', 'researcher', 'creative']
             )
             
-            return OutboundMessage(
+            return MessageEnvelope(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=result['message'] + "\n\n" + context,
@@ -1578,10 +1578,10 @@ class AgentLoop:
     
     async def _handle_execution(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle execution phase."""
         
         # Similar to current multi-bot execution
@@ -1590,16 +1590,16 @@ class AgentLoop:
     
     async def _handle_review(
         self,
-        msg: InboundMessage,
+        msg: MessageEnvelope,
         room: Room,
         state_manager: ProjectStateManager
-    ) -> OutboundMessage:
+    ) -> MessageEnvelope:
         """Handle review phase."""
         
         # Complete review and reset to idle
         state_manager.complete_review()
         
-        return OutboundMessage(
+        return MessageEnvelope(
             channel=msg.channel,
             chat_id=msg.chat_id,
             content="Great work! Let me know if you need anything else.",
@@ -1791,7 +1791,7 @@ def handle_cancellation(self, user_message: str) -> bool:
 # In agent loop:
 if self.handle_cancellation(msg.content):
     state_manager.reset_to_idle()
-    return OutboundMessage(
+    return MessageEnvelope(
         content="Okay, cancelled. Let me know if you need anything else.",
         metadata={'cancelled': True}
     )

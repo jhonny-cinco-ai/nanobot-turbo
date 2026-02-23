@@ -336,11 +336,11 @@ class DecisionMaker:
         return "\n".join(lines)
 
     def _find_common_ground(self, positions: Dict[str, BotPosition]) -> str:
-        """Find common themes or ground in positions."""
+        """Find common topics or ground in positions."""
         if not positions:
             return ""
 
-        # Extract common reasoning themes
+        # Extract common reasoning topics
         " ".join(pos.reasoning for pos in positions.values())
 
         # Simple heuristic: find longest common substring
@@ -434,7 +434,7 @@ class DisputeResolver:
             "num_positions": len(set(pos.position for pos in disagreement.positions.values())),
             "positions": {},
             "confidence_spread": 0.0,
-            "reasoning_themes": {},
+            "reasoning_topics": {},
         }
 
         # Analyze each position
@@ -452,7 +452,7 @@ class DisputeResolver:
         if confidences:
             analysis["confidence_spread"] = max(confidences) - min(confidences)
 
-        # Extract reasoning themes
+        # Extract reasoning topics
         all_reasoning = " ".join(pos.reasoning for pos in disagreement.positions.values())
         words = all_reasoning.lower().split()
         word_freq = {}
@@ -460,7 +460,7 @@ class DisputeResolver:
             if len(word) > 4:  # Only significant words
                 word_freq[word] = word_freq.get(word, 0) + 1
 
-        analysis["reasoning_themes"] = sorted(
+        analysis["reasoning_topics"] = sorted(
             word_freq.items(),
             key=lambda x: x[1],
             reverse=True
@@ -483,15 +483,15 @@ class DisputeResolver:
         # Find shared interests or values in reasoning
         all_reasons = [pos.reasoning for pos in disagreement.positions.values()]
 
-        common_themes = []
+        common_topics = []
 
         # Check for shared goals
-        for theme in ["goal", "objective", "aim", "need", "important", "critical"]:
-            if sum(1 for reason in all_reasons if theme in reason.lower()) > len(all_reasons) / 2:
-                common_themes.append(f"shared {theme}")
+        for keyword in ["goal", "objective", "aim", "need", "important", "critical"]:
+            if sum(1 for reason in all_reasons if keyword in reason.lower()) > len(all_reasons) / 2:
+                common_topics.append(f"shared {keyword}")
 
-        if common_themes:
-            disagreement.common_ground = f"Despite disagreement, bots share: {', '.join(common_themes)}"
+        if common_topics:
+            disagreement.common_ground = f"Despite disagreement, bots share: {', '.join(common_topics)}"
         else:
             disagreement.common_ground = "Both positions aim to improve coordination"
 
