@@ -110,9 +110,9 @@ class AgentLoop:
         # MCP servers - global and per-bot
         self._mcp_servers = mcp_servers or {}
         self._bot_mcp_servers = bot_mcp_servers or {}
-        self._mcp_connected = False
-        self._mcp_connecting = False
         self._mcp_stack = None
+        self._mcp_lock = asyncio.Lock()
+        self._mcp_connected_bots: set[str] = set()
 
         # Initialize secret sanitizer for security
         self.sanitizer = SecretSanitizer()
@@ -898,7 +898,6 @@ class AgentLoop:
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
         self._running = True
-        await self._connect_mcp()
         logger.info("Agent loop started")
 
         # Start background processor if memory is enabled
@@ -940,9 +939,6 @@ class AgentLoop:
             msg: The inbound message to process.
         """
         try:
-            # Ensure MCP servers are connected
-            await self._connect_mcp()
-
             response = await self._process_message(msg)
             if response:
                 await self.bus.publish_outbound(response)
@@ -967,38 +963,53 @@ class AgentLoop:
 
 
     async def _connect_mcp(self, bot_name: str = None) -> None:
-        """Connect to configured MCP servers (one-time, lazy).
+        """Connect to configured MCP servers (lazy, incremental).
         
         Args:
             bot_name: Optional bot name to load bot-specific MCP servers.
                      Defaults to self.bot_name if not provided.
         """
-        # Use instance bot_name if not explicitly provided
-        if bot_name is None:
-            bot_name = self.bot_name
+        # Ensure we have a lock to prevent concurrent initialization races
+        async with self._mcp_lock:
+            # Use instance bot_name if not explicitly provided
+            if bot_name is None:
+                bot_name = self.bot_name
             
-        # Merge global + bot-specific MCP servers
-        servers = self._mcp_servers.copy()
-        
-        # Add bot-specific servers if bot_name provided and configured
-        if bot_name and bot_name in self._bot_mcp_servers:
-            servers.update(self._bot_mcp_servers[bot_name])
-            logger.debug(f"MCP: loading {len(self._bot_mcp_servers[bot_name])} bot-specific servers for {bot_name}")
-        
-        if self._mcp_connected or not servers:
-            return
-        if getattr(self, '_mcp_connecting', False):
-            return
-        self._mcp_connecting = True
-        try:
-            from nanofolks.agent.tools.mcp import connect_mcp_servers
-            self._mcp_stack = AsyncExitStack()
-            await self._mcp_stack.__aenter__()
-            await connect_mcp_servers(servers, self.tools, self._mcp_stack)
-            self._mcp_connected = True
-            logger.info(f"MCP: connected {len(servers)} server(s) for bot {bot_name or 'default'}")
-        finally:
-            self._mcp_connecting = False
+            # Determine which servers to connect
+            # We track connected bots to support incremental loading
+            to_connect = {}
+            
+            # 1. Global servers (only if not already connected)
+            if "__global__" not in self._mcp_connected_bots:
+                to_connect.update(self._mcp_servers)
+                self._mcp_connected_bots.add("__global__")
+                
+            # 2. Bot-specific servers (only if not already connected)
+            if bot_name and bot_name not in self._mcp_connected_bots:
+                if bot_name in self._bot_mcp_servers:
+                    to_connect.update(self._bot_mcp_servers[bot_name])
+                    logger.debug(f"MCP: discovery for bot-specific servers: {bot_name}")
+                self._mcp_connected_bots.add(bot_name)
+            
+            # If nothing new to connect, return early
+            if not to_connect:
+                return
+                
+            try:
+                from nanofolks.agent.tools.mcp import connect_mcp_servers
+                
+                # Initialize stack on first use
+                if self._mcp_stack is None:
+                    self._mcp_stack = AsyncExitStack()
+                    await self._mcp_stack.__aenter__()
+                
+                # Register new tools into the existing registry
+                await connect_mcp_servers(to_connect, self.tools, self._mcp_stack)
+                logger.info(f"MCP: connected {len(to_connect)} new server(s) for {bot_name or 'system'}")
+                
+            except Exception as e:
+                logger.error(f"MCP Error: failed to connect servers for {bot_name}: {e}")
+                # We don't remove from connected_bots here to avoid infinite retry loops on failure
 
     async def close_mcp(self) -> None:
         """Close MCP connections."""
@@ -1105,6 +1116,9 @@ class AgentLoop:
         Returns:
             The response message, or None if no response needed.
         """
+        # Ensure MCP servers are connected for this bot/session
+        await self._connect_mcp()
+
         # Handle system messages (subagent announces)
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
@@ -1856,8 +1870,6 @@ class AgentLoop:
         )
 
         try:
-            await self._connect_mcp()
-
             msg = InboundMessage(
                 channel=channel,
                 sender_id="user",
