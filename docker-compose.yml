@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: nanofolks:latest
     container_name: nanofolks
     volumes:
       - ~/.nanofolks:/root/.nanofolks
@@ -13,23 +14,21 @@ services:
       - NANOFOLKS_CONFIG_DIR=/root/.nanofolks
     ports:
       - "18790:18790"
+      - "18791-18800:18791-18800" # Dashboard port range
     restart: unless-stopped
     stdin_open: true
     tty: true
 
-  # Optional: WhatsApp bridge
-  # uncomment to enable WhatsApp integration
-  # whatsapp-bridge:
-  #   image: nanofolks-whatsapp-bridge
-  #   build:
-  #     context: ./bridge
-  #     dockerfile: Dockerfile
-  #   volumes:
-  #     - ~/.nanofolks:/root/.nanofolks
-  #   environment:
-  #     - NANOFOLKS_CONFIG_DIR=/root/.nanofolks
-  #   ports:
-  #     - "18791:18791"
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - nanofolks
+  whatsapp-bridge:
+    image: nanofolks:latest
+    container_name: nanofolks-bridge
+    depends_on:
+      - nanofolks
+    volumes:
+      - ~/.nanofolks:/root/.nanofolks
+    environment:
+      - NANOFOLKS_CONFIG_DIR=/root/.nanofolks
+    command: [ "bridge" ]
+    ports:
+      - "18791:18791"
+    restart: unless-stopped

@@ -82,8 +82,13 @@ COPY --from=bridge-builder /build/dist ./bridge/dist
 COPY --from=bridge-builder /build/node_modules ./bridge/node_modules
 COPY --from=bridge-builder /build/package.json ./bridge/
 
+# Add entrypoint script
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Gateway port
 EXPOSE 18790
 
-ENTRYPOINT ["nanofolks"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["status"]
+
