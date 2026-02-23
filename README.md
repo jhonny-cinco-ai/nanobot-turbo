@@ -2,8 +2,8 @@
   <img src="nanofolks_header.png" alt="Nanofolks" width="660">
   <h1>Nanofolks - Your crew's already on it.</h1>
   <p>
-    <a href="https://pypi.org/project/nanofolks-ai/"><img src="https://img.shields.io/pypi/v/nanofolks-ai" alt="PyPI"></a>
-    <a href="https://pepy.tech/project/nanofolks-ai"><img src="https://static.pepy.tech/badge/nanofolks-ai" alt="Downloads"></a>
+    <a href="https://pypi.org/project/nanofolks/"><img src="https://img.shields.io/pypi/v/nanofolks" alt="PyPI"></a>
+    <a href="https://pepy.tech/project/nanofolks"><img src="https://static.pepy.tech/badge/nanofolks" alt="Downloads"></a>
     <img src="https://img.shields.io/badge/python-≥3.11-blue" alt="Python">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
     <a href="./COMMUNICATION.md"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord"></a>
