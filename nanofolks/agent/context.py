@@ -13,7 +13,7 @@ from nanofolks.agent.skills import SkillsLoader
 from nanofolks.config.loader import load_config
 from nanofolks.memory.embeddings import EmbeddingProvider
 from nanofolks.memory.store import TurboMemoryStore
-from nanofolks.security.keyvault import get_keyvault
+from nanofolks.security.secret_manager import get_secret_manager
 from nanofolks.soul import SoulManager
 from nanofolks.utils.ids import room_to_session_id
 
@@ -140,8 +140,8 @@ Tools for servers marked as 'connected' are already registered and available for
             Formatted API keys section for system prompt, or empty string
         """
         try:
-            keyvault = get_keyvault()
-            available_keys = keyvault.list_references()
+            manager = get_secret_manager()
+            available_keys = [f\"{{{{{k}}}}}\" for k in manager.list_keys()]
 
             if not available_keys:
                 return ""

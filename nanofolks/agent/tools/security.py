@@ -343,20 +343,20 @@ Use token {{github_token}} for GitHub
 
     async def _store_and_fix(self, path: Path, key_type: str, api_key: str) -> str:
         """Store key in keyring and update file with symbolic ref."""
-        from nanofolks.security.keyring_manager import get_keyring_manager
+        from nanofolks.security.secret_manager import get_secret_manager
 
         try:
-            keyring = get_keyring_manager()
-            keyring.store_key(key_type, api_key)
+            manager = get_secret_manager()
+            manager.store_key(key_type, api_key)
         except Exception as e:
             return f"Error storing key in keyring: {e}"
 
         try:
             content = path.read_text()
 
-            from nanofolks.security.symbolic_converter import get_symbolic_converter
-            converter = get_symbolic_converter()
-            result = converter.convert(content, f"remediate:{path.name}")
+            from nanofolks.security.secret_manager import get_secret_manager
+            manager = get_secret_manager()
+            result = manager.convert_to_symbolic(content, f"remediate:{path.name}")
 
             path.write_text(result.text)
         except Exception as e:

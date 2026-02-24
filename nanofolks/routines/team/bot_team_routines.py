@@ -303,9 +303,9 @@ class BotTeamRoutinesService:
             return None
 
         # Convert any credentials to symbolic references before sending to LLM
-        from nanofolks.security.symbolic_converter import get_symbolic_converter
-        converter = get_symbolic_converter()
-        conversion_result = converter.convert(content, f"team_routines:{self.config.bot_name}")
+        from nanofolks.security.secret_manager import get_secret_manager
+        manager = get_secret_manager()
+        conversion_result = manager.convert_to_symbolic(content, f"team_routines:{self.config.bot_name}")
         safe_content = conversion_result.text
 
         if conversion_result.credentials:

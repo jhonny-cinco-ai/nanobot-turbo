@@ -7,11 +7,8 @@ from rich.console import Console
 from rich.table import Table
 
 from nanofolks.config.loader import KEYRING_MARKER, load_config, save_config
-from nanofolks.security.keyring_manager import (
-    get_keyring_manager,
-    init_gnome_keyring,
-    is_keyring_available,
-)
+from nanofolks.security.keyring_manager import init_gnome_keyring, is_keyring_available
+from nanofolks.security.secret_manager import get_secret_manager
 
 app = typer.Typer(help="Security commands for key management")
 console = Console()
@@ -58,8 +55,8 @@ def keyring_status():
         return
 
     # Show stored keys
-    keyring = get_keyring_manager()
-    stored_keys = keyring.list_keys()
+    manager = get_secret_manager()
+    stored_keys = manager.list_keys()
 
     if stored_keys:
         console.print(f"\n[green]Keys stored in keyring:[/green] {len(stored_keys)}")
@@ -77,8 +74,8 @@ def list_keys():
     console.print("\n[bold]API Key Status[/bold]\n")
 
     config = load_config()
-    keyring = get_keyring_manager()
-    keyring_available = keyring.is_available()
+    manager = get_secret_manager()
+    keyring_available = is_keyring_available()
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("Provider")
@@ -96,7 +93,7 @@ def list_keys():
         if not api_key:
             table.add_row(provider_name, "-", "[dim]Not configured[/dim]")
         elif api_key == KEYRING_MARKER:
-            if keyring_available and keyring.has_key(provider_name):
+            if keyring_available and manager.has_key(provider_name):
                 table.add_row(provider_name, "Keyring", "[green]✓ Configured[/green]")
             else:
                 table.add_row(provider_name, "Keyring", "[red]✗ Missing[/red]")
@@ -121,7 +118,7 @@ def migrate_to_keyring(
         raise typer.Exit(1)
 
     config = load_config()
-    keyring = get_keyring_manager()
+    manager = get_secret_manager()
 
     if dry_run:
         console.print("[yellow]Dry run mode - no changes will be made[/yellow]\n")
@@ -146,7 +143,7 @@ def migrate_to_keyring(
         if dry_run:
             console.print(f"[yellow]→ {provider_name}: Would migrate (key: {provider_obj.api_key[:10]}...)[/yellow]")
         else:
-            keyring.store_key(provider_name, provider_obj.api_key)
+            manager.store_key(provider_name, provider_obj.api_key)
             provider_obj.api_key = KEYRING_MARKER
             console.print(f"[green]✓ {provider_name}: Migrated to keyring[/green]")
             migrated.append(provider_name)
@@ -161,7 +158,7 @@ def migrate_to_keyring(
                 if dry_run:
                     console.print("[yellow]→ brave: Would migrate[/yellow]")
                 else:
-                    keyring.store_key("brave", brave_key)
+                    manager.store_key("brave", brave_key)
                     config.tools.web.search.api_key = KEYRING_MARKER
                     console.print("[green]✓ brave: Migrated to keyring[/green]")
                     migrated.append("brave")
@@ -183,9 +180,9 @@ def remove_key(
     """Remove a key from the OS keyring."""
     console.print(f"\n[bold]Removing Key for {provider}[/bold]\n")
 
-    keyring = get_keyring_manager()
+    manager = get_secret_manager()
 
-    if not keyring.has_key(provider):
+    if not manager.has_key(provider):
         console.print(f"[yellow]No key found for '{provider}' in keyring[/yellow]")
         raise typer.Exit(1)
 
@@ -195,7 +192,7 @@ def remove_key(
             console.print("[yellow]Cancelled[/yellow]")
             raise typer.Exit(0)
 
-    keyring.delete_key(provider)
+    manager.delete_key(provider)
     console.print(f"[green]✓[/green] Deleted key for '{provider}' from keyring")
 
 
@@ -225,8 +222,8 @@ def add_key(
     key_preview = key[:12] + "..." if len(key) > 12 else key
     console.print(f"[dim]Received: {key_preview}[/dim]")
 
-    keyring = get_keyring_manager()
-    keyring.store_key(provider, key)
+    manager = get_secret_manager()
+    manager.store_key(provider, key)
 
     console.print(f"[green]✓[/green] Stored API key for '{provider}' in keyring")
     console.print(f"\n[dim]You can now remove the key from your config file and use '{KEYRING_MARKER}' instead[/dim]")

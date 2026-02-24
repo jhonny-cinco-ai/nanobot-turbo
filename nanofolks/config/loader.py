@@ -146,10 +146,10 @@ def _resolve_keyring_keys(config: Config) -> Config:
     """
     try:
         from nanofolks.security.keyring_manager import get_keyring_manager
-        from nanofolks.security.secret_store import get_secret_store
+        from nanofolks.security.secret_manager import get_secret_manager
 
         keyring = get_keyring_manager()
-        store = get_secret_store()
+        manager = get_secret_manager()
 
         if not keyring.is_available():
             logger.debug("Keyring not available, using config file keys")
@@ -160,7 +160,7 @@ def _resolve_keyring_keys(config: Config) -> Config:
         for provider_name in PROVIDERS_WITH_KEYS:
             provider = getattr(providers, provider_name, None)
             if provider and provider.api_key == KEYRING_MARKER:
-                actual_key = store.get(provider_name)
+                actual_key = manager.get_key(provider_name)
                 if actual_key:
                     provider.api_key = actual_key
                     logger.debug(f"Resolved {provider_name} key from keyring")
@@ -170,7 +170,7 @@ def _resolve_keyring_keys(config: Config) -> Config:
         # Resolve brave search API key
         if config.tools and config.tools.web and config.tools.web.search:
             if config.tools.web.search.api_key == KEYRING_MARKER:
-                actual_key = store.get("brave")
+                actual_key = manager.get_key("brave")
                 if actual_key:
                     config.tools.web.search.api_key = actual_key
                     logger.debug("Resolved brave search key from keyring")
@@ -197,10 +197,10 @@ def _migrate_to_keyring(config: Config, dry_run: bool = False) -> Config:
     """
     try:
         from nanofolks.security.keyring_manager import get_keyring_manager
-        from nanofolks.security.secret_store import get_secret_store
+        from nanofolks.security.secret_manager import get_secret_manager
 
         keyring = get_keyring_manager()
-        store = get_secret_store()
+        manager = get_secret_manager()
 
         if not keyring.is_available():
             logger.warning("Keyring not available, cannot migrate keys")
@@ -214,7 +214,7 @@ def _migrate_to_keyring(config: Config, dry_run: bool = False) -> Config:
             provider = getattr(providers, provider_name, None)
             if provider and provider.api_key and provider.api_key != KEYRING_MARKER:
                 if not dry_run:
-                    store.set(provider_name, provider.api_key)
+                    manager.store_key(provider_name, provider.api_key)
                 provider.api_key = KEYRING_MARKER
                 migrated.append(provider_name)
 
@@ -222,7 +222,7 @@ def _migrate_to_keyring(config: Config, dry_run: bool = False) -> Config:
         if config.tools and config.tools.web and config.tools.web.search:
             if config.tools.web.search.api_key and config.tools.web.search.api_key != KEYRING_MARKER:
                 if not dry_run:
-                    store.set("brave", config.tools.web.search.api_key)
+                    manager.store_key("brave", config.tools.web.search.api_key)
                 config.tools.web.search.api_key = KEYRING_MARKER
                 migrated.append("brave")
 

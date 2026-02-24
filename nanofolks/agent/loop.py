@@ -1335,9 +1335,9 @@ class AgentLoop:
 
         # NEW: Convert credentials to symbolic references before sending to LLM
         # This is the core security feature - credentials never reach the LLM
-        from nanofolks.security.symbolic_converter import get_symbolic_converter
-        converter = get_symbolic_converter()
-        conversion_result = converter.convert(msg.content, session.session_key if session else None)
+        from nanofolks.security.secret_manager import get_secret_manager
+        manager = get_secret_manager()
+        conversion_result = manager.convert_to_symbolic(msg.content, session.session_key if session else None)
 
         # Use converted content (credentials replaced with {{ref}}) for LLM
         # But keep original for logging

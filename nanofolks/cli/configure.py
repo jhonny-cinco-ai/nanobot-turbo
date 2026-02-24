@@ -311,16 +311,17 @@ def _configure_single_provider(name: str, schema: dict):
         return
 
     # Store API key in OS keyring (secure by default)
-    from nanofolks.security.keyring_manager import get_keyring_manager, is_keyring_available
+    from nanofolks.security.keyring_manager import is_keyring_available
+    from nanofolks.security.secret_manager import get_secret_manager
 
     keyring_available = is_keyring_available()
 
     if keyring_available:
         # Store in keyring (secure default)
-        keyring = get_keyring_manager()
+        manager = get_secret_manager()
 
         with console.status(f"[cyan]Saving {name} API key to OS keyring...[/cyan]", spinner="dots"):
-            keyring.store_key(name, api_key)
+            manager.store_key(name, api_key)
 
         console.print("[green]✓[/green] API key saved securely to OS keyring")
 

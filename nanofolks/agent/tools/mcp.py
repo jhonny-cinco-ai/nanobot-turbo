@@ -98,13 +98,13 @@ def _resolve_env_for_mcp(env: dict[str, str] | None) -> dict[str, str] | None:
     if not env:
         return None
 
-    from nanofolks.security.symbolic_converter import get_symbolic_converter
-    converter = get_symbolic_converter()
+    from nanofolks.security.secret_manager import get_secret_manager
+    manager = get_secret_manager()
 
     resolved = {}
     for key, value in env.items():
-        if converter.is_symbolic_ref(value):
-            actual_value = converter.resolve(value)
+        if manager.is_symbolic_ref(value):
+            actual_value = manager.resolve_symbolic(value)
             if actual_value:
                 logger.info(f"MCP: resolved {key} from KeyVault")
                 resolved[key] = actual_value
@@ -129,13 +129,13 @@ def _resolve_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
     if not headers:
         return None
 
-    from nanofolks.security.symbolic_converter import get_symbolic_converter
-    converter = get_symbolic_converter()
+    from nanofolks.security.secret_manager import get_secret_manager
+    manager = get_secret_manager()
 
     resolved = {}
     for key, value in headers.items():
-        if converter.is_symbolic_ref(value):
-            actual_value = converter.resolve(value)
+        if manager.is_symbolic_ref(value):
+            actual_value = manager.resolve_symbolic(value)
             if actual_value:
                 logger.info(f"MCP: resolved header {key} from KeyVault")
                 resolved[key] = actual_value

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from nanofolks.security.symbolic_converter import get_symbolic_converter
+from nanofolks.security.secret_manager import get_secret_manager
 
 
 class Tool(ABC):
@@ -73,13 +73,13 @@ class Tool(ABC):
         Returns:
             Parameters with symbolic references resolved
         """
-        converter = get_symbolic_converter()
+        manager = get_secret_manager()
         resolved = {}
 
         for key, value in params.items():
-            if isinstance(value, str) and converter.is_symbolic_ref(value):
+            if isinstance(value, str) and manager.is_symbolic_ref(value):
                 # Resolve symbolic reference
-                actual_value = converter.resolve(value)
+                actual_value = manager.resolve_symbolic(value)
                 if actual_value:
                     resolved[key] = actual_value
                 else:

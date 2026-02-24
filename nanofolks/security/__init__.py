@@ -38,6 +38,10 @@ from nanofolks.security.secret_store import (
     SecretStore,
     get_secret_store,
 )
+from nanofolks.security.secret_manager import (
+    SecretManager,
+    get_secret_manager,
+)
 from nanofolks.security.sanitizer import (
     SecretMatch,
     SecretSanitizer,
@@ -89,6 +93,8 @@ __all__ = [
     "SecretStore",
     "KeyringSecretStore",
     "get_secret_store",
+    "SecretManager",
+    "get_secret_manager",
 
     # Secure Memory
     "SecureString",
