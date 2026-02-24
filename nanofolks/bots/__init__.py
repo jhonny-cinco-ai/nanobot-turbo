@@ -24,8 +24,8 @@ from .definitions import (
     list_bots,
 )
 
-# Heartbeat configurations and checks
-from .heartbeat_configs import (
+# Crew routines configurations and checks
+from .crew_routines_configs import (
     AUDITOR_CONFIG,
     CODER_CONFIG,
     COORDINATOR_CONFIG,
@@ -33,11 +33,11 @@ from .heartbeat_configs import (
     DEFAULT_CONFIGS,
     RESEARCHER_CONFIG,
     SOCIAL_CONFIG,
-    get_all_heartbeat_configs,
-    get_bot_heartbeat_config,
+    get_all_crew_routines_configs,
+    get_bot_crew_routines_config,
     load_config_from_file,
     merge_config,
-    save_heartbeat_config,
+    save_crew_routines_config,
 )
 from .implementations import (
     AuditorBot,
@@ -73,7 +73,7 @@ __all__ = [
     "SocialBot",
     "CreativeBot",
     "AuditorBot",
-    # Heartbeat configs
+    # Crew routines configs
     "RESEARCHER_CONFIG",
     "CODER_CONFIG",
     "SOCIAL_CONFIG",
@@ -82,10 +82,10 @@ __all__ = [
     "COORDINATOR_CONFIG",
     "DEFAULT_CONFIGS",
     # Config functions
-    "get_bot_heartbeat_config",
-    "get_all_heartbeat_configs",
+    "get_bot_crew_routines_config",
+    "get_all_crew_routines_configs",
     "load_config_from_file",
-    "save_heartbeat_config",
+    "save_crew_routines_config",
     "merge_config",
     # Check modules (imported for side effects)
     "researcher_checks",

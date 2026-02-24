@@ -1,4 +1,4 @@
-"""Cron service for scheduling agent tasks."""
+"""Internal routines scheduler service (legacy cron engine)."""
 
 import asyncio
 import json
@@ -10,7 +10,7 @@ from typing import Any, Callable, Coroutine
 
 from loguru import logger
 
-from nanofolks.cron.types import CronJob, CronJobState, CronPayload, CronSchedule, CronStore
+from nanofolks.routines_engine.types import CronJob, CronJobState, CronPayload, CronSchedule, CronStore
 from nanofolks.metrics import get_metrics
 
 
@@ -106,6 +106,10 @@ class CronService:
                             deliver=j["payload"].get("deliver", False),
                             channel=j["payload"].get("channel"),
                             to=j["payload"].get("to"),
+                            scope=j["payload"].get("scope", "user"),
+                            routine=j["payload"].get("routine"),
+                            bot=j["payload"].get("bot"),
+                            metadata=j["payload"].get("metadata"),
                         ),
                         state=CronJobState(
                             next_run_at_ms=j.get("state", {}).get("nextRunAtMs"),
@@ -153,6 +157,10 @@ class CronService:
                         "deliver": j.payload.deliver,
                         "channel": j.payload.channel,
                         "to": j.payload.to,
+                        "scope": j.payload.scope,
+                        "routine": j.payload.routine,
+                        "bot": j.payload.bot,
+                        "metadata": j.payload.metadata,
                     },
                     "state": {
                         "nextRunAtMs": j.state.next_run_at_ms,
@@ -178,8 +186,8 @@ class CronService:
         self._save_store()
         self._arm_timer()
         if self._store:
-            self._metrics.set_gauge("cron.jobs.total", len(self._store.jobs))
-        logger.info(f"Cron service started with {len(self._store.jobs if self._store else [])} jobs")
+            self._metrics.set_gauge("routines.jobs.total", len(self._store.jobs))
+        logger.info(f"Routines service started with {len(self._store.jobs if self._store else [])} jobs")
 
     def stop(self) -> None:
         """Stop the cron service."""
@@ -244,8 +252,8 @@ class CronService:
     async def _execute_job(self, job: CronJob) -> None:
         """Execute a single job."""
         start_ms = _now_ms()
-        logger.info(f"Cron: executing job '{job.name}' ({job.id})")
-        self._metrics.incr("cron.job.started", tags={"job": job.id})
+        logger.info(f"Routines: executing job '{job.name}' ({job.id})")
+        self._metrics.incr("routines.job.started", tags={"job": job.id})
 
         try:
             if self.on_job:
@@ -253,14 +261,14 @@ class CronService:
 
             job.state.last_status = "ok"
             job.state.last_error = None
-            self._metrics.incr("cron.job.completed", tags={"job": job.id})
-            logger.info(f"Cron: job '{job.name}' completed")
+            self._metrics.incr("routines.job.completed", tags={"job": job.id})
+            logger.info(f"Routines: job '{job.name}' completed")
 
         except Exception as e:
             job.state.last_status = "error"
             job.state.last_error = str(e)
-            self._metrics.incr("cron.job.failed", tags={"job": job.id})
-            logger.error(f"Cron: job '{job.name}' failed: {e}")
+            self._metrics.incr("routines.job.failed", tags={"job": job.id})
+            logger.error(f"Routines: job '{job.name}' failed: {e}")
 
         job.state.last_run_at_ms = start_ms
         job.updated_at_ms = _now_ms()
@@ -278,10 +286,22 @@ class CronService:
 
     # ========== Public API ==========
 
-    def list_jobs(self, include_disabled: bool = False) -> list[CronJob]:
+    def list_jobs(
+        self,
+        include_disabled: bool = False,
+        scope: str | None = None,
+        routine: str | None = None,
+        bot: str | None = None,
+    ) -> list[CronJob]:
         """List all jobs."""
         store = self._load_store()
         jobs = store.jobs if include_disabled else [j for j in store.jobs if j.enabled]
+        if scope:
+            jobs = [j for j in jobs if j.payload.scope == scope]
+        if routine:
+            jobs = [j for j in jobs if j.payload.routine == routine]
+        if bot:
+            jobs = [j for j in jobs if j.payload.bot == bot]
         return sorted(jobs, key=lambda j: j.state.next_run_at_ms or float('inf'))
 
     def add_job(
@@ -289,9 +309,15 @@ class CronService:
         name: str,
         schedule: CronSchedule,
         message: str,
+        enabled: bool = True,
         deliver: bool = False,
         channel: str | None = None,
         to: str | None = None,
+        payload_kind: str = "agent_turn",
+        scope: str = "user",
+        routine: str | None = None,
+        bot: str | None = None,
+        metadata: dict | None = None,
         delete_after_run: bool = False,
     ) -> CronJob:
         """Add a new job."""
@@ -302,16 +328,20 @@ class CronService:
         job = CronJob(
             id=str(uuid.uuid4())[:8],
             name=name,
-            enabled=True,
+            enabled=enabled,
             schedule=schedule,
             payload=CronPayload(
-                kind="agent_turn",
+                kind=payload_kind,
                 message=message,
                 deliver=deliver,
                 channel=channel,
                 to=to,
+                scope=scope,
+                routine=routine,
+                bot=bot,
+                metadata=metadata,
             ),
-            state=CronJobState(next_run_at_ms=_compute_next_run(schedule, now)),
+            state=CronJobState(next_run_at_ms=_compute_next_run(schedule, now) if enabled else None),
             created_at_ms=now,
             updated_at_ms=now,
             delete_after_run=delete_after_run,
@@ -320,9 +350,9 @@ class CronService:
         store.jobs.append(job)
         self._save_store()
         self._arm_timer()
-        self._metrics.set_gauge("cron.jobs.total", len(store.jobs))
+        self._metrics.set_gauge("routines.jobs.total", len(store.jobs))
 
-        logger.info(f"Cron: added job '{name}' ({job.id})")
+        logger.info(f"Routines: added job '{name}' ({job.id})")
         return job
 
     def remove_job(self, job_id: str) -> bool:
@@ -335,10 +365,48 @@ class CronService:
         if removed:
             self._save_store()
             self._arm_timer()
-            self._metrics.set_gauge("cron.jobs.total", len(store.jobs))
-            logger.info(f"Cron: removed job {job_id}")
+            self._metrics.set_gauge("routines.jobs.total", len(store.jobs))
+            logger.info(f"Routines: removed job {job_id}")
 
         return removed
+
+    def update_job(
+        self,
+        job_id: str,
+        schedule: CronSchedule | None = None,
+        enabled: bool | None = None,
+        payload: CronPayload | None = None,
+        name: str | None = None,
+        delete_after_run: bool | None = None,
+    ) -> CronJob | None:
+        """Update an existing job."""
+        store = self._load_store()
+        for job in store.jobs:
+            if job.id != job_id:
+                continue
+
+            if schedule is not None:
+                job.schedule = schedule
+            if enabled is not None:
+                job.enabled = enabled
+            if payload is not None:
+                job.payload = payload
+            if name is not None:
+                job.name = name
+            if delete_after_run is not None:
+                job.delete_after_run = delete_after_run
+
+            job.updated_at_ms = _now_ms()
+
+            if job.enabled:
+                job.state.next_run_at_ms = _compute_next_run(job.schedule, _now_ms())
+            else:
+                job.state.next_run_at_ms = None
+
+            self._save_store()
+            self._arm_timer()
+            return job
+        return None
 
     def enable_job(self, job_id: str, enabled: bool = True) -> CronJob | None:
         """Enable or disable a job."""

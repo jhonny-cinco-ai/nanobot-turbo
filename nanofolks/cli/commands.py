@@ -609,7 +609,7 @@ Use for complex tasks that need specialist expertise. The bot will complete the 
 
 ## Cron Reminders
 
-Use the `exec` tool to create scheduled reminders with `nanofolks cron add`.
+Use the `exec` tool to create scheduled reminders with `nanofolks routines add`.
 
 ---
 
@@ -701,11 +701,11 @@ def gateway(
     from nanofolks.agent.loop import AgentLoop
     from nanofolks.bus.queue import MessageBus
     from nanofolks.channels.manager import ChannelManager
-    from nanofolks.cron.service import CronService
-    from nanofolks.cron.types import CronJob
-    from nanofolks.heartbeat.dashboard import DashboardService
-    from nanofolks.heartbeat.dashboard_server import DashboardHTTPServer
-    from nanofolks.heartbeat.multi_manager import MultiHeartbeatManager
+    from nanofolks.routines.models import Routine
+    from nanofolks.routines.service import RoutineService
+    from nanofolks.crew_routines.dashboard import DashboardService
+    from nanofolks.crew_routines.dashboard_server import DashboardHTTPServer
+    from nanofolks.crew_routines.multi_manager import MultiCrewRoutinesManager
     from nanofolks.utils.ids import room_to_session_id
 
     from nanofolks.utils.logging import configure_logging
@@ -728,15 +728,27 @@ def gateway(
     from nanofolks.session.dual_mode import create_session_manager
     session_manager = create_session_manager(config.workspace_path, config)
 
-    # Create cron service first (callback set after agent creation)
-    cron_store_path = get_data_dir() / "cron" / "jobs.json"
-    cron = CronService(cron_store_path)
+    # Create routines service first (callback set after agent creation)
+    routines_store_path = get_data_dir() / "routines" / "jobs.json"
+    routines = RoutineService(routines_store_path)
+    scheduler = routines.scheduler
+    multi_manager = None
 
     # Get user's timezone from USER.md (or default to UTC)
     from nanofolks.utils.user_profile import get_user_timezone
     system_timezone = get_user_timezone(config.workspace_path)
 
-    # Create agent with cron service and smart routing
+    # Seed default team routines (balanced energy)
+    try:
+        from nanofolks.routines.defaults import seed_default_team_routines
+
+        team_bots = ["leader", "researcher", "coder", "social", "creative", "auditor"]
+        room_ids = [room["id"] for room in room_manager.list_rooms()]
+        seed_default_team_routines(routines, team_bots, room_ids, energy="balanced")
+    except Exception as e:
+        logger.warning(f"Failed to seed default team routines: {e}")
+
+    # Create agent with routines service and smart routing
     agent = AgentLoop(
         bus=bus,
         provider=provider,
@@ -747,7 +759,7 @@ def gateway(
         max_tokens=config.agents.defaults.max_tokens,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
-        cron_service=cron,
+        cron_service=routines,
         system_timezone=system_timezone,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         session_manager=session_manager,
@@ -765,11 +777,11 @@ def gateway(
     bus.set_broker(broker_manager)
     console.print("[green]✓[/green] Broker: per-room FIFO routing active")
 
-    # Set cron callback (needs agent)
-    async def on_cron_job(job: CronJob) -> str | None:
-        """Execute a cron job through the agent or handle system jobs."""
+    # Set routines callback (needs agent)
+    async def on_cron_job(job: Routine) -> str | None:
+        """Execute a routine through the agent or handle system jobs."""
         # Handle calibration jobs (system jobs, not user messages)
-        if job.payload.message == "CALIBRATE_ROUTING":
+        if job.payload.routine == "calibration" or job.payload.message == "CALIBRATE_ROUTING":
             try:
                 from nanofolks.agent.router.calibration import CalibrationManager
                 calibration = CalibrationManager(
@@ -787,13 +799,27 @@ def gateway(
                 logger.error(f"Calibration job failed: {e}")
                 return f"Calibration failed: {e}"
 
-        # Regular user job - process through agent
-        response = await agent.process_direct(
-            job.payload.message,
-            session_key=room_to_session_id(f"cron_{job.id}"),
-            channel=job.payload.channel or "cli",
-            chat_id=job.payload.to or "direct",
-        )
+        # Team routines (system scope) route to internal channel and room context
+        if job.payload.scope == "system":
+            metadata = job.payload.metadata or {}
+            target_type = metadata.get("target_type")
+            target_id = metadata.get("target_id")
+            room_id = target_id if target_type == "room" else "general"
+            response = await agent.process_direct(
+                job.payload.message,
+                session_key=room_to_session_id(f"routine_{job.id}"),
+                channel=job.payload.channel or "internal",
+                chat_id=job.payload.to or "team",
+                room_id=room_id,
+            )
+        else:
+            # Regular user routine - process through agent
+            response = await agent.process_direct(
+                job.payload.message,
+                session_key=room_to_session_id(f"routine_{job.id}"),
+                channel=job.payload.channel or "cli",
+                chat_id=job.payload.to or "direct",
+            )
         if job.payload.deliver and job.payload.to:
             from nanofolks.bus.events import MessageEnvelope
             await bus.publish_outbound(MessageEnvelope(
@@ -803,9 +829,9 @@ def gateway(
                 direction="outbound",
             ))
         return response
-    cron.on_job = on_cron_job
+    scheduler.on_job = on_cron_job
 
-    # Create multi-heartbeat manager with all 6 bots
+    # Create team manager with all 6 bots (internal checks only)
     try:
         # Load appearance configuration (teams and custom names)
         from nanofolks.bots.appearance_config import get_appearance_config
@@ -864,8 +890,8 @@ def gateway(
             custom_name=appearance_config.get_custom_name("leader")
         )
 
-        # Initialize multi-heartbeat manager
-        multi_manager = MultiHeartbeatManager()
+        # Initialize manager (internal)
+        multi_manager = MultiCrewRoutinesManager(routine_service=scheduler)
         multi_manager.register_bot(researcher)
         multi_manager.register_bot(coder)
         multi_manager.register_bot(social)
@@ -873,9 +899,7 @@ def gateway(
         multi_manager.register_bot(creative)
         multi_manager.register_bot(leader)
 
-        # Wire CoordinatorBot into the manager so it participates in heartbeat
-        # cycles and is visible to CLI introspection.  Scoped fix: it joins the
-        # heartbeat pipeline only; full routing-takeover is a separate effort.
+        # Wire CoordinatorBot into the manager for internal checks.
         try:
             from nanofolks.coordinator.bus import InterBotBus
             from nanofolks.coordinator.coordinator_bot import CoordinatorBot
@@ -899,16 +923,15 @@ def gateway(
                 expertise=_bot_expertise,
             )
             multi_manager.register_bot(coordinator_bot)
-            console.print("[green]✓[/green] CoordinatorBot registered in heartbeat manager")
+            console.print("[green]✓[/green] CoordinatorBot registered in team manager")
         except Exception as _coord_err:
             logger.warning(f"CoordinatorBot init skipped: {_coord_err}")
 
-        # Re-initialize heartbeats with provider, routing, and reasoning config
-        # This enables HEARTBEAT.md execution with smart model selection
+        # Initialize internal crew routines checks (legacy engine)
         from nanofolks.agent.work_log_manager import get_work_log_manager
         from nanofolks.reasoning.config import get_reasoning_config
 
-        # Get work log manager for heartbeat logging
+        # Get work log manager for internal checks logging
         work_log_manager = get_work_log_manager()
 
         # Create tool registry for bots
@@ -921,7 +944,7 @@ def gateway(
                 workspace=config.workspace_path,
                 bot_name=bot.name,
             )
-            bot.initialize_heartbeat(
+            bot.initialize_crew_routines(
                 workspace=config.workspace_path,
                 provider=provider,
                 routing_config=config.routing,
@@ -930,9 +953,7 @@ def gateway(
                 tool_registry=tool_registry,
             )
 
-        # Inject the agent's shared LearningManager into each specialist bot so
-        # that heartbeat-generated learnings are persisted to TurboMemoryStore
-        # and become visible to ContextAssembler.assemble_context().
+        # Inject the agent's shared LearningManager into each specialist bot.
         lm = getattr(agent, "learning_manager", None)
         if lm:
             for bot in bots_list:
@@ -942,17 +963,13 @@ def gateway(
                     logger.debug(f"Could not inject LearningManager into {bot.name}: {_lm_err}")
             console.print("[green]✓[/green] LearningManager injected into specialist bots")
         else:
-            logger.debug("Agent has no learning_manager; heartbeat learnings will be in-memory only")
+            logger.debug("Agent has no learning_manager; internal learnings will be in-memory only")
 
-        # Wire manager into CLI commands
-        from nanofolks.cli.heartbeat_commands import set_heartbeat_manager
-        set_heartbeat_manager(multi_manager)
-
-        console.print("[green]✓[/green] Multi-heartbeat manager initialized with 6 bots")
+        console.print("[green]✓[/green] Crew routines engine initialized (internal)")
 
 
     except Exception as e:
-        logger.warning(f"Failed to initialize multi-heartbeat manager: {e}")
+        logger.warning(f"Failed to initialize crew routines engine: {e}")
         multi_manager = None
 
     # Create dashboard service for real-time monitoring
@@ -981,17 +998,21 @@ def gateway(
     else:
         console.print("[yellow]Warning: No channels enabled[/yellow]")
 
-    cron_status = cron.status()
-    if cron_status["jobs"] > 0:
-        console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
+    routine_status = scheduler.status()
+    if routine_status["jobs"] > 0:
+        user_jobs = len(scheduler.list_jobs(include_disabled=True, scope="user"))
+        system_jobs = len(scheduler.list_jobs(include_disabled=True, scope="system"))
+        console.print(
+            f"[green]✓[/green] Routines: {user_jobs} user, {system_jobs} crew"
+        )
 
-    console.print("[green]✓[/green] Heartbeat: every 30m")
+    console.print("[green]✓[/green] Routines active (user + crew)")
 
     async def run():
         try:
-            await cron.start()
+            await routines.start()
 
-            # Start multi-heartbeat manager if initialized
+            # Start manager if initialized
             if multi_manager:
                 await multi_manager.start_all()
 
@@ -1014,11 +1035,11 @@ def gateway(
             if dashboard_server:
                 await dashboard_server.stop()
 
-            # Stop multi-heartbeat manager if initialized
+            # Stop manager if initialized
             if multi_manager:
                 multi_manager.stop_all()
 
-            cron.stop()
+            routines.stop()
             await agent.stop()
             await channels.stop_all()
             await broker_manager.stop_all()
@@ -1857,7 +1878,7 @@ def chat(
                         console.print("    Show current room details and team roster")
                         console.print()
                         console.print("  [bold]/metrics[/bold]")
-                        console.print("    Show live broker/cron/heartbeat metrics")
+                        console.print("    Show live broker/routines metrics")
                         console.print()
                         console.print("  [bold]/help[/bold]")
                         console.print("    Show this help message")
@@ -2493,24 +2514,24 @@ def channels_login():
 
 
 # ============================================================================
-# Cron Commands
+# Routines Commands
 # ============================================================================
 
-cron_app = typer.Typer(help="Manage scheduled tasks")
-app.add_typer(cron_app, name="cron")
+routines_app = typer.Typer(help="Manage routines (scheduled tasks)")
+app.add_typer(routines_app, name="routines")
 
 
-@cron_app.command("list")
-def cron_list(
+@routines_app.command("list")
+def routines_list(
     all: bool = typer.Option(False, "--all", "-a", help="Include disabled jobs"),
 ):
     """List scheduled jobs."""
-    from nanofolks.cron.service import CronService
+    from nanofolks.routines.service import RoutineService
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
-    service = CronService(store_path)
+    store_path = get_data_dir() / "routines" / "jobs.json"
+    service = RoutineService(store_path)
 
-    jobs = service.list_jobs(include_disabled=all)
+    jobs = service.list_routines(include_disabled=all)
 
     if not jobs:
         console.print("No scheduled jobs.")
@@ -2552,46 +2573,49 @@ def cron_list(
     console.print(table)
 
 
-@cron_app.command("add")
-def cron_add(
+@routines_app.command("add")
+def routines_add(
     name: str = typer.Option(..., "--name", "-n", help="Job name"),
     message: str = typer.Option(..., "--message", "-m", help="Message for agent"),
     every: int = typer.Option(None, "--every", "-e", help="Run every N seconds"),
-    cron_expr: str = typer.Option(None, "--cron", "-c", help="Cron expression (e.g. '0 9 * * *')"),
+    schedule_expr: str = typer.Option(None, "--schedule", "-s", help="Schedule expression (e.g. '0 9 * * *')"),
     at: str = typer.Option(None, "--at", help="Run once at time (ISO format)"),
-    tz: str = typer.Option(None, "--tz", help="Timezone for cron (e.g. 'America/New_York', 'Asia/Tokyo'). Uses local timezone if not specified."),
+    tz: str = typer.Option(None, "--tz", help="Timezone for schedule expressions (e.g. 'America/New_York', 'Asia/Tokyo'). Uses local timezone if not specified."),
     deliver: bool = typer.Option(False, "--deliver", "-d", help="Deliver response to channel"),
     to: str = typer.Option(None, "--to", help="Recipient for delivery"),
     channel: str = typer.Option(None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"),
 ):
     """Add a scheduled job."""
-    from nanofolks.cron.service import CronService
-    from nanofolks.cron.types import CronSchedule
+    from nanofolks.routines.service import RoutineService
+    from nanofolks.routines.models import RoutineSchedule
 
     # Determine schedule type
     if every:
         schedule = CronSchedule(kind="every", every_ms=every * 1000)
-    elif cron_expr:
-        schedule = CronSchedule(kind="cron", expr=cron_expr, tz=tz)
+    elif schedule_expr:
+        schedule = CronSchedule(kind="cron", expr=schedule_expr, tz=tz)
     elif at:
         import datetime
         dt = datetime.datetime.fromisoformat(at)
         schedule = CronSchedule(kind="at", at_ms=int(dt.timestamp() * 1000))
     else:
-        console.print("[red]Error: Must specify --every, --cron, or --at[/red]")
+        console.print("[red]Error: Must specify --every, --schedule, or --at[/red]")
         raise typer.Exit(1)
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
-    service = CronService(store_path)
+    store_path = get_data_dir() / "routines" / "jobs.json"
+    service = RoutineService(store_path)
 
     try:
-        job = service.add_job(
+        job = service.add_routine(
             name=name,
             schedule=schedule,
             message=message,
             deliver=deliver,
             to=to,
             channel=channel,
+            payload_kind="agent_turn",
+            scope="user",
+            routine="reminder",
         )
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -2600,34 +2624,34 @@ def cron_add(
     console.print(f"[green]✓[/green] Added job '{job.name}' ({job.id})")
 
 
-@cron_app.command("remove")
-def cron_remove(
+@routines_app.command("remove")
+def routines_remove(
     job_id: str = typer.Argument(..., help="Job ID to remove"),
 ):
     """Remove a scheduled job."""
-    from nanofolks.cron.service import CronService
+    from nanofolks.routines.service import RoutineService
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
-    service = CronService(store_path)
+    store_path = get_data_dir() / "routines" / "jobs.json"
+    service = RoutineService(store_path)
 
-    if service.remove_job(job_id):
+    if service.remove_routine(job_id):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
         console.print(f"[red]Job {job_id} not found[/red]")
 
 
-@cron_app.command("enable")
-def cron_enable(
+@routines_app.command("enable")
+def routines_enable(
     job_id: str = typer.Argument(..., help="Job ID"),
     disable: bool = typer.Option(False, "--disable", help="Disable instead of enable"),
 ):
     """Enable or disable a job."""
-    from nanofolks.cron.service import CronService
+    from nanofolks.routines.service import RoutineService
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
-    service = CronService(store_path)
+    store_path = get_data_dir() / "routines" / "jobs.json"
+    service = RoutineService(store_path)
 
-    job = service.enable_job(job_id, enabled=not disable)
+    job = service.enable_routine(job_id, enabled=not disable)
     if job:
         status = "disabled" if disable else "enabled"
         console.print(f"[green]✓[/green] Job '{job.name}' {status}")
@@ -2635,16 +2659,16 @@ def cron_enable(
         console.print(f"[red]Job {job_id} not found[/red]")
 
 
-@cron_app.command("run")
-def cron_run(
+@routines_app.command("run")
+def routines_run(
     job_id: str = typer.Argument(..., help="Job ID to run"),
     force: bool = typer.Option(False, "--force", "-f", help="Run even if disabled"),
 ):
     """Manually run a job."""
     from loguru import logger
     from nanofolks.config.loader import load_config
-    from nanofolks.cron.service import CronService
-    from nanofolks.cron.types import CronJob
+    from nanofolks.routines.service import RoutineService
+    from nanofolks.routines.models import Routine
     from nanofolks.bus.queue import MessageBus
     from nanofolks.agent.loop import AgentLoop
 
@@ -2668,25 +2692,25 @@ def cron_run(
         bot_mcp_servers=config.tools.bot_mcp_servers,
     )
 
-    store_path = get_data_dir() / "cron" / "jobs.json"
-    service = CronService(store_path)
+    store_path = get_data_dir() / "routines" / "jobs.json"
+    service = RoutineService(store_path)
 
     result_holder = []
 
-    async def on_job(job: CronJob) -> str | None:
+    async def on_job(job: Routine) -> str | None:
         response = await agent_loop.process_direct(
             job.payload.message,
-            session_key=f"cron:{job.id}",
+            session_key=f"routine:{job.id}",
             channel=job.payload.channel or "cli",
             chat_id=job.payload.to or "direct",
         )
         result_holder.append(response)
         return response
 
-    service.on_job = on_job
+    service.scheduler.on_job = on_job
 
     async def run():
-        return await service.run_job(job_id, force=force)
+        return await service.run_routine(job_id, force=force)
 
     if asyncio.run(run()):
         console.print("[green]✓[/green] Job executed")
@@ -3069,7 +3093,7 @@ def metrics(
     prefix: str = typer.Option("", "--prefix", "-p", help="Filter by metric name prefix"),
     as_json: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
-    """Show live metrics from broker, cron, and heartbeat."""
+    """Show live metrics from broker and routines."""
     _print_metrics(kind=kind, prefix=prefix, as_json=as_json)
 
 
@@ -4283,12 +4307,7 @@ def list_dm_rooms():
 app.add_typer(room_app, name="room")
 app.add_typer(project_app, name="project")
 
-# Import and wire heartbeat commands
-try:
-    from nanofolks.cli.heartbeat_commands import heartbeat_app
-    app.add_typer(heartbeat_app, name="heartbeat")
-except ImportError:
-    logger.warning("Could not import heartbeat commands")
+# CrewRoutines CLI removed (use routines)
 
 # Import and wire security commands
 try:

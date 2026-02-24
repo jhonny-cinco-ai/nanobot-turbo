@@ -1,4 +1,4 @@
-"""Base class for all specialist bots with heartbeat support."""
+"""Base class for all specialist bots with crew routines support."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 
 
 class SpecialistBot(ABC):
-    """Abstract base class for all bot implementations with autonomous heartbeat.
+    """Abstract base class for all bot implementations with autonomous crew routines.
 
-    Each bot runs its own independent heartbeat with:
+    Each bot runs its own independent crew routines with:
     - Role-specific periodic checks
     - Domain-optimized intervals
     - Autonomous task execution
@@ -57,7 +57,7 @@ class SpecialistBot(ABC):
             "mistakes": [],  # Errors and how they were recovered
             "confidence": 0.7,  # Self-assessed competence (0.0-1.0)
             "created_at": datetime.now().isoformat(),
-            "heartbeat_history": [],  # History of heartbeat executions
+            "crew_routines_history": [],  # History of crew routines executions
         }
 
         # Persistent learning manager — injected by gateway via set_learning_manager().
@@ -73,9 +73,9 @@ class SpecialistBot(ABC):
         if custom_name:
             self.set_display_name(custom_name)
 
-        # Heartbeat service (initialized lazily)
-        self._heartbeat = None
-        self._heartbeat_config = None
+        # Crew routines service (initialized lazily)
+        self._crew_routines = None
+        self._crew_routines_config = None
 
     @property
     def workspace(self) -> Optional["Path"]:
@@ -243,7 +243,7 @@ class SpecialistBot(ABC):
 
         # Persist to the shared store when a LearningManager has been injected.
         # We schedule this as a fire-and-forget task so we never block the
-        # heartbeat tick that called us.
+        # Crew routines tick that called us.
         if self._learning_manager is not None:
             try:
                 import asyncio
@@ -256,7 +256,7 @@ class SpecialistBot(ABC):
                 learning_obj = Learning(
                     id=str(_uuid4()),
                     content=lesson,
-                    source=f"heartbeat:{self.role_card.bot_name}",
+                    source=f"crew_routines:{self.role_card.bot_name}",
                     sentiment="neutral",
                     confidence=confidence,
                     recommendation=None,
@@ -288,7 +288,7 @@ class SpecialistBot(ABC):
                         )
                     )
             except Exception:
-                pass  # Never block heartbeat
+                pass  # Never block crew routines
 
     def record_mistake(self, error: str, recovery: str, lesson: Optional[str] = None) -> None:
         """Record a mistake and how it was recovered.
@@ -343,7 +343,7 @@ class SpecialistBot(ABC):
             "expertise_domains": self.private_memory["expertise_domains"],
             "confidence": self.private_memory["confidence"],
             "created_at": self.private_memory["created_at"],
-            "heartbeat_running": self.is_heartbeat_running,
+            "crew_routines_running": self.is_crew_routines_running,
         }
 
     async def get_recent_handoffs(self, limit: int = 20, room_id: Optional[str] = None):
@@ -358,10 +358,10 @@ class SpecialistBot(ABC):
             return []
 
     # ==================================================================
-    # Heartbeat Methods
+    # Crew Routines Methods
     # ==================================================================
 
-    def initialize_heartbeat(
+    def initialize_crew_routines(
         self,
         config=None,
         workspace=None,
@@ -369,38 +369,38 @@ class SpecialistBot(ABC):
         routing_config=None,
         reasoning_config=None,
         work_log_manager=None,
-        on_heartbeat=None,
+        on_crew_routines=None,
         on_tick_complete: Optional[Callable] = None,
         on_check_complete: Optional[Callable] = None,
         tool_registry=None,
     ) -> None:
-        """Initialize bot's autonomous heartbeat.
+        """Initialize bot's autonomous crew routines.
 
         Args:
-            config: Heartbeat configuration (uses default if None)
-            workspace: Path to bot's workspace (for HEARTBEAT.md)
-            provider: LLM provider for heartbeat execution
+            config: Crew routines configuration (uses default if None)
+            workspace: Path to bot's workspace (for CREW_ROUTINES.md)
+            provider: LLM provider for crew routines execution
             routing_config: Smart routing config for model selection
             reasoning_config: Reasoning/CoT settings for this bot
-            work_log_manager: Work log manager for logging heartbeat events
-            on_heartbeat: Callback to execute HEARTBEAT.md tasks via LLM
+            work_log_manager: Work log manager for logging crew routines events
+            on_crew_routines: Callback to execute CREW_ROUTINES.md tasks via LLM
             on_tick_complete: Callback when tick completes
             on_check_complete: Callback when individual check completes
-            tool_registry: Optional tool registry for tool execution during heartbeat
+            tool_registry: Optional tool registry for tool execution during crew routines
         """
         if config is None:
             # Load default config for this bot type
-            from nanofolks.bots.heartbeat_configs import get_bot_heartbeat_config
-            config = get_bot_heartbeat_config(self.role_card.bot_name)
+            from nanofolks.bots.crew_routines_configs import get_bot_crew_routines_config
+            config = get_bot_crew_routines_config(self.role_card.bot_name)
 
-        self._heartbeat_config = config
+        self._crew_routines_config = config
 
         # Import here to avoid circular imports
-        from nanofolks.heartbeat.bot_heartbeat import BotHeartbeatService
+        from nanofolks.crew_routines.bot_crew_routines import BotCrewRoutinesService
 
         # Wrap callbacks to include bot context
         def tick_callback(tick):
-            self._on_heartbeat_tick_complete(tick)
+            self._on_crew_routines_tick_complete(tick)
             if on_tick_complete:
                 on_tick_complete(tick)
 
@@ -409,7 +409,7 @@ class SpecialistBot(ABC):
             if on_check_complete:
                 on_check_complete(result)
 
-        self._heartbeat = BotHeartbeatService(
+        self._crew_routines = BotCrewRoutinesService(
             bot_instance=self,
             config=config,
             workspace=workspace,
@@ -417,59 +417,59 @@ class SpecialistBot(ABC):
             routing_config=routing_config,
             reasoning_config=reasoning_config,
             work_log_manager=work_log_manager,
-            on_heartbeat=on_heartbeat,
+            on_crew_routines=on_crew_routines,
             on_tick_complete=tick_callback,
             on_check_complete=check_callback,
             tool_registry=tool_registry,
         )
 
         logger.info(
-            f"[{self.role_card.bot_name}] Heartbeat initialized: "
+            f"[{self.role_card.bot_name}] Crew routines initialized: "
             f"{config.interval_s}s interval, {len(config.checks)} checks"
         )
 
-    async def start_heartbeat(self) -> None:
-        """Start bot's independent heartbeat."""
-        if self._heartbeat is None:
+    async def start_crew_routines(self) -> None:
+        """Start bot's independent crew routines."""
+        if self._crew_routines is None:
             # Auto-initialize with defaults
-            self.initialize_heartbeat()
+            self.initialize_crew_routines()
 
-        if self._heartbeat:
-            await self._heartbeat.start()
+        if self._crew_routines:
+            await self._crew_routines.start()
 
-    def stop_heartbeat(self) -> None:
-        """Stop bot's heartbeat."""
-        if self._heartbeat:
-            self._heartbeat.stop()
+    def stop_crew_routines(self) -> None:
+        """Stop bot's crew routines."""
+        if self._crew_routines:
+            self._crew_routines.stop()
 
     @property
-    def is_heartbeat_running(self) -> bool:
-        """Check if heartbeat is currently running."""
-        return self._heartbeat is not None and self._heartbeat.is_running
+    def is_crew_routines_running(self) -> bool:
+        """Check if crew routines are currently running."""
+        return self._crew_routines is not None and self._crew_routines.is_running
 
-    def get_heartbeat_status(self) -> Dict[str, Any]:
-        """Get current heartbeat status."""
-        if self._heartbeat:
-            return self._heartbeat.get_status()
+    def get_crew_routines_status(self) -> Dict[str, Any]:
+        """Get current crew routines status."""
+        if self._crew_routines:
+            return self._crew_routines.get_status()
         return {"running": False, "bot_name": self.role_card.bot_name}
 
-    async def trigger_heartbeat_now(self, reason: str = "manual"):
-        """Manually trigger a heartbeat tick.
+    async def trigger_crew_routines_now(self, reason: str = "manual"):
+        """Manually trigger a crew routines tick.
 
         Args:
-            reason: Why heartbeat is being triggered
+            reason: Why crew routines are being triggered
 
         Returns:
-            HeartbeatTick result
+            CrewRoutinesTick result
         """
-        if self._heartbeat is None:
-            self.initialize_heartbeat()
+        if self._crew_routines is None:
+            self.initialize_crew_routines()
 
-        if self._heartbeat is not None:
-            return await self._heartbeat.trigger_now(reason)
+        if self._crew_routines is not None:
+            return await self._crew_routines.trigger_now(reason)
         return None
 
-    def _on_heartbeat_tick_complete(self, tick) -> None:
+    def _on_crew_routines_tick_complete(self, tick) -> None:
         """Internal handler for tick completion.
 
         Records to bot's private memory and logs learning.
@@ -483,23 +483,23 @@ class SpecialistBot(ABC):
             "failed_checks": [r.check_name for r in tick.get_failed_checks()],
         }
 
-        self.private_memory["heartbeat_history"].append(tick_summary)
+        self.private_memory["crew_routines_history"].append(tick_summary)
 
         # Trim history if too long
         max_history = tick.config.retain_history_count if tick.config else 100
-        if len(self.private_memory["heartbeat_history"]) > max_history:
-            self.private_memory["heartbeat_history"] = self.private_memory["heartbeat_history"][-max_history:]
+        if len(self.private_memory["crew_routines_history"]) > max_history:
+            self.private_memory["crew_routines_history"] = self.private_memory["crew_routines_history"][-max_history:]
 
         # Record learning
         success_rate = tick.get_success_rate()
         if success_rate >= 0.9:
             self.record_learning(
-                lesson=f"Heartbeat tick {tick.tick_id} completed with {success_rate:.0%} success",
+                lesson=f"CrewRoutines tick {tick.tick_id} completed with {success_rate:.0%} success",
                 confidence=0.9
             )
         elif success_rate < 0.5:
             self.record_mistake(
-                error=f"Heartbeat tick {tick.tick_id} had low success rate: {success_rate:.0%}",
+                error=f"CrewRoutines tick {tick.tick_id} had low success rate: {success_rate:.0%}",
                 recovery="Review failed checks and adjust configuration"
             )
 
@@ -525,7 +525,7 @@ class SpecialistBot(ABC):
         priority: str = "normal",
         data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """Notify coordinator of heartbeat finding.
+        """Notify coordinator of crew routines finding.
 
         Args:
             message: Notification message
@@ -548,7 +548,7 @@ class SpecialistBot(ABC):
                 "message": message,
                 "priority": priority,
                 "data": data or {},
-                "source": "heartbeat",
+                "source": "crew_routines",
                 "timestamp": datetime.now().isoformat()
             }
 

@@ -1,12 +1,12 @@
-"""Heartbeat checks for all bot types.
+"""Crew routines checks for all bot types.
 
-This module exports all domain-specific heartbeat checks.
+This module exports all domain-specific crew routines checks.
 Importing these modules automatically registers the checks
 with the global check registry.
 
 Example:
     from nanofolks.bots.checks import researcher_checks, coder_checks
-    # Checks are now registered and can be used by BotHeartbeatService
+    # Checks are now registered and can be used by BotCrewRoutinesService
 """
 
 # Import all check modules to ensure registration

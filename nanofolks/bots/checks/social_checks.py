@@ -1,4 +1,4 @@
-"""Heartbeat checks for SocialBot (Lookout).
+"""CrewRoutines checks for SocialBot (Lookout).
 
 These checks run every 60 minutes (by default) to monitor social media,
 scheduled posts, community engagement, and trending topics.
@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.heartbeat.check_registry import register_check
+from nanofolks.crew_routines.check_registry import register_check
 
 
 @register_check(

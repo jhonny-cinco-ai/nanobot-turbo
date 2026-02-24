@@ -16,7 +16,7 @@ This document proposes a **bot-level Chain-of-Thought (CoT) configuration system
 ## Motivation
 
 Our current architecture includes:
-- ✅ **6 specialized bots** with autonomous heartbeats
+- ✅ **6 specialized bots** with autonomous routines
 - ✅ **Smart routing system** with tiered models (simple/medium/complex)
 - ✅ **Session compaction** for context management
 - ❌ **No adaptive reasoning** - Same approach for all tasks
@@ -42,7 +42,7 @@ User Request
                │
                ▼
 ┌─────────────────────────────────────┐
-│ MultiHeartbeatManager               │
+│ MultiCrewRoutinesManager               │
 │  └─ Routes to appropriate bot       │
 └──────────────┬──────────────────────┘
                │

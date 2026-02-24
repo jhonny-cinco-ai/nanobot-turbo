@@ -1,11 +1,11 @@
-"""Multi-heartbeat system for per-bot autonomous periodic checks.
+"""Crew routines engine for per-bot autonomous checks (legacy heartbeat).
 
-This module provides infrastructure for each bot to run independent heartbeats
+This module provides infrastructure for each bot to run independent crew routines
 with domain-specific checks, configurable intervals, and full resilience.
 
 Example Usage:
-    from nanofolks.heartbeat import BotHeartbeatService, HeartbeatConfig
-    from nanofolks.heartbeat.check_registry import register_check
+    from nanofolks.crew_routines import BotCrewRoutinesService, CrewRoutinesConfig
+    from nanofolks.crew_routines.check_registry import register_check
 
     # Define a check
     @register_check(
@@ -17,10 +17,10 @@ Example Usage:
         # Check implementation
         return {"success": True, "data": {}}
 
-    # Create and start heartbeat
-    service = BotHeartbeatService(
+    # Create and start crew routine engine
+    service = BotCrewRoutinesService(
         bot_instance=bot,
-        config=HeartbeatConfig(
+        config=CrewRoutinesConfig(
             bot_name="researcher",
             interval_s=3600,  # 60 minutes
             checks=[CheckDefinition(name="monitor_data", ...)]
@@ -30,29 +30,29 @@ Example Usage:
 """
 
 # Note: The legacy HeartbeatService has been removed.
-# Use BotHeartbeatService and MultiHeartbeatManager instead.
+# Use BotCrewRoutinesService and MultiCrewRoutinesManager instead.
 
-# New multi-heartbeat system
-from nanofolks.heartbeat.bot_heartbeat import BotHeartbeatService
-from nanofolks.heartbeat.check_registry import (
+# Crew routines engine (legacy heartbeat)
+from nanofolks.crew_routines.bot_crew_routines import BotCrewRoutinesService
+from nanofolks.crew_routines.check_registry import (
     CheckRegistry,
     check_registry,
     register_check,
 )
-from nanofolks.heartbeat.dashboard import DashboardService, MetricsBuffer
-from nanofolks.heartbeat.dashboard_server import DashboardHTTPServer
-from nanofolks.heartbeat.models import (
+from nanofolks.crew_routines.dashboard import DashboardService, MetricsBuffer
+from nanofolks.crew_routines.dashboard_server import DashboardHTTPServer
+from nanofolks.crew_routines.crew_routines_models import (
     CheckDefinition,
     CheckPriority,
     CheckResult,
     CheckStatus,
-    HeartbeatConfig,
-    HeartbeatHistory,
-    HeartbeatTick,
+    CrewRoutinesConfig,
+    CrewRoutinesHistory,
+    CrewRoutinesTick,
 )
-from nanofolks.heartbeat.multi_manager import (
+from nanofolks.crew_routines.multi_manager import (
     CrossBotCheck,
-    MultiHeartbeatManager,
+    MultiCrewRoutinesManager,
     TeamHealthReport,
 )
 
@@ -65,12 +65,12 @@ __all__ = [
     # Models
     "CheckDefinition",
     "CheckResult",
-    "HeartbeatConfig",
-    "HeartbeatTick",
-    "HeartbeatHistory",
+    "CrewRoutinesConfig",
+    "CrewRoutinesTick",
+    "CrewRoutinesHistory",
     # Services
-    "BotHeartbeatService",
-    "MultiHeartbeatManager",
+    "BotCrewRoutinesService",
+    "MultiCrewRoutinesManager",
     # Registry
     "CheckRegistry",
     "check_registry",

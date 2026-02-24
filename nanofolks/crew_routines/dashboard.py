@@ -1,14 +1,14 @@
-"""Dashboard service for monitoring bot heartbeats in real-time.
+"""Dashboard service for monitoring bot crew routines in real-time.
 
 Provides:
-- REST API endpoints for heartbeat metrics
+- REST API endpoints for crew routines metrics
 - WebSocket support for real-time updates
 - Health visualization
 - Historical metrics tracking
 - Alert management
 
 Usage:
-    from nanofolks.heartbeat.dashboard import DashboardService
+    from nanofolks.crew_routines.dashboard import DashboardService
 
     dashboard = DashboardService(port=9090, manager=multi_manager)
     await dashboard.start()
@@ -62,7 +62,7 @@ class MetricsBuffer:
 class DashboardService:
     """Service for providing real-time dashboard metrics.
 
-    Integrates with MultiHeartbeatManager to expose:
+    Integrates with MultiCrewRoutinesManager to expose:
     - Team health status
     - Per-bot metrics
     - Historical trends
@@ -79,7 +79,7 @@ class DashboardService:
         """Initialize dashboard service.
 
         Args:
-            manager: MultiHeartbeatManager instance
+            manager: MultiCrewRoutinesManager instance
             port: Port to serve dashboard on
             host: Host to bind to
             update_interval: Interval for metrics collection (seconds)
@@ -231,7 +231,7 @@ class DashboardService:
             }
 
     def get_bot_history(self, bot_name: str, limit: int = 100) -> Dict[str, Any]:
-        """Get heartbeat history for a specific bot."""
+        """Get crew routines history for a specific bot."""
         if not self.manager:
             return {"error": "Manager not initialized"}
 
@@ -240,7 +240,7 @@ class DashboardService:
             if not bot:
                 return {"error": f"Bot '{bot_name}' not found"}
 
-            history = bot.private_memory.get("heartbeat_history", [])
+            history = bot.private_memory.get("crew_routines_history", [])
             return {
                 "bot_name": bot_name,
                 "history": history[-limit:],
@@ -268,7 +268,7 @@ class DashboardService:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nanoFolks Heartbeat Dashboard</title>
+    <title>nanoFolks CrewRoutines Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -550,7 +550,7 @@ class DashboardService:
 <body>
     <div class="container">
         <header>
-            <h1>🤖 nanoFolks Heartbeat Dashboard</h1>
+            <h1>🤖 nanoFolks CrewRoutines Dashboard</h1>
             <div class="status-indicator">
                 <span class="status-dot connected" id="connectionStatus"></span>
                 <span id="connectionText">Connected</span>

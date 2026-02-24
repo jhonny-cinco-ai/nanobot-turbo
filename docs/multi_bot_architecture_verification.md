@@ -85,14 +85,14 @@ A researcher's job (analyze data, find information) doesn't change whether they'
 
 **Status:** ✅ Correctly generic
 
-### 6. HEARTBEAT.md - Periodic Tasks ✅
+### 6. CREW_ROUTINES.md - Periodic Tasks ✅
 
 **Purpose:** Scheduled tasks for the bot
 
 **Loading:**
-- `workspace/bots/{bot}/HEARTBEAT.md` - Bot-specific
+- `workspace/bots/{bot}/CREW_ROUTINES.md` - Bot-specific
 
-**System:** Managed by heartbeat system, not context builder (correct separation)
+**System:** Managed by the crew routines engine (legacy), not context builder (correct separation)
 
 **Status:** ✅ Working (separate system)
 

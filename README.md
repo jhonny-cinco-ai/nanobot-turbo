@@ -603,7 +603,7 @@ Enable automatic model selection:
 
 ## 🛡️ Unified Security Architecture
 
-Nanofolks implements a unified security architecture that protects credentials across all entry points - from user chat input to automated tasks like heartbeat and skill loading.
+Nanofolks implements a unified security architecture that protects credentials across all entry points - from user chat input to automated tasks like routines and skill loading.
 
 ### Core Protection Layers
 
@@ -857,19 +857,26 @@ Coder: [references previous findings]
 
 Nanofolks doesn't just wait for you to message it. It can proactively act.
 
-### Scheduled Tasks (Cron)
+### Routines (Scheduled Tasks)
 
-Nanofolks supports cron-style scheduled tasks:
+Nanofolks supports routines (scheduled tasks). There are two kinds:
+
+- **Your Routines**: reminders or recurring tasks you create
+- **Crew Routines**: background check-ins that keep the crew “alive”
+
+You can control both from the CLI, without needing to know what a cron job is.
+
+Example:
 
 ```bash
-nanofolks cron add --name "morning" --message "What's on my calendar?" --cron "0 9 * * *"
-nanofolks cron list
-nanofolks cron remove <id>
+nanofolks routines add --name "morning" --message "What's on my calendar?" --schedule "0 9 * * *"
+nanofolks routines list
+nanofolks routines remove <id>
 ```
 
 ### Proactive Wake-Up
 
-The heartbeat system:
+Team routines:
 - Wakes Nanofolks at scheduled times
 - Runs background tasks
 - Can message you proactively
@@ -956,7 +963,7 @@ Nanofolks also respects these env vars:
 | `nanofolks chat -m "msg"` | Send a message |
 | `nanofolks chat` | Interactive chat mode |
 | `nanofolks gateway` | Start multi-channel gateway |
-| `nanofolks metrics` | Show live broker/cron/heartbeat metrics |
+| `nanofolks metrics` | Show live broker/routines metrics |
 
 ## Memory & Session
 
@@ -1037,9 +1044,9 @@ nanofolks skills approve <name>    # Manually approve a skill after review
 ## Scheduled Tasks
 
 ```bash
-nanofolks cron add --name "task" --message "Do X" --cron "0 9 * * *"
-nanofolks cron list
-nanofolks cron remove <id>
+nanofolks routines add --name "task" --message "Do X" --schedule "0 9 * * *"
+nanofolks routines list
+nanofolks routines remove <id>
 ```
 
 ---

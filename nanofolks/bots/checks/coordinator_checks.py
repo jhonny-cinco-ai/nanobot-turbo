@@ -1,4 +1,4 @@
-"""Heartbeat checks for CoordinatorBot (Orchestrator).
+"""Crew routines checks for CoordinatorBot (Orchestrator).
 
 These checks run every 30 minutes (by default, more frequent than specialists)
 to monitor bot team health, task delegation, communication, and resource usage.
@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.heartbeat.check_registry import register_check
+from nanofolks.crew_routines.check_registry import register_check
 
 
 @register_check(
@@ -25,7 +25,7 @@ from nanofolks.heartbeat.check_registry import register_check
 async def check_bot_team_health(bot, config: Dict[str, Any]) -> Dict[str, Any]:
     """Check health status of all registered specialist bots.
 
-    Monitors bot heartbeats, last activity, error rates, and resource
+    Monitors bot crew routines, last activity, error rates, and resource
     usage. Escalates if any bot appears unhealthy or unresponsive.
 
     Args:
@@ -57,20 +57,20 @@ async def check_bot_team_health(bot, config: Dict[str, Any]) -> Dict[str, Any]:
             bot_id = getattr(bot_info, 'bot_id', 'unknown')
             bot_name = getattr(bot_info, 'bot_name', 'Unknown Bot')
             status = getattr(bot_info, 'status', 'unknown')
-            last_heartbeat = getattr(bot_info, 'last_heartbeat', None)
+            last_crew_routines = getattr(bot_info, 'last_crew_routines', None)
             error_rate = getattr(bot_info, 'error_rate', 0.0)
 
             # Calculate silence time
-            if last_heartbeat:
-                if isinstance(last_heartbeat, str):
+            if last_crew_routines:
+                if isinstance(last_crew_routines, str):
                     try:
-                        last_heartbeat = datetime.fromisoformat(last_heartbeat.replace('Z', '+00:00'))
+                        last_crew_routines = datetime.fromisoformat(last_crew_routines.replace('Z', '+00:00'))
                     except Exception:
-                        last_heartbeat = now
+                        last_crew_routines = now
 
-                silence_minutes = (now - last_heartbeat).total_seconds() / 60
+                silence_minutes = (now - last_crew_routines).total_seconds() / 60
             else:
-                silence_minutes = max_silence_minutes + 1  # Force silent if no heartbeat
+                silence_minutes = max_silence_minutes + 1  # Force silent if no crew_routines
 
             bot_status = {
                 "bot_id": bot_id,

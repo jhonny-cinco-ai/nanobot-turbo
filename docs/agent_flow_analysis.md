@@ -123,7 +123,7 @@ async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None
 **File**: `nanofolks/cli/commands.py:544-817`
 
 ### Purpose
-Starts the full nanofolks server with multi-bot support, channels (Telegram, Discord, Slack), cron jobs, heartbeats, and dashboard.
+Starts the full nanofolks server with multi-bot support, channels (Telegram, Discord, Slack), routines, and dashboard.
 
 ### Command Flow
 
@@ -147,11 +147,9 @@ Start Gateway
     ↓
 3. Create AgentLoop (Leader)
     ↓
-4. Create CronService
+4. Create RoutinesService
     ↓
-5. Create HeartbeatService (Legacy)
-    ↓
-6. Create MultiHeartbeatManager with 6 Bots:
+5. Create Team Manager with 6 Bots:
    - NanobotLeader (Coordinator)
    - ResearcherBot
    - CoderBot
@@ -159,11 +157,11 @@ Start Gateway
    - AuditorBot
    - CreativeBot
     ↓
-7. Create DashboardService (port 9090)
+6. Create DashboardService (port 9090)
     ↓
-8. Create ChannelManager (Telegram, Discord, Slack, etc.)
+7. Create ChannelManager (Telegram, Discord, Slack, etc.)
     ↓
-9. Start all services concurrently
+8. Start all services concurrently
     ↓
 asyncio.gather(
     agent.run(),          # Process messages
@@ -195,8 +193,8 @@ researcher = ResearcherBus(
 )
 # ... similar for coder, social, auditor, creative, nanofolks
 
-# Initialize multi-heartbeat manager
-multi_manager = MultiHeartbeatManager()
+# Initialize team manager
+multi_manager = MultiCrewRoutinesManager()
 multi_manager.register_bot(researcher)
 multi_manager.register_bot(coder)
 multi_manager.register_bot(social)
@@ -503,7 +501,7 @@ Steps:
 
 ## 5. BOT ACTIVITY & STATUS DISPLAY
 
-### Dashboard (`nanofolks/heartbeat/dashboard.py`)
+### Dashboard (`nanofolks/crew_routines/dashboard.py`)
 
 **Real-time monitoring at http://localhost:9090**
 
@@ -511,7 +509,7 @@ Steps:
 class DashboardService:
     """Service for providing real-time dashboard metrics."""
     
-    def __init__(self, manager: MultiHeartbeatManager = None, 
+    def __init__(self, manager: MultiCrewRoutinesManager = None, 
                  port: int = 9090, update_interval: float = 5.0):
         """Initialize dashboard service."""
         self.manager = manager
@@ -533,7 +531,7 @@ class DashboardService:
 The dashboard shows:
 - **Team Health**: Overall success rate bar (0-100%)
 - **Running Bots**: X/6 bots active
-- **Total Ticks**: Cumulative heartbeat executions
+- **Total Runs**: Cumulative team routine executions
 - **Failed Ticks**: Error count
 - **Per-Bot Status**: Running/stopped, tick count, success rate
 - **Alerts**: Any warnings or errors
@@ -541,8 +539,8 @@ The dashboard shows:
 ### CLI Status Commands
 
 ```bash
-nanofolks bot status           # Show all bots and heartbeat status
-nanofolks heartbeat status     # Show heartbeat statistics
+nanofolks bot status           # Show all bots and routine status
+nanofolks routines list        # Show scheduled routines
 ```
 
 ### How Bot Activity Is Shown
@@ -659,7 +657,7 @@ async def invoke(bot_name: str, task: str) -> str:
 | WorkLog Manager | `nanofolks/agent/work_log_manager.py` |
 | Bot Dispatch | `nanofolks/bots/dispatch.py` |
 | Bot Implementations | `nanofolks/bots/implementations.py` |
-| Dashboard | `nanofolks/heartbeat/dashboard.py` |
+| Dashboard | `nanofolks/crew_routines/dashboard.py` |
 | MessageBus | `nanofolks/bus/queue.py` |
 | ContextBuilder | `nanofolks/agent/context.py` |
 

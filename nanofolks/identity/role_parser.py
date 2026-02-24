@@ -193,7 +193,7 @@ class RoleParser:
 
             # Parse each capability line
             caps.can_invoke_bots = self._parse_capability(section_text, "Can invoke other bots")
-            caps.can_do_heartbeat = self._parse_capability(section_text, "Can do heartbeat")
+            caps.can_do_routines = self._parse_capability(section_text, "Can do routines")
             caps.can_access_web = self._parse_capability(section_text, "Can access web")
             caps.can_exec_commands = self._parse_capability(section_text, "Can execute commands")
             caps.can_send_messages = self._parse_capability(section_text, "Can send messages")

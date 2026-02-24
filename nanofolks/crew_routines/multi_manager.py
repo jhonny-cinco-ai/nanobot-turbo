@@ -1,22 +1,22 @@
-"""Manager for coordinating multiple bot heartbeats.
+"""Manager for coordinating multiple bot crew routines (legacy heartbeat).
 
-This module provides centralized management of heartbeats across
+This module provides centralized management of crew routines across
 all bots in the team. It handles:
-- Starting/stopping all bot heartbeats
+- Starting/stopping all bot crew routines
 - Monitoring team health
 - Coordinating cross-bot tasks
 - Aggregating metrics
 
 Usage:
-    from nanofolks.heartbeat.multi_manager import MultiHeartbeatManager
+    from nanofolks.crew_routines.multi_manager import MultiCrewRoutinesManager
 
-    manager = MultiHeartbeatManager(bus=interbot_bus)
+    manager = MultiCrewRoutinesManager(bus=interbot_bus)
 
     # Register bots
     for bot in [researcher, coder, social, creative, auditor, leader]:
         manager.register_bot(bot)
 
-    # Start all heartbeats
+    # Start all crew routines
     await manager.start_all()
 
     # Get team health
@@ -25,6 +25,8 @@ Usage:
     # Stop all
     manager.stop_all()
 """
+
+# Note: Class name is legacy, but methods now use crew routines terminology.
 
 import asyncio
 from dataclasses import dataclass, field
@@ -59,18 +61,18 @@ class TeamHealthReport:
     alerts: List[str] = field(default_factory=list)
 
 
-class MultiHeartbeatManager:
-    """Manages heartbeats across all bots in the team.
+class MultiCrewRoutinesManager:
+    """Manages crew routines across all bots in the team (legacy heartbeat).
 
     Responsibilities:
-    - Start/stop all bot heartbeats
+    - Start/stop all bot crew routines
     - Coordinate cross-bot checks
     - Monitor overall team health
-    - Aggregate heartbeat metrics
+    - Aggregate crew routine metrics
     - Handle bot failures and recovery
 
     Example:
-        manager = MultiHeartbeatManager(bus=bus)
+        manager = MultiCrewRoutinesManager(bus=bus)
 
         # Register bots
         for bot in team:
@@ -87,17 +89,20 @@ class MultiHeartbeatManager:
         manager.stop_all()
     """
 
-    def __init__(self, bus=None):
-        """Initialize the multi-heartbeat manager.
+    def __init__(self, bus=None, routine_service=None):
+        """Initialize the crew routines manager.
 
         Args:
             bus: InterBotBus for cross-bot communication (optional)
+            routine_service: CronService instance for unified routine scheduling (optional)
         """
         self.bus = bus
+        self._routine_service = routine_service
 
         # Bot registry
         self._bots: Dict[str, SpecialistBot] = {}
-        self._heartbeat_tasks: Dict[str, asyncio.Task] = {}
+        self._crew_routines_tasks: Dict[str, asyncio.Task] = {}
+        self._crew_routines_jobs: Dict[str, str] = {}
 
         # Cross-bot coordination
         self._cross_bot_checks: Dict[str, CrossBotCheck] = {}
@@ -112,7 +117,7 @@ class MultiHeartbeatManager:
         self._alerts: List[str] = []
 
     def register_bot(self, bot: SpecialistBot) -> None:
-        """Register a bot for heartbeat management.
+        """Register a bot for crew routines management.
 
         Args:
             bot: Bot instance to register
@@ -124,13 +129,18 @@ class MultiHeartbeatManager:
         bot_name = bot.role_card.bot_name
 
         if bot_name in self._bots:
-            logger.warning(f"[MultiHeartbeatManager] Bot {bot_name} already registered, replacing")
+            logger.warning(f"[MultiCrewRoutinesManager] Bot {bot_name} already registered, replacing")
 
         self._bots[bot_name] = bot
-        logger.info(f"[MultiHeartbeatManager] Registered bot: {bot_name}")
+        logger.info(f"[MultiCrewRoutinesManager] Registered bot: {bot_name}")
+
+    @property
+    def bots(self) -> Dict[str, SpecialistBot]:
+        """Expose registered bots for CLI tooling."""
+        return self._bots
 
     def unregister_bot(self, bot_name: str) -> bool:
-        """Unregister a bot and stop its heartbeat.
+        """Unregister a bot and stop its crew routines.
 
         Args:
             bot_name: Name of bot to unregister
@@ -142,29 +152,87 @@ class MultiHeartbeatManager:
             manager.unregister_bot("researcher")
         """
         if bot_name not in self._bots:
-            logger.warning(f"[MultiHeartbeatManager] Bot {bot_name} not registered")
+            logger.warning(f"[MultiCrewRoutinesManager] Bot {bot_name} not registered")
             return False
 
-        # Stop heartbeat if running
+        # Stop crew routines if running
         bot = self._bots[bot_name]
         try:
-            bot.stop_heartbeat()
+            bot.stop_crew_routines()
         except Exception as e:
-            logger.error(f"[MultiHeartbeatManager] Error stopping {bot_name} heartbeat: {e}")
+            logger.error(f"[MultiCrewRoutinesManager] Error stopping {bot_name} crew routines: {e}")
 
         # Cancel task if exists
-        if bot_name in self._heartbeat_tasks:
-            self._heartbeat_tasks[bot_name].cancel()
-            del self._heartbeat_tasks[bot_name]
+        if bot_name in self._crew_routines_tasks:
+            self._crew_routines_tasks[bot_name].cancel()
+            del self._crew_routines_tasks[bot_name]
+
+        # Disable routine job if present
+        if self._routine_service and bot_name in self._crew_routines_jobs:
+            try:
+                self._routine_service.update_job(self._crew_routines_jobs[bot_name], enabled=False)
+            except Exception as e:
+                logger.warning(f"[MultiCrewRoutinesManager] Failed to disable routine for {bot_name}: {e}")
+            self._crew_routines_jobs.pop(bot_name, None)
 
         del self._bots[bot_name]
-        logger.info(f"[MultiHeartbeatManager] Unregistered bot: {bot_name}")
+        logger.info(f"[MultiCrewRoutinesManager] Unregistered bot: {bot_name}")
         return True
 
-    async def start_all(self) -> None:
-        """Start heartbeats for all registered bots.
+    def _ensure_crew_routines_job(self, bot: SpecialistBot) -> None:
+        """Ensure a crew routines job exists for the bot when using routine scheduler."""
+        if not self._routine_service:
+            return
 
-        This starts each bot's independent heartbeat service.
+        if bot._crew_routines is None or bot._crew_routines_config is None:
+            bot.initialize_crew_routines()
+
+        config = bot._crew_routines_config
+        if not config:
+            return
+
+        from nanofolks.routines_engine.types import CronSchedule
+
+        schedule = CronSchedule(kind="every", every_ms=config.interval_s * 1000)
+
+        existing = self._routine_service.list_jobs(
+            include_disabled=True,
+            scope="system",
+            routine="crew_routines",
+            bot=bot.role_card.bot_name,
+        )
+
+        if existing:
+            job = existing[0]
+            self._routine_service.update_job(
+                job.id,
+                schedule=schedule,
+                enabled=config.enabled,
+            )
+            self._crew_routines_jobs[bot.role_card.bot_name] = job.id
+        else:
+            job = self._routine_service.add_job(
+                name=f"Crew routines {bot.role_card.bot_name}",
+                schedule=schedule,
+                message="CREW_ROUTINES_TICK",
+                enabled=config.enabled,
+                deliver=False,
+                channel="internal",
+                to=bot.role_card.bot_name,
+                payload_kind="system_event",
+                scope="system",
+                routine="crew_routines",
+                bot=bot.role_card.bot_name,
+            )
+            self._crew_routines_jobs[bot.role_card.bot_name] = job.id
+
+        if bot._crew_routines:
+            bot._crew_routines.set_external_scheduler(config.enabled)
+
+    async def start_all(self) -> None:
+        """Start crew routines for all registered bots.
+
+        This starts each bot's independent crew routines service.
         Coordinator bot runs with 30min interval, specialists with 60min.
 
         Example:
@@ -172,23 +240,26 @@ class MultiHeartbeatManager:
         """
         self._running = True
 
-        logger.info(f"[MultiHeartbeatManager] Starting heartbeats for {len(self._bots)} bots")
+        logger.info(f"[MultiCrewRoutinesManager] Starting crew routines for {len(self._bots)} bots")
 
-        # Start each bot's heartbeat
+        # Start each bot's crew routines
         for bot_name, bot in self._bots.items():
             try:
-                await bot.start_heartbeat()
+                if self._routine_service:
+                    self._ensure_crew_routines_job(bot)
+                else:
+                    await bot.start_crew_routines()
 
-                interval = bot._heartbeat_config.interval_s if bot._heartbeat_config else 3600
-                checks_count = len(bot._heartbeat_config.checks) if bot._heartbeat_config else 0
+                interval = bot._crew_routines_config.interval_s if bot._crew_routines_config else 3600
+                checks_count = len(bot._crew_routines_config.checks) if bot._crew_routines_config else 0
 
                 logger.info(
-                    f"[MultiHeartbeatManager] Started {bot_name} heartbeat: "
+                    f"[MultiCrewRoutinesManager] Started {bot_name} crew routines: "
                     f"{interval}s interval, {checks_count} checks"
                 )
 
             except Exception as e:
-                logger.error(f"[MultiHeartbeatManager] Failed to start {bot_name} heartbeat: {e}")
+                logger.error(f"[MultiCrewRoutinesManager] Failed to start {bot_name} crew routines: {e}")
 
         # Start team health monitoring
         self._team_health_task = asyncio.create_task(
@@ -196,12 +267,12 @@ class MultiHeartbeatManager:
             name="team_health_monitor"
         )
 
-        logger.info("[MultiHeartbeatManager] All heartbeats started")
+        logger.info("[MultiCrewRoutinesManager] All crew routines started")
 
     def stop_all(self) -> None:
-        """Stop all bot heartbeats.
+        """Stop all bot crew routines.
 
-        This gracefully stops all running heartbeats and cancels
+        This gracefully stops all running crew routines and cancels
         any pending coordination tasks.
 
         Example:
@@ -209,15 +280,21 @@ class MultiHeartbeatManager:
         """
         self._running = False
 
-        logger.info(f"[MultiHeartbeatManager] Stopping heartbeats for {len(self._bots)} bots")
+        logger.info(f"[MultiCrewRoutinesManager] Stopping crew routines for {len(self._bots)} bots")
 
         # Stop each bot
         for bot_name, bot in self._bots.items():
             try:
-                bot.stop_heartbeat()
-                logger.debug(f"[MultiHeartbeatManager] Stopped {bot_name} heartbeat")
+                if self._routine_service:
+                    if bot_name in self._crew_routines_jobs:
+                        self._routine_service.update_job(self._crew_routines_jobs[bot_name], enabled=False)
+                    if bot._crew_routines:
+                        bot._crew_routines.set_external_scheduler(False)
+                else:
+                    bot.stop_crew_routines()
+                logger.debug(f"[MultiCrewRoutinesManager] Stopped {bot_name} crew routines")
             except Exception as e:
-                logger.error(f"[MultiHeartbeatManager] Error stopping {bot_name}: {e}")
+                logger.error(f"[MultiCrewRoutinesManager] Error stopping {bot_name}: {e}")
 
         # Cancel health monitoring task
         if self._team_health_task:
@@ -229,12 +306,12 @@ class MultiHeartbeatManager:
             self._coordinator_check_task.cancel()
             self._coordinator_check_task = None
 
-        # Cancel any pending heartbeat tasks
-        for task in self._heartbeat_tasks.values():
+        # Cancel any pending crew routines tasks
+        for task in self._crew_routines_tasks.values():
             task.cancel()
-        self._heartbeat_tasks.clear()
+        self._crew_routines_tasks.clear()
 
-        logger.info("[MultiHeartbeatManager] All heartbeats stopped")
+        logger.info("[MultiCrewRoutinesManager] All crew routines stopped")
 
     async def _monitor_team_health(self) -> None:
         """Monitor team health periodically.
@@ -263,17 +340,17 @@ class MultiHeartbeatManager:
 
                 # Log alerts
                 for alert in alerts:
-                    logger.warning(f"[MultiHeartbeatManager] ALERT: {alert}")
+                    logger.warning(f"[MultiCrewRoutinesManager] ALERT: {alert}")
 
                 self._alerts = alerts
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[MultiHeartbeatManager] Health monitoring error: {e}")
+                logger.error(f"[MultiCrewRoutinesManager] Health monitoring error: {e}")
 
     def get_team_health(self) -> TeamHealthReport:
-        """Get overall health status of all bot heartbeats.
+        """Get overall health status of all bot crew routines.
 
         Returns comprehensive health report with per-bot and aggregate metrics.
 
@@ -289,7 +366,7 @@ class MultiHeartbeatManager:
 
         for bot_name, bot in self._bots.items():
             try:
-                status = bot.get_heartbeat_status()
+                status = bot.get_crew_routines_status()
 
                 # Add bot-specific info
                 status["bot_name"] = bot_name
@@ -298,19 +375,19 @@ class MultiHeartbeatManager:
 
                 bot_statuses[bot_name] = status
             except Exception as e:
-                logger.error(f"[MultiHeartbeatManager] Error getting status for {bot_name}: {e}")
+                logger.error(f"[MultiCrewRoutinesManager] Error getting status for {bot_name}: {e}")
                 bot_statuses[bot_name] = {
                     "bot_name": bot_name,
                     "error": str(e),
                     "running": False
                 }
 
-        # Calculate aggregate metrics from heartbeat history
+        # Calculate aggregate metrics from crew routines history
         total_ticks = 0
         failed_ticks = 0
 
         for bot in self._bots.values():
-            history = bot.private_memory.get("heartbeat_history", [])
+            history = bot.private_memory.get("crew_routines_history", [])
             total_ticks += len(history)
             failed_ticks += sum(
                 1 for tick in history
@@ -356,42 +433,42 @@ class MultiHeartbeatManager:
             "alerts": report.alerts
         }
 
-    async def trigger_team_heartbeat(self, reason: str = "manual") -> Dict[str, Any]:
-        """Manually trigger heartbeat on all bots.
+    async def trigger_team_crew_routines(self, reason: str = "manual") -> Dict[str, Any]:
+        """Manually trigger crew routines on all bots.
 
-        This forces an immediate heartbeat tick on all registered bots,
+        This forces an immediate crew routines tick on all registered bots,
         regardless of their scheduled intervals.
 
         Args:
-            reason: Why heartbeat is being triggered
+            reason: Why crew routines are being triggered
 
         Returns:
             Results from all bots
 
         Example:
-            results = await manager.trigger_team_heartbeat("system_check")
+            results = await manager.trigger_team_crew_routines("system_check")
             for bot_name, tick in results.items():
                 print(f"{bot_name}: {tick.status}")
         """
         results = {}
 
-        logger.info(f"[MultiHeartbeatManager] Triggering team heartbeat: {reason}")
+        logger.info(f"[MultiCrewRoutinesManager] Triggering team crew routines: {reason}")
 
         for bot_name, bot in self._bots.items():
             try:
-                tick = await bot.trigger_heartbeat_now(reason)
+                tick = await bot.trigger_crew_routines_now(reason)
                 results[bot_name] = {
                     "success": True,
                     "tick_id": tick.tick_id if tick else None,
                     "status": tick.status if tick else "unknown"
                 }
-                logger.debug(f"[MultiHeartbeatManager] Triggered {bot_name} heartbeat")
+                logger.debug(f"[MultiCrewRoutinesManager] Triggered {bot_name} crew routines")
             except Exception as e:
                 results[bot_name] = {
                     "success": False,
                     "error": str(e)
                 }
-                logger.error(f"[MultiHeartbeatManager] Failed to trigger {bot_name}: {e}")
+                logger.error(f"[MultiCrewRoutinesManager] Failed to trigger {bot_name}: {e}")
 
         return results
 
@@ -418,7 +495,7 @@ class MultiHeartbeatManager:
             check: CrossBotCheck definition
         """
         self._cross_bot_checks[check.name] = check
-        logger.info(f"[MultiHeartbeatManager] Registered cross-bot check: {check.name}")
+        logger.info(f"[MultiCrewRoutinesManager] Registered cross-bot check: {check.name}")
 
     def get_bot(self, bot_name: str) -> Optional[SpecialistBot]:
         """Get a registered bot by name.
@@ -431,6 +508,75 @@ class MultiHeartbeatManager:
         """
         return self._bots.get(bot_name)
 
+    async def enable_bot_crew_routines(self, bot_name: str) -> bool:
+        """Enable and start crew routines scheduling for a bot."""
+        bot = self.get_bot(bot_name)
+        if not bot:
+            return False
+        if bot._crew_routines_config is None or bot._crew_routines is None:
+            bot.initialize_crew_routines()
+        if bot._crew_routines_config:
+            bot._crew_routines_config.enabled = True
+
+        if self._routine_service:
+            self._ensure_crew_routines_job(bot)
+            return True
+
+        await bot.start_crew_routines()
+        return True
+
+    async def disable_bot_crew_routines(self, bot_name: str) -> bool:
+        """Disable crew routines scheduling for a bot."""
+        bot = self.get_bot(bot_name)
+        if not bot:
+            return False
+        if bot._crew_routines_config:
+            bot._crew_routines_config.enabled = False
+
+        if self._routine_service:
+            job_id = self._crew_routines_jobs.get(bot_name)
+            if job_id:
+                self._routine_service.update_job(job_id, enabled=False)
+            if bot._crew_routines:
+                bot._crew_routines.set_external_scheduler(False)
+            return True
+
+        bot.stop_crew_routines()
+        return True
+
+    async def start_bot_crew_routines(self, bot_name: str) -> bool:
+        """Start crew routines for a bot (does not change config if already enabled)."""
+        bot = self.get_bot(bot_name)
+        if not bot:
+            return False
+        if bot._crew_routines_config is None or bot._crew_routines is None:
+            bot.initialize_crew_routines()
+        if bot._crew_routines_config and not bot._crew_routines_config.enabled:
+            bot._crew_routines_config.enabled = True
+
+        if self._routine_service:
+            self._ensure_crew_routines_job(bot)
+            return True
+
+        await bot.start_crew_routines()
+        return True
+
+    async def stop_bot_crew_routines(self, bot_name: str) -> bool:
+        """Stop crew routines for a bot (keeps config enabled)."""
+        bot = self.get_bot(bot_name)
+        if not bot:
+            return False
+        if self._routine_service:
+            job_id = self._crew_routines_jobs.get(bot_name)
+            if job_id:
+                self._routine_service.update_job(job_id, enabled=False)
+            if bot._crew_routines:
+                bot._crew_routines.set_external_scheduler(False)
+            return True
+
+        bot.stop_crew_routines()
+        return True
+
     def __len__(self) -> int:
         """Return number of registered bots."""
         return len(self._bots)
@@ -441,7 +587,7 @@ class MultiHeartbeatManager:
 
 
 __all__ = [
-    "MultiHeartbeatManager",
+    "MultiCrewRoutinesManager",
     "CrossBotCheck",
     "TeamHealthReport",
 ]

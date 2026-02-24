@@ -208,7 +208,7 @@ class ValidateSkillSafetyTool(Tool):
 
 class SecureRemediateTool(Tool):
     """
-    Tool to help users fix security issues in HEARTBEAT.md or skills.
+    Tool to help users fix security issues in routine files or skills.
 
     This tool can:
     - Scan files for exposed credentials
@@ -225,7 +225,7 @@ class SecureRemediateTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "Fix security issues in HEARTBEAT.md or skill files. "
+            "Fix security issues in routine files or skill files. "
             "This tool scans for exposed API keys/tokens, offers to store them "
             "securely in OS Keyring, and updates files to use {{symbolic_ref}} instead. "
             "Use this when you notice security warnings or users ask to secure their files."
@@ -238,7 +238,7 @@ class SecureRemediateTool(Tool):
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Path to file to scan and remediate (e.g., 'HEARTBEAT.md', 'skills/my-skill/SKILL.md')"
+                    "description": "Path to file to scan and remediate (e.g., 'routines/jobs.json', 'skills/my-skill/SKILL.md')"
                 },
                 "action": {
                     "type": "string",

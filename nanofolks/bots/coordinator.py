@@ -27,25 +27,25 @@ class BotTask:
     claimed_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    last_heartbeat: Optional[datetime] = None
+    last_crew_routines: Optional[datetime] = None
     result: Optional[dict] = None
     error: Optional[str] = None
 
 
 class BotCoordinator:
     """
-    Coordinates the bot fleet with heartbeats and task reassignment.
+    Coordinates the bot fleet with crew routines and task reassignment.
     
-    Each bot must send heartbeats while processing. If a bot fails to
-    heartbeat within the timeout, its tasks are reassigned.
+    Each bot must send crew routines while processing. If a bot fails to
+    check in within the timeout, its tasks are reassigned.
     """
     
-    HEARTBEAT_INTERVAL_SEC = 5
-    HEARTBEAT_TIMEOUT_SEC = 15
+    CREW_ROUTINES_INTERVAL_SEC = 5
+    CREW_ROUTINES_TIMEOUT_SEC = 15
     
     def __init__(self):
         self._tasks: Dict[str, BotTask] = {}
-        self._bot_heartbeats: Dict[str, datetime] = {}
+        self._bot_crew_routines: Dict[str, datetime] = {}
         self._lock = asyncio.Lock()
         self._running = False
         self._monitor_task: Optional[asyncio.Task] = None
@@ -71,20 +71,20 @@ class BotCoordinator:
         """Register a bot as active."""
         async with self._lock:
             self._active_bots.add(bot_name)
-            self._bot_heartbeats[bot_name] = datetime.now()
+            self._bot_crew_routines[bot_name] = datetime.now()
         logger.info(f"Bot {bot_name} registered")
     
     async def unregister_bot(self, bot_name: str) -> None:
         """Unregister a bot."""
         async with self._lock:
             self._active_bots.discard(bot_name)
-            self._bot_heartbeats.pop(bot_name, None)
+            self._bot_crew_routines.pop(bot_name, None)
         logger.info(f"Bot {bot_name} unregistered")
     
-    async def heartbeat(self, bot_name: str) -> None:
-        """Record a heartbeat from a bot."""
+    async def crew_routines(self, bot_name: str) -> None:
+        """Record a crew routines check-in from a bot."""
         async with self._lock:
-            self._bot_heartbeats[bot_name] = datetime.now()
+            self._bot_crew_routines[bot_name] = datetime.now()
     
     async def claim_task(
         self, 
@@ -103,12 +103,12 @@ class BotCoordinator:
             if task_id in self._tasks:
                 existing = self._tasks[task_id]
                 if existing.status == TaskStatus.CLAIMED:
-                    if existing.last_heartbeat:
-                        elapsed = (datetime.now() - existing.last_heartbeat).total_seconds()
-                        if elapsed > self.HEARTBEAT_TIMEOUT_SEC:
+                    if existing.last_crew_routines:
+                        elapsed = (datetime.now() - existing.last_crew_routines).total_seconds()
+                        if elapsed > self.CREW_ROUTINES_TIMEOUT_SEC:
                             existing.bot_name = bot_name
                             existing.claimed_at = datetime.now()
-                            existing.last_heartbeat = datetime.now()
+                            existing.last_crew_routines = datetime.now()
                             return True
                 return False
             
@@ -119,7 +119,7 @@ class BotCoordinator:
                 bot_name=bot_name,
                 status=TaskStatus.CLAIMED,
                 claimed_at=datetime.now(),
-                last_heartbeat=datetime.now()
+                last_crew_routines=datetime.now()
             )
             self._tasks[task_id] = task
             return True
@@ -167,17 +167,17 @@ class BotCoordinator:
             return False
     
     async def _monitor_loop(self) -> None:
-        """Monitor heartbeats and reassign stuck tasks."""
+        """Monitor crew routines and reassign stuck tasks."""
         while self._running:
-            await asyncio.sleep(self.HEARTBEAT_INTERVAL_SEC)
+            await asyncio.sleep(self.CREW_ROUTINES_INTERVAL_SEC)
             
             async with self._lock:
                 now = datetime.now()
                 
                 timed_out_bots = []
-                for bot_name, last_hb in self._bot_heartbeats.items():
+                for bot_name, last_hb in self._bot_crew_routines.items():
                     elapsed = (now - last_hb).total_seconds()
-                    if elapsed > self.HEARTBEAT_TIMEOUT_SEC:
+                    if elapsed > self.CREW_ROUTINES_TIMEOUT_SEC:
                         timed_out_bots.append(bot_name)
                 
                 for task in self._tasks.values():
@@ -190,7 +190,7 @@ class BotCoordinator:
                             task.status = TaskStatus.PENDING
                             task.bot_name = ""
                             task.claimed_at = None
-                            task.last_heartbeat = None
+                            task.last_crew_routines = None
                 
                 cutoff = now - timedelta(hours=1)
                 to_remove = [

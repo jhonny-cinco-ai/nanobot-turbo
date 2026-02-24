@@ -1,12 +1,14 @@
-"""Independent heartbeat service for each bot.
+"""Independent crew routines service for each bot (legacy heartbeat).
 
-This module provides BotHeartbeatService which manages autonomous
+This module provides BotCrewRoutinesService which manages autonomous
 periodic checks for individual bots with full resilience features.
 
 Supports two modes:
-1. HEARTBEAT.md mode (OpenClaw-style): Bot reads HEARTBEAT.md and executes tasks via LLM
+1. CREW_ROUTINES.md mode (OpenClaw-style): Bot reads CREW_ROUTINES.md and executes tasks via LLM
 2. Legacy check mode: Runs registered programmatic checks
 """
+
+# Note: Class name is legacy, but it is the crew routines engine.
 
 import asyncio
 import uuid
@@ -17,29 +19,29 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 from loguru import logger
 
 from nanofolks.agent.work_log import LogLevel
-from nanofolks.heartbeat.check_registry import check_registry
-from nanofolks.heartbeat.models import (
+from nanofolks.crew_routines.check_registry import check_registry
+from nanofolks.crew_routines.crew_routines_models import (
     CheckDefinition,
     CheckResult,
     CheckStatus,
-    HeartbeatConfig,
-    HeartbeatHistory,
-    HeartbeatTick,
+    CrewRoutinesConfig,
+    CrewRoutinesHistory,
+    CrewRoutinesTick,
 )
 from nanofolks.security.credential_detector import CredentialDetector
 from nanofolks.metrics import get_metrics
 
-# The prompt sent to agent during heartbeat (from legacy service)
-HEARTBEAT_PROMPT = """Read HEARTBEAT.md in your workspace (if it exists).
+# The prompt sent to agent during crew routines (from legacy service)
+CREW_ROUTINES_PROMPT = """Read CREW_ROUTINES.md in your workspace (if it exists).
 Follow any instructions or tasks listed there.
-If nothing needs attention, reply with just: HEARTBEAT_OK"""
+If nothing needs attention, reply with just: CREW_ROUTINES_OK"""
 
 # Token that indicates "nothing to do"
-HEARTBEAT_OK_TOKEN = "HEARTBEAT_OK"
+CREW_ROUTINES_OK_TOKEN = "CREW_ROUTINES_OK"
 
 
-def _is_heartbeat_empty(content: str | None) -> bool:
-    """Check if HEARTBEAT.md has no actionable content."""
+def _is_crew_routines_empty(content: str | None) -> bool:
+    """Check if CREW_ROUTINES.md has no actionable content."""
     if not content:
         return True
 
@@ -54,10 +56,10 @@ def _is_heartbeat_empty(content: str | None) -> bool:
     return True
 
 
-class BotHeartbeatService:
-    """Independent heartbeat service for a single bot.
+class BotCrewRoutinesService:
+    """Independent crew routines service for a single bot (legacy heartbeat).
 
-    Each bot runs its own heartbeat with role-specific:
+    Each bot runs its own crew routines with role-specific:
     - Intervals (default: 60 minutes for specialists, 30 for coordinator)
     - Checks (domain-specific periodic tasks)
     - Execution strategy (parallel/sequential, retries)
@@ -65,9 +67,9 @@ class BotHeartbeatService:
 
     Example:
         # Create service for a bot
-        service = BotHeartbeatService(
+        service = BotCrewRoutinesService(
             bot_instance=researcher_bot,
-            config=HeartbeatConfig(
+            config=CrewRoutinesConfig(
                 bot_name="researcher",
                 interval_s=3600,  # 60 minutes
                 checks=[
@@ -77,7 +79,7 @@ class BotHeartbeatService:
             )
         )
 
-        # Start the heartbeat
+        # Start the crew routines
         await service.start()
 
         # Later, stop it
@@ -87,31 +89,31 @@ class BotHeartbeatService:
     def __init__(
         self,
         bot_instance: Any,
-        config: HeartbeatConfig,
+        config: CrewRoutinesConfig,
         workspace: Path | None = None,
         provider=None,
         routing_config=None,
         reasoning_config=None,
         work_log_manager=None,
-        on_heartbeat: Callable[[str], Coroutine[Any, Any, str]] | None = None,
-        on_tick_complete: Optional[Callable[[HeartbeatTick], None]] = None,
+        on_crew_routines: Callable[[str], Coroutine[Any, Any, str]] | None = None,
+        on_tick_complete: Optional[Callable[[CrewRoutinesTick], None]] = None,
         on_check_complete: Optional[Callable[[CheckResult], None]] = None,
         tool_registry=None,
     ):
-        """Initialize heartbeat service for a bot.
+        """Initialize crew routines service for a bot.
 
         Args:
             bot_instance: The bot instance this service manages
-            config: Heartbeat configuration
-            workspace: Path to bot's workspace (for HEARTBEAT.md)
-            provider: LLM provider for heartbeat execution
+            config: CrewRoutines configuration
+            workspace: Path to bot's workspace (for CREW_ROUTINES.md)
+            provider: LLM provider for crew routines execution
             routing_config: Smart routing config for model selection
             reasoning_config: Reasoning/CoT settings for this bot
-            work_log_manager: Work log manager for logging heartbeat events
-            on_heartbeat: Callback to execute heartbeat tasks via LLM
+            work_log_manager: Work log manager for logging crew routines events
+            on_crew_routines: Callback to execute crew routines tasks via LLM
             on_tick_complete: Optional callback when a tick completes
             on_check_complete: Optional callback when a check completes
-            tool_registry: Optional tool registry for tool execution during heartbeat
+            tool_registry: Optional tool registry for tool execution during crew routines
         """
         self.bot = bot_instance
         self.config = config
@@ -120,7 +122,7 @@ class BotHeartbeatService:
         self.routing_config = routing_config
         self.reasoning_config = reasoning_config
         self.work_log_manager = work_log_manager
-        self.on_heartbeat = on_heartbeat
+        self.on_crew_routines = on_crew_routines
         self.on_tick_complete = on_tick_complete
         self.on_check_complete = on_check_complete
         self.tool_registry = tool_registry
@@ -128,10 +130,11 @@ class BotHeartbeatService:
         # State
         self._running = False
         self._task: Optional[asyncio.Task] = None
-        self._current_tick: Optional[HeartbeatTick] = None
+        self._current_tick: Optional[CrewRoutinesTick] = None
+        self._external_scheduler = False
 
         # History
-        self.history = HeartbeatHistory(bot_name=config.bot_name)
+        self.history = CrewRoutinesHistory(bot_name=config.bot_name)
         self._metrics = get_metrics()
 
         # Circuit breaker for resilience (optional)
@@ -153,22 +156,27 @@ class BotHeartbeatService:
 
     @property
     def is_running(self) -> bool:
-        """Check if heartbeat is currently running."""
+        """Check if crew routines are currently running."""
         return self._running
 
     @property
-    def current_tick(self) -> Optional[HeartbeatTick]:
+    def current_tick(self) -> Optional[CrewRoutinesTick]:
         """Get the currently executing tick (if any)."""
         return self._current_tick
 
     async def start(self) -> None:
-        """Start the heartbeat service."""
+        """Start the crew routines service."""
         if self._running:
-            logger.warning(f"[{self.config.bot_name}] Heartbeat already running")
+            logger.warning(f"[{self.config.bot_name}] Crew routines already running")
             return
 
         if not self.config.enabled:
-            logger.info(f"[{self.config.bot_name}] Heartbeat disabled")
+            logger.info(f"[{self.config.bot_name}] Crew routines disabled")
+            return
+
+        if self._external_scheduler:
+            self._running = True
+            logger.info(f"[{self.config.bot_name}] Crew routines marked running (external scheduler)")
             return
 
         self._running = True
@@ -176,49 +184,54 @@ class BotHeartbeatService:
 
         interval_min = self.config.interval_s / 60
         logger.info(
-            f"[{self.config.bot_name}] Heartbeat started "
+            f"[{self.config.bot_name}] Crew routines started "
             f"(every {interval_min:.0f}min, "
             f"{len(self.config.checks)} checks)"
         )
 
     def stop(self) -> None:
-        """Stop the heartbeat service."""
+        """Stop the crew routines service."""
         self._running = False
         if self._task:
             self._task.cancel()
             self._task = None
-        logger.info(f"[{self.config.bot_name}] Heartbeat stopped")
+        logger.info(f"[{self.config.bot_name}] Crew routines stopped")
 
-    async def trigger_now(self, reason: str = "manual") -> HeartbeatTick:
-        """Manually trigger a heartbeat tick.
+    def set_external_scheduler(self, enabled: bool) -> None:
+        """Enable or disable external scheduling for crew routines."""
+        self._external_scheduler = enabled
+        self._running = enabled
+
+    async def trigger_now(self, reason: str = "manual") -> CrewRoutinesTick:
+        """Manually trigger a crew routines tick.
 
         Args:
-            reason: Why heartbeat is being triggered
+            reason: Why crew routines are being triggered
 
         Returns:
-            HeartbeatTick result
+            CrewRoutinesTick result
         """
         return await self._execute_tick(trigger_type="manual", triggered_by=reason)
 
-    def _get_heartbeat_file_path(self) -> Path | None:
-        """Get path to bot's HEARTBEAT.md file."""
+    def _get_crew_routines_file_path(self) -> Path | None:
+        """Get path to bot's CREW_ROUTINES.md file."""
         if self.workspace:
-            # Option 1: workspace/bots/{bot_name}/HEARTBEAT.md
-            bot_heartbeat = self.workspace / "bots" / self.config.bot_name / "HEARTBEAT.md"
-            if bot_heartbeat.exists():
-                return bot_heartbeat
+            # Option 1: workspace/bots/{bot_name}/CREW_ROUTINES.md
+            bot_crew_routines = self.workspace / "bots" / self.config.bot_name / "CREW_ROUTINES.md"
+            if bot_crew_routines.exists():
+                return bot_crew_routines
 
-            # Option 2: workspace/HEARTBEAT.md (for leader)
-            workspace_heartbeat = self.workspace / "HEARTBEAT.md"
-            if workspace_heartbeat.exists():
-                return workspace_heartbeat
+            # Option 2: workspace/CREW_ROUTINES.md (for leader)
+            workspace_crew_routines = self.workspace / "CREW_ROUTINES.md"
+            if workspace_crew_routines.exists():
+                return workspace_crew_routines
 
         return None
 
-    _heartbeat_secret_warning_shown: set[str] = set()
+    _crew_routines_secret_warning_shown: set[str] = set()
 
-    def _scan_heartbeat_for_secrets(self, content: str, file_path: Path) -> list[dict]:
-        """Scan HEARTBEAT.md content for credentials.
+    def _scan_crew_routines_for_secrets(self, content: str, file_path: Path) -> list[dict]:
+        """Scan CREW_ROUTINES.md content for credentials.
 
         Returns list of detected credentials with type and value (masked).
         """
@@ -239,16 +252,16 @@ class BotHeartbeatService:
 
         return []
 
-    def _warn_heartbeat_secrets(self, content: str, file_path: Path) -> None:
-        """Warn if HEARTBEAT.md contains potential secrets."""
+    def _warn_crew_routines_secrets(self, content: str, file_path: Path) -> None:
+        """Warn if CREW_ROUTINES.md contains potential secrets."""
         file_key = str(file_path)
-        if file_key in self._heartbeat_secret_warning_shown:
+        if file_key in self._crew_routines_secret_warning_shown:
             return
 
-        detected = self._scan_heartbeat_for_secrets(content, file_path)
+        detected = self._scan_crew_routines_for_secrets(content, file_path)
 
         if detected:
-            self._heartbeat_secret_warning_shown.add(file_key)
+            self._crew_routines_secret_warning_shown.add(file_key)
             logger.warning(
                 f"[{self.config.bot_name}] ⚠️ SECURITY WARNING: Potential secrets detected in {file_path.name}"
             )
@@ -276,72 +289,72 @@ class BotHeartbeatService:
                 f"\n  Example: After adding the key, update {file_path.name} to use {{{{{key_type}}}}} instead of the actual key value."
             )
 
-    def _read_heartbeat_content(self) -> str | None:
-        """Read HEARTBEAT.md content if exists."""
-        heartbeat_file = self._get_heartbeat_file_path()
-        if heartbeat_file:
+    def _read_crew_routines_content(self) -> str | None:
+        """Read CREW_ROUTINES.md content if exists."""
+        crew_routines_file = self._get_crew_routines_file_path()
+        if crew_routines_file:
             try:
-                content = heartbeat_file.read_text(encoding="utf-8")
-                self._warn_heartbeat_secrets(content, heartbeat_file)
+                content = crew_routines_file.read_text(encoding="utf-8")
+                self._warn_crew_routines_secrets(content, crew_routines_file)
                 return content
             except Exception as e:
-                logger.warning(f"[{self.config.bot_name}] Failed to read HEARTBEAT.md: {e}")
+                logger.warning(f"[{self.config.bot_name}] Failed to read CREW_ROUTINES.md: {e}")
         return None
 
-    async def _execute_heartbeat_md(self) -> CheckResult | None:
-        """Execute HEARTBEAT.md tasks (OpenClaw-style).
+    async def _execute_crew_routines_md(self) -> CheckResult | None:
+        """Execute CREW_ROUTINES.md tasks (OpenClaw-style).
 
-        Reads HEARTBEAT.md from the bot's workspace and executes
+        Reads CREW_ROUTINES.md from the bot's workspace and executes
         tasks via:
-        1. on_heartbeat callback (if provided)
+        1. on_crew_routines callback (if provided)
         2. Direct LLM call with routing + reasoning config (if provider available)
 
         Returns:
-            CheckResult if HEARTBEAT.md was processed, None if not present
+            CheckResult if CREW_ROUTINES.md was processed, None if not present
         """
-        content = self._read_heartbeat_content()
+        content = self._read_crew_routines_content()
 
-        # Check if HEARTBEAT.md exists and has content
-        if _is_heartbeat_empty(content):
-            logger.debug(f"[{self.config.bot_name}] HEARTBEAT.md empty or not found")
+        # Check if CREW_ROUTINES.md exists and has content
+        if _is_crew_routines_empty(content):
+            logger.debug(f"[{self.config.bot_name}] CREW_ROUTINES.md empty or not found")
             return None
 
         # Convert any credentials to symbolic references before sending to LLM
         from nanofolks.security.symbolic_converter import get_symbolic_converter
         converter = get_symbolic_converter()
-        conversion_result = converter.convert(content, f"heartbeat:{self.config.bot_name}")
+        conversion_result = converter.convert(content, f"crew_routines:{self.config.bot_name}")
         safe_content = conversion_result.text
 
         if conversion_result.credentials:
             logger.info(
                 f"🔐 [{self.config.bot_name}] Converted {len(conversion_result.credentials)} "
-                f"credential(s) to symbolic references in HEARTBEAT.md"
+                f"credential(s) to symbolic references in CREW_ROUTINES.md"
             )
 
-        # Log heartbeat start
-        self._log_heartbeat_start(content)
+        # Log crew routines start
+        self._log_crew_routines_start(content)
 
-        logger.info(f"[{self.config.bot_name}] Executing HEARTBEAT.md tasks...")
+        logger.info(f"[{self.config.bot_name}] Executing CREW_ROUTINES.md tasks...")
 
         try:
             # Option 1: Use callback if provided
-            if self.on_heartbeat:
+            if self.on_crew_routines:
                 response = await self._execute_via_callback()
             # Option 2: Use direct LLM with routing (use safe_content with refs resolved)
             elif self.provider:
                 response = await self._execute_via_provider(safe_content)
             # No way to execute
             else:
-                logger.warning(f"[{self.config.bot_name}] No way to execute HEARTBEAT.md")
-                self._log_heartbeat_error("No execution path available")
+                logger.warning(f"[{self.config.bot_name}] No way to execute CREW_ROUTINES.md")
+                self._log_crew_routines_error("No execution path available")
                 return None
 
             # Check if agent said "nothing to do"
-            if HEARTBEAT_OK_TOKEN.replace("_", "") in response.upper().replace("_", ""):
-                logger.info(f"[{self.config.bot_name}] HEARTBEAT_OK (no action needed)")
-                self._log_heartbeat_ok()
+            if CREW_ROUTINES_OK_TOKEN.replace("_", "") in response.upper().replace("_", ""):
+                logger.info(f"[{self.config.bot_name}] CREW_ROUTINES_OK (no action needed)")
+                self._log_crew_routines_ok()
                 return CheckResult(
-                    check_name="HEARTBEAT.md",
+                    check_name="CREW_ROUTINES.md",
                     status=CheckStatus.SUCCESS,
                     started_at=datetime.now(),
                     completed_at=datetime.now(),
@@ -349,10 +362,10 @@ class BotHeartbeatService:
                     message="No action needed"
                 )
             else:
-                logger.info(f"[{self.config.bot_name}] HEARTBEAT.md: action taken")
-                self._log_heartbeat_action(response)
+                logger.info(f"[{self.config.bot_name}] CREW_ROUTINES.md: action taken")
+                self._log_crew_routines_action(response)
                 return CheckResult(
-                    check_name="HEARTBEAT.md",
+                    check_name="CREW_ROUTINES.md",
                     status=CheckStatus.SUCCESS,
                     started_at=datetime.now(),
                     completed_at=datetime.now(),
@@ -361,10 +374,10 @@ class BotHeartbeatService:
                 )
 
         except Exception as e:
-            logger.error(f"[{self.config.bot_name}] HEARTBEAT.md execution failed: {e}")
-            self._log_heartbeat_error(str(e))
+            logger.error(f"[{self.config.bot_name}] CREW_ROUTINES.md execution failed: {e}")
+            self._log_crew_routines_error(str(e))
             return CheckResult(
-                check_name="HEARTBEAT.md",
+                check_name="CREW_ROUTINES.md",
                 status=CheckStatus.FAILED,
                 started_at=datetime.now(),
                 completed_at=datetime.now(),
@@ -373,15 +386,15 @@ class BotHeartbeatService:
                 message="Execution failed"
             )
 
-    def _log_heartbeat_start(self, content: str) -> None:
-        """Log heartbeat tick start."""
+    def _log_crew_routines_start(self, content: str) -> None:
+        """Log crew routines tick start."""
         if not self.work_log_manager:
             return
         try:
             self.work_log_manager.log(
                 level=LogLevel.INFO,
-                category="heartbeat",
-                message=f"Heartbeat tick started for @{self.config.bot_name}",
+                category="crew_routines",
+                message=f"Crew routines tick started for @{self.config.bot_name}",
                 details={
                     "bot_name": self.config.bot_name,
                     "tasks": content[:1000] if content else "",
@@ -391,33 +404,33 @@ class BotHeartbeatService:
                 bot_name=self.config.bot_name,
             )
         except Exception as e:
-            logger.warning(f"[{self.config.bot_name}] Failed to log heartbeat start: {e}")
+            logger.warning(f"[{self.config.bot_name}] Failed to log crew routines start: {e}")
 
-    def _log_heartbeat_ok(self) -> None:
-        """Log heartbeat with no action needed."""
+    def _log_crew_routines_ok(self) -> None:
+        """Log crew routines with no action needed."""
         if not self.work_log_manager:
             return
         try:
             self.work_log_manager.log(
                 level=LogLevel.INFO,
-                category="heartbeat",
-                message=f"HEARTBEAT_OK - No action needed for @{self.config.bot_name}",
+                category="crew_routines",
+                message=f"CREW_ROUTINES_OK - No action needed for @{self.config.bot_name}",
                 details={"bot_name": self.config.bot_name, "action": "none"},
                 triggered_by=self.config.bot_name,
                 bot_name=self.config.bot_name,
             )
         except Exception as e:
-            logger.warning(f"[{self.config.bot_name}] Failed to log HEARTBEAT_OK: {e}")
+            logger.warning(f"[{self.config.bot_name}] Failed to log CREW_ROUTINES_OK: {e}")
 
-    def _log_heartbeat_action(self, response: str) -> None:
-        """Log heartbeat action taken."""
+    def _log_crew_routines_action(self, response: str) -> None:
+        """Log crew routines action taken."""
         if not self.work_log_manager:
             return
         try:
             self.work_log_manager.log(
                 level=LogLevel.ACTION,
-                category="heartbeat",
-                message=f"Heartbeat action taken by @{self.config.bot_name}",
+                category="crew_routines",
+                message=f"Crew routines action taken by @{self.config.bot_name}",
                 details={
                     "bot_name": self.config.bot_name,
                     "response": response[:2000],
@@ -427,17 +440,17 @@ class BotHeartbeatService:
                 bot_name=self.config.bot_name,
             )
         except Exception as e:
-            logger.warning(f"[{self.config.bot_name}] Failed to log heartbeat action: {e}")
+            logger.warning(f"[{self.config.bot_name}] Failed to log crew routines action: {e}")
 
-    def _log_heartbeat_error(self, error: str) -> None:
-        """Log heartbeat error."""
+    def _log_crew_routines_error(self, error: str) -> None:
+        """Log crew routines error."""
         if not self.work_log_manager:
             return
         try:
             self.work_log_manager.log(
                 level=LogLevel.ERROR,
-                category="heartbeat",
-                message=f"Heartbeat error for @{self.config.bot_name}: {error}",
+                category="crew_routines",
+                message=f"Crew routines error for @{self.config.bot_name}: {error}",
                 details={
                     "bot_name": self.config.bot_name,
                     "error": error,
@@ -446,14 +459,14 @@ class BotHeartbeatService:
                 bot_name=self.config.bot_name,
             )
         except Exception as e:
-            logger.warning(f"[{self.config.bot_name}] Failed to log heartbeat error: {e}")
+            logger.warning(f"[{self.config.bot_name}] Failed to log crew routines error: {e}")
 
     async def _execute_via_callback(self) -> str:
-        """Execute heartbeat via callback."""
-        return await self.on_heartbeat(HEARTBEAT_PROMPT)
+        """Execute crew routines via callback."""
+        return await self.on_crew_routines(CREW_ROUTINES_PROMPT)
 
     async def _execute_via_provider(self, content: str) -> str:
-        """Execute heartbeat directly via provider with routing and optional tools.
+        """Execute crew routines directly via provider with routing and optional tools.
 
         Uses smart model selection and bot's reasoning config.
         If tool_registry is provided, executes tools as needed.
@@ -462,7 +475,7 @@ class BotHeartbeatService:
         model = await self._select_model()
 
         # Build messages
-        messages = self._build_heartbeat_messages(content)
+        messages = self._build_crew_routines_messages(content)
 
         # Apply reasoning config (temperature, etc.)
         extra_kwargs = {}
@@ -476,7 +489,7 @@ class BotHeartbeatService:
             tool_definitions = self.tool_registry.get_definitions()
 
         logger.info(
-            f"[{self.config.bot_name}] Heartbeat using model: {model}"
+            f"[{self.config.bot_name}] CrewRoutines using model: {model}"
             + (f" with {len(tool_definitions)} tools" if tool_definitions else "")
         )
 
@@ -503,7 +516,7 @@ class BotHeartbeatService:
         model: str,
         extra_kwargs: dict,
     ) -> str:
-        """Execute heartbeat with tool support.
+        """Execute crew routines with tool support.
 
         Args:
             messages: Message list for LLM
@@ -543,7 +556,7 @@ class BotHeartbeatService:
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                logger.debug(f"[{self.config.bot_name}] Heartbeat executing: {tool_name}")
+                logger.debug(f"[{self.config.bot_name}] CrewRoutines executing: {tool_name}")
                 result = await self.tool_registry.execute(tool_name, tool_args)
 
                 messages.append({
@@ -570,7 +583,7 @@ class BotHeartbeatService:
                 ],
             })
 
-        logger.warning(f"[{self.config.bot_name}] Heartbeat max iterations reached")
+        logger.warning(f"[{self.config.bot_name}] CrewRoutines max iterations reached")
         return content
 
     async def _select_model(self) -> str:
@@ -590,9 +603,9 @@ class BotHeartbeatService:
             # Create routing stage
             routing_stage = RoutingStage(config=self.routing_config)
 
-            # Create minimal context for heartbeat (no session history)
+            # Create minimal context for crew routines (no session history)
             routing_ctx = RoutingContext(
-                message=None,  # Heartbeat has no user message
+                message=None,  # CrewRoutines has no user message
                 session=None,
                 config=self.routing_config
             )
@@ -608,23 +621,23 @@ class BotHeartbeatService:
 
         return default_model
 
-    def _build_heartbeat_messages(self, content: str) -> list[dict]:
-        """Build messages for heartbeat with reasoning config."""
+    def _build_crew_routines_messages(self, content: str) -> list[dict]:
+        """Build messages for crew routines with reasoning config."""
         # Build system prompt with reasoning guidance
-        system_prompt = HEARTBEAT_PROMPT
+        system_prompt = CREW_ROUTINES_PROMPT
 
         if self.reasoning_config:
             # Add reasoning guidance based on CoT level
-            cot_prompt = self.reasoning_config.get_heartbeat_prompt()
+            cot_prompt = self.reasoning_config.get_crew_routines_prompt()
             if cot_prompt:
                 system_prompt = f"{system_prompt}\n\n{cot_prompt}"
 
-        # Add HEARTBEAT.md content
-        user_message = f"""Checklist from HEARTBEAT.md:
+        # Add CREW_ROUTINES.md content
+        user_message = f"""Checklist from CREW_ROUTINES.md:
 
 {content}
 
-Evaluate each item and take any necessary actions. If nothing needs attention, respond with just: HEARTBEAT_OK"""
+Evaluate each item and take any necessary actions. If nothing needs attention, respond with just: CREW_ROUTINES_OK"""
 
         return [
             {"role": "system", "content": system_prompt},
@@ -632,7 +645,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
         ]
 
     async def _run_loop(self) -> None:
-        """Main heartbeat loop."""
+        """Main crew routines loop."""
         while self._running:
             try:
                 # Wait for interval
@@ -645,28 +658,28 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
                 await self._execute_tick(trigger_type="scheduled")
 
             except asyncio.CancelledError:
-                logger.debug(f"[{self.config.bot_name}] Heartbeat loop cancelled")
+                logger.debug(f"[{self.config.bot_name}] CrewRoutines loop cancelled")
                 break
             except Exception as e:
-                logger.error(f"[{self.config.bot_name}] Heartbeat error: {e}")
+                logger.error(f"[{self.config.bot_name}] CrewRoutines error: {e}")
                 # Continue loop even on error
 
     async def _execute_tick(
         self,
         trigger_type: str = "scheduled",
         triggered_by: Optional[str] = None
-    ) -> HeartbeatTick:
-        """Execute a single heartbeat tick.
+    ) -> CrewRoutinesTick:
+        """Execute a single crew routines tick.
 
         Args:
             trigger_type: Type of trigger (scheduled, manual, event)
             triggered_by: What triggered this tick
 
         Returns:
-            HeartbeatTick with results
+            CrewRoutinesTick with results
         """
         tick_id = str(uuid.uuid4())[:8]
-        tick = HeartbeatTick(
+        tick = CrewRoutinesTick(
             tick_id=tick_id,
             bot_name=self.config.bot_name,
             started_at=datetime.now(),
@@ -676,7 +689,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
         )
         self._current_tick = tick
         self._metrics.incr(
-            "heartbeat.tick.started",
+            "crew_routines.tick.started",
             tags={"bot": self.config.bot_name, "trigger": trigger_type},
         )
 
@@ -697,13 +710,13 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
                     )
                     tick.status = "skipped"
                     self._metrics.incr(
-                        "heartbeat.tick.skipped",
+                        "crew_routines.tick.skipped",
                         tags={"bot": self.config.bot_name},
                     )
                     return tick
 
-            # First: Check HEARTBEAT.md (OpenClaw-style)
-            heartbeat_result = await self._execute_heartbeat_md()
+            # First: Check CREW_ROUTINES.md (OpenClaw-style)
+            crew_routines_result = await self._execute_crew_routines_md()
 
             # Then: Execute registered checks (legacy mode)
             if self.config.parallel_checks:
@@ -711,9 +724,9 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
             else:
                 results = await self._execute_checks_sequential(tick)
 
-            # Include HEARTBEAT.md result if it was executed
-            if heartbeat_result:
-                results = [heartbeat_result] + results
+            # Include CREW_ROUTINES.md result if it was executed
+            if crew_routines_result:
+                results = [crew_routines_result] + results
 
             tick.results = results
 
@@ -744,12 +757,12 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
             )
             if tick.status == "completed":
                 self._metrics.incr(
-                    "heartbeat.tick.completed",
+                    "crew_routines.tick.completed",
                     tags={"bot": self.config.bot_name},
                 )
             else:
                 self._metrics.incr(
-                    "heartbeat.tick.completed_with_failures",
+                    "crew_routines.tick.completed_with_failures",
                     tags={"bot": self.config.bot_name},
                 )
 
@@ -757,7 +770,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
             tick.status = "failed"
             logger.error(f"[{self.config.bot_name}] Tick {tick_id} failed: {e}")
             self._metrics.incr(
-                "heartbeat.tick.failed",
+                "crew_routines.tick.failed",
                 tags={"bot": self.config.bot_name},
             )
 
@@ -770,7 +783,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
 
         return tick
 
-    async def _execute_checks_parallel(self, tick: HeartbeatTick) -> List[CheckResult]:
+    async def _execute_checks_parallel(self, tick: CrewRoutinesTick) -> List[CheckResult]:
         """Execute checks in parallel with concurrency limit."""
         semaphore = asyncio.Semaphore(self.config.max_concurrent_checks)
 
@@ -781,7 +794,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
         tasks = [run_with_limit(check) for check in self.config.checks if check.enabled]
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _execute_checks_sequential(self, tick: HeartbeatTick) -> List[CheckResult]:
+    async def _execute_checks_sequential(self, tick: CrewRoutinesTick) -> List[CheckResult]:
         """Execute checks one at a time."""
         results = []
 
@@ -801,11 +814,11 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
     async def _execute_single_check(
         self,
         check_def: CheckDefinition,
-        tick: HeartbeatTick
+        tick: CrewRoutinesTick
     ) -> CheckResult:
         """Execute a single check with retry logic."""
         self._metrics.incr(
-            "heartbeat.check.started",
+            "crew_routines.check.started",
             tags={"bot": self.config.bot_name, "check": check_def.name},
         )
 
@@ -846,7 +859,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
             # Check result
             if result.success:
                 self._metrics.incr(
-                    "heartbeat.check.completed",
+                    "crew_routines.check.completed",
                     tags={"bot": self.config.bot_name, "check": check_def.name},
                 )
                 return result
@@ -863,13 +876,13 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
 
         # All retries exhausted
         self._metrics.incr(
-            "heartbeat.check.failed",
+            "crew_routines.check.failed",
             tags={"bot": self.config.bot_name, "check": check_def.name},
         )
         return result
 
     def get_status(self) -> Dict[str, Any]:
-        """Get current heartbeat status.
+        """Get current crew routines status.
 
         Returns:
             Status dictionary with metrics
@@ -877,6 +890,7 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
         return {
             "bot_name": self.config.bot_name,
             "running": self._running,
+            "enabled": self.config.enabled,
             "interval_s": self.config.interval_s,
             "interval_min": self.config.get_interval_minutes(),
             "checks_count": len(self.config.checks),
@@ -912,4 +926,4 @@ Evaluate each item and take any necessary actions. If nothing needs attention, r
         return True
 
 
-__all__ = ["BotHeartbeatService"]
+__all__ = ["BotCrewRoutinesService"]

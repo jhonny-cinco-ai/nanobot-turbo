@@ -737,14 +737,14 @@ Then restart nanofolks for secure access.
                     if profile:
                         console.print(f"  {profile.emoji} {profile.bot_title} ({bot_name})")
 
-            # Create per-bot files (AGENTS.md, IDENTITY.md if not already created, and HEARTBEAT.md)
+            # Create per-bot files (AGENTS.md, IDENTITY.md if not already created)
             self._create_bot_files(workspace_path)
 
         except Exception as e:
             console.print(f"[yellow]⚠ Could not apply team selection: {e}[/yellow]")
 
     def _create_bot_files(self, workspace_path: Path) -> None:
-        """Create per-bot AGENTS.md, IDENTITY.md, and HEARTBEAT.md files.
+        """Create per-bot AGENTS.md and IDENTITY.md files.
 
         Args:
             workspace_path: Path to workspace
@@ -773,49 +773,11 @@ Then restart nanofolks for secure access.
             if identity_count > 0:
                 console.print(f"  [green]✓[/green] Created IDENTITY.md for {identity_count} bots")
 
-            # Create HEARTBEAT.md for each bot
-            bots_dir = workspace_path / "bots"
-            bots_dir.mkdir(parents=True, exist_ok=True)
-
-            heartbeat_count = 0
-            for bot_name in team:
-                bot_dir = bots_dir / bot_name
-                bot_dir.mkdir(parents=True, exist_ok=True)
-
-                heartbeat_file = bot_dir / "HEARTBEAT.md"
-
-                if not heartbeat_file.exists():
-                    template = f"""# Heartbeat for @{bot_name}
-
-This file defines periodic tasks for @{bot_name}.
-
-## Format
-Use markdown with checkboxes:
-- [ ] Task description
-
-## Examples
-
-### Every 30 minutes
-- [ ] Check for new updates
-
-### Every hour
-- [ ] Monitor system status
-
-### Daily
-- [ ] Generate daily summary
-"""
-                    heartbeat_file.write_text(template)
-                    heartbeat_count += 1
-
-            if heartbeat_count > 0:
-                console.print(f"  [green]✓[/green] Created HEARTBEAT.md for {heartbeat_count} bots")
-
             console.print("\n[green]✓ Bot configuration files ready![/green]")
             console.print("[dim]  - AGENTS.md: Role-specific instructions for each bot[/dim]")
             console.print(
                 "[dim]  - IDENTITY.md: Character definition and relationships (from team style)[/dim]"
             )
-            console.print("[dim]  - HEARTBEAT.md: Periodic tasks (leave empty if not needed)[/dim]")
 
         except Exception as e:
             console.print(f"[yellow]⚠ Could not create bot files: {e}[/yellow]")

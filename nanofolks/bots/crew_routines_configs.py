@@ -1,14 +1,14 @@
-"""Heartbeat configurations for all bot types.
+"""Crew routines configurations for all bot types.
 
-This module provides default heartbeat configurations for each bot type
+This module provides default crew routines configurations for each bot type
 and utilities for loading custom configurations. Users can override
-defaults by providing a heartbeat.yaml or heartbeat.json file.
+defaults by providing a crew_routines.yaml or crew_routines.json file.
 
 Usage:
-    from nanofolks.bots.heartbeat_configs import get_bot_heartbeat_config
+    from nanofolks.bots.crew_routines_configs import get_bot_crew_routines_config
 
-    config = get_bot_heartbeat_config("researcher")
-    service = BotHeartbeatService(bot, config)
+    config = get_bot_crew_routines_config("researcher")
+    service = BotCrewRoutinesService(bot, config)
     await service.start()
 """
 
@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 import yaml
 from loguru import logger
 
-from nanofolks.heartbeat.models import CheckDefinition, CheckPriority, HeartbeatConfig
+from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckPriority, CrewRoutinesConfig
 
 # Default interval: 60 minutes for specialists, 30 minutes for coordinator
 DEFAULT_SPECIALIST_INTERVAL_S = 3600  # 60 minutes
@@ -49,7 +49,7 @@ def _create_check(name: str, description: str, priority: str = "normal",
 # Default Configurations by Bot Type
 # =============================================================================
 
-RESEARCHER_CONFIG = HeartbeatConfig(
+RESEARCHER_CONFIG = CrewRoutinesConfig(
     bot_name="researcher",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
     max_execution_time_s=300,
@@ -104,7 +104,7 @@ RESEARCHER_CONFIG = HeartbeatConfig(
 )
 
 
-CODER_CONFIG = HeartbeatConfig(
+CODER_CONFIG = CrewRoutinesConfig(
     bot_name="coder",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
     max_execution_time_s=300,
@@ -160,7 +160,7 @@ CODER_CONFIG = HeartbeatConfig(
 )
 
 
-SOCIAL_CONFIG = HeartbeatConfig(
+SOCIAL_CONFIG = CrewRoutinesConfig(
     bot_name="social",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
     max_execution_time_s=300,
@@ -212,7 +212,7 @@ SOCIAL_CONFIG = HeartbeatConfig(
 )
 
 
-AUDITOR_CONFIG = HeartbeatConfig(
+AUDITOR_CONFIG = CrewRoutinesConfig(
     bot_name="auditor",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
     max_execution_time_s=600,  # 10 minutes for comprehensive checks
@@ -325,7 +325,7 @@ AUDITOR_CONFIG = HeartbeatConfig(
 )
 
 
-CREATIVE_CONFIG = HeartbeatConfig(
+CREATIVE_CONFIG = CrewRoutinesConfig(
     bot_name="creative",
     interval_s=DEFAULT_SPECIALIST_INTERVAL_S,
     max_execution_time_s=300,
@@ -373,7 +373,7 @@ CREATIVE_CONFIG = HeartbeatConfig(
 )
 
 
-COORDINATOR_CONFIG = HeartbeatConfig(
+COORDINATOR_CONFIG = CrewRoutinesConfig(
     bot_name="coordinator",
     interval_s=DEFAULT_COORDINATOR_INTERVAL_S,  # 30 minutes - more frequent
     max_execution_time_s=180,
@@ -431,7 +431,7 @@ COORDINATOR_CONFIG = HeartbeatConfig(
 
 
 # Map of bot names to default configs
-DEFAULT_CONFIGS: Dict[str, HeartbeatConfig] = {
+DEFAULT_CONFIGS: Dict[str, CrewRoutinesConfig] = {
     "researcher": RESEARCHER_CONFIG,
     "coder": CODER_CONFIG,
     "social": SOCIAL_CONFIG,
@@ -446,7 +446,7 @@ DEFAULT_CONFIGS: Dict[str, HeartbeatConfig] = {
 # =============================================================================
 
 def load_config_from_file(config_path: Path) -> Optional[Dict[str, Any]]:
-    """Load heartbeat configuration from YAML or JSON file.
+    """Load crew routines configuration from YAML or JSON file.
 
     Args:
         config_path: Path to configuration file
@@ -471,11 +471,11 @@ def load_config_from_file(config_path: Path) -> Optional[Dict[str, Any]]:
                     f.seek(0)
                     return json.load(f)
     except Exception as e:
-        logger.error(f"Failed to load heartbeat config from {config_path}: {e}")
+        logger.error(f"Failed to load crew routines config from {config_path}: {e}")
         return None
 
 
-def merge_config(base: HeartbeatConfig, override: Dict[str, Any]) -> HeartbeatConfig:
+def merge_config(base: CrewRoutinesConfig, override: Dict[str, Any]) -> CrewRoutinesConfig:
     """Merge override settings into base configuration.
 
     Args:
@@ -486,7 +486,7 @@ def merge_config(base: HeartbeatConfig, override: Dict[str, Any]) -> HeartbeatCo
         Merged configuration
     """
     # Create a copy
-    merged = HeartbeatConfig(
+    merged = CrewRoutinesConfig(
         bot_name=base.bot_name,
         interval_s=override.get('interval_s', base.interval_s),
         max_execution_time_s=override.get('max_execution_time_s', base.max_execution_time_s),
@@ -528,30 +528,30 @@ def merge_config(base: HeartbeatConfig, override: Dict[str, Any]) -> HeartbeatCo
     return merged
 
 
-def get_bot_heartbeat_config(
+def get_bot_crew_routines_config(
     bot_name: str,
     config_dir: Optional[Path] = None,
     custom_overrides: Optional[Dict[str, Any]] = None
-) -> HeartbeatConfig:
-    """Get heartbeat configuration for a bot.
+) -> CrewRoutinesConfig:
+    """Get crew routines configuration for a bot.
 
     Loads default configuration and applies any overrides from:
-    1. Configuration file (heartbeat.yaml or heartbeat.json)
+    1. Configuration file (crew_routines.yaml or crew_routines.json)
     2. Custom overrides passed as parameter
 
     Args:
         bot_name: Name of the bot (researcher, coder, social, auditor, creative, coordinator)
-        config_dir: Directory containing heartbeat.yaml/json (default: current dir)
+        config_dir: Directory containing crew_routines.yaml/json (default: current dir)
         custom_overrides: Additional override settings
 
     Returns:
-        Configured HeartbeatConfig for the bot
+        Configured CrewRoutinesConfig for the bot
 
     Example:
-        >>> config = get_bot_heartbeat_config("researcher")
+        >>> config = get_bot_crew_routines_config("researcher")
         >>> print(f"Interval: {config.interval_s}s")
 
-        >>> config = get_bot_heartbeat_config(
+        >>> config = get_bot_crew_routines_config(
         ...     "social",
         ...     custom_overrides={"interval_s": 1800}  # 30 min
         ... )
@@ -559,7 +559,7 @@ def get_bot_heartbeat_config(
     # Get default config
     if bot_name not in DEFAULT_CONFIGS:
         logger.warning(f"Unknown bot '{bot_name}', using generic config")
-        base_config = HeartbeatConfig(bot_name=bot_name)
+        base_config = CrewRoutinesConfig(bot_name=bot_name)
     else:
         base_config = DEFAULT_CONFIGS[bot_name]
 
@@ -567,12 +567,12 @@ def get_bot_heartbeat_config(
     if config_dir is None:
         config_dir = Path.cwd()
 
-    for filename in ['heartbeat.yaml', 'heartbeat.yml', 'heartbeat.json']:
+    for filename in ['crew_routines.yaml', 'crew_routines.yml', 'crew_routines.json']:
         config_file = config_dir / filename
         if config_file.exists():
             file_config = load_config_from_file(config_file)
             if file_config and bot_name in file_config:
-                logger.info(f"Loading heartbeat config for {bot_name} from {config_file}")
+                logger.info(f"Loading crew routines config for {bot_name} from {config_file}")
                 base_config = merge_config(base_config, file_config[bot_name])
             break
 
@@ -583,10 +583,10 @@ def get_bot_heartbeat_config(
     return base_config
 
 
-def get_all_heartbeat_configs(
+def get_all_crew_routines_configs(
     config_dir: Optional[Path] = None
-) -> Dict[str, HeartbeatConfig]:
-    """Get heartbeat configurations for all bots.
+) -> Dict[str, CrewRoutinesConfig]:
+    """Get crew routines configurations for all bots.
 
     Args:
         config_dir: Directory containing configuration files
@@ -595,17 +595,17 @@ def get_all_heartbeat_configs(
         Dict mapping bot names to their configurations
     """
     return {
-        name: get_bot_heartbeat_config(name, config_dir)
+        name: get_bot_crew_routines_config(name, config_dir)
         for name in DEFAULT_CONFIGS.keys()
     }
 
 
-def save_heartbeat_config(
-    config: HeartbeatConfig,
+def save_crew_routines_config(
+    config: CrewRoutinesConfig,
     config_path: Path,
     format: str = "yaml"
 ) -> None:
-    """Save heartbeat configuration to file.
+    """Save crew routines configuration to file.
 
     Args:
         config: Configuration to save
@@ -613,8 +613,8 @@ def save_heartbeat_config(
         format: 'yaml' or 'json'
 
     Example:
-        >>> config = HeartbeatConfig(bot_name="custom")
-        >>> save_heartbeat_config(config, Path("config.yaml"))
+        >>> config = CrewRoutinesConfig(bot_name="custom")
+        >>> save_crew_routines_config(config, Path("config.yaml"))
     """
     config_dict = {
         config.bot_name: {
@@ -651,7 +651,7 @@ def save_heartbeat_config(
         else:
             json.dump(config_dict, f, indent=2)
 
-    logger.info(f"Saved heartbeat config to {config_path}")
+    logger.info(f"Saved crew routines config to {config_path}")
 
 
 __all__ = [
@@ -665,9 +665,9 @@ __all__ = [
     "DEFAULT_CONFIGS",
 
     # Functions
-    "get_bot_heartbeat_config",
-    "get_all_heartbeat_configs",
+    "get_bot_crew_routines_config",
+    "get_all_crew_routines_configs",
     "load_config_from_file",
-    "save_heartbeat_config",
+    "save_crew_routines_config",
     "merge_config",
 ]

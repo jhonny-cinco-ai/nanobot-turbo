@@ -31,7 +31,7 @@ Current:                          Target:
 │   ├── cli/                      │   ├── cli/
 │   ├── config/                   │   ├── config/
 │   ├── coordinator/              │   ├── coordinator/
-│   ├── heartbeat/                │   ├── heartbeat/
+│   ├── routines/                 │   ├── routines/
 │   ├── memory/                   │   ├── memory/
 │   ├── models/                   │   ├── models/
 │   ├── providers/                │   ├── providers/
@@ -54,7 +54,7 @@ Current:                          Target:
 | Media | `~/.nanofolks/media/` | `~/.nanofolks/media/` |
 | Bridge | `~/.nanofolks/bridge/` | `~/.nanofolks/bridge/` |
 | History | `~/.nanofolks/history/` | `~/.nanofolks/history/` |
-| Cron Jobs | `~/.nanofolks/cron/` | `~/.nanofolks/cron/` |
+| Routines | `~/.nanofolks/routines_engine/` (legacy) | `~/.nanofolks/routines/` |
 | Skill Verification | `.nanofolks/skill-verification/` | `.nanofolks/skill-verification/` |
 
 ### 4. Environment Variable Migration
@@ -79,7 +79,7 @@ Current:                          Target:
 | `skills.py` | `.nanofolks/skill-verification/` | `.nanofolks/skill-verification/` |
 | `telegram.py` | `~/.nanofolks/media/` | `~/.nanofolks/media/` |
 | `discord.py` | `~/.nanofolks/media/` | `~/.nanofolks/media/` |
-| `routing_stage.py` | `~/.nanofolks/cron/` | `~/.nanofolks/cron/` |
+| `routing_stage.py` | `~/.nanofolks/routines_engine/` (legacy) | `~/.nanofolks/routines/` |
 | `helpers.py` | `~/.nanofolks` | `~/.nanofolks` |
 
 ### 6. Python Import Migration
@@ -162,7 +162,7 @@ Every Python file needs:
 - `nanofolks/channels/` (12 files)
 - `nanofolks/config/` (3 files)
 - `nanofolks/coordinator/` (5 files)
-- `nanofolks/heartbeat/` (multiple)
+- `nanofolks/routines/` (multiple)
 - `nanofolks/memory/` (13 files)
 - `nanofolks/models/` (multiple)
 - `nanofolks/providers/` (3 files)

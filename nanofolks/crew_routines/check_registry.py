@@ -1,6 +1,6 @@
-"""Pluggable check registry for heartbeat system.
+"""Pluggable check registry for crew routines system.
 
-This module provides a registry for heartbeat checks that can be
+This module provides a registry for crew routines checks that can be
 dynamically registered and discovered by bot type.
 """
 
@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
-from nanofolks.heartbeat.models import CheckDefinition, CheckResult, CheckStatus
+from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckResult, CheckStatus
 
 
 @dataclass
@@ -25,7 +25,7 @@ class RegisteredCheck:
 
 
 class CheckRegistry:
-    """Registry of available heartbeat checks.
+    """Registry of available crew routines checks.
 
     Checks can be registered dynamically and are discovered automatically
     for appropriate bot types. Supports both sync and async handlers.
@@ -76,7 +76,7 @@ class CheckRegistry:
         Raises:
             ValueError: If check name already exists (unless overwritten)
         """
-        from nanofolks.heartbeat.models import CheckDefinition, CheckPriority
+        from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckPriority
 
         if name in self._checks:
             logger.warning(f"Check '{name}' already registered, overwriting")
@@ -102,7 +102,7 @@ class CheckRegistry:
             bot_domains=bot_domains or ["all"]
         )
 
-        logger.debug(f"Registered heartbeat check: {name}")
+        logger.debug(f"Registered crew routines check: {name}")
         return definition
 
     def unregister(self, name: str) -> bool:
@@ -116,7 +116,7 @@ class CheckRegistry:
         """
         if name in self._checks:
             del self._checks[name]
-            logger.debug(f"Unregistered heartbeat check: {name}")
+            logger.debug(f"Unregistered crew routines check: {name}")
             return True
         return False
 
@@ -264,7 +264,7 @@ class CheckRegistry:
         bot_domains: Optional[List[str]] = None,
         **config
     ) -> Callable:
-        """Decorator to register a function as a heartbeat check.
+        """Decorator to register a function as a crew routines check.
 
         This is a convenience method that can be used as a decorator.
 
@@ -335,12 +335,12 @@ def register_check(
     bot_domains: Optional[List[str]] = None,
     **config
 ) -> Callable:
-    """Global decorator to register a function as a heartbeat check.
+    """Global decorator to register a function as a crew routines check.
 
     This uses the global check_registry instance.
 
     Usage:
-        from nanofolks.heartbeat.check_registry import register_check
+        from nanofolks.crew_routines.check_registry import register_check
 
         @register_check(
             name="github_issues",

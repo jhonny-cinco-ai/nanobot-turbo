@@ -52,7 +52,7 @@
 | Bot definitions + registry | `nanofolks/bots/definitions.py`, `nanofolks/models/bot_registry.py` | `backend/internal/bots/definitions.go` | Preserve roles and configs. | Not started |
 | Dispatch + coordinator | `nanofolks/bots/dispatch.py`, `nanofolks/coordinator/*` | `backend/internal/coordination/*` | Includes audit, decisions, circuit breaker. | Not started |
 | Bot reasoning configs | `nanofolks/bots/reasoning_configs.py`, `nanofolks/reasoning/config.py` | `backend/internal/reasoning/*` | Per-bot reasoning modes. | Not started |
-| Bot checks | `nanofolks/bots/checks/*` | `backend/internal/heartbeat/checks/*` | Used by heartbeat system. | Not started |
+| Bot checks | `nanofolks/bots/checks/*` | `backend/internal/routines/checks/*` | Used by routines engine. | Not started |
 
 ---
 
@@ -68,13 +68,13 @@
 
 ---
 
-## Scheduling, Heartbeats, Dashboard
+## Scheduling, Routines, Dashboard
 
 | Subsystem | Python Source | Go v1 Target | Parity Notes | Progress |
 |---|---|---|---|---|
-| Cron service + types | `nanofolks/cron/*` | `backend/internal/cron/*` | Include timezone support and job persistence. | Not started |
-| Heartbeat models + manager | `nanofolks/heartbeat/*` | `backend/internal/heartbeat/*` | Per-bot checks and notifications. | Not started |
-| Dashboard server | `nanofolks/heartbeat/dashboard_server.py` | `backend/internal/heartbeat/dashboard_server.go` | HTTP + WS metrics. | Not started |
+| Routines service + types | `nanofolks/routines/*` | `backend/internal/routines/*` | Include timezone support and job persistence. | Not started |
+| Team routines manager | `nanofolks/crew_routines/*` | `backend/internal/routines/manager/*` | Internal checks and notifications. | Not started |
+| Dashboard server | `nanofolks/crew_routines/dashboard_server.py` | `backend/internal/routines/dashboard_server.go` | HTTP + WS metrics. | Not started |
 
 ---
 
@@ -175,9 +175,9 @@
 - [ ] Compaction + background jobs
 - [ ] Preferences
 
-### Scheduling, Heartbeats, Dashboard
+### Scheduling, Crew routines, Dashboard
 - [ ] Cron service + types
-- [ ] Heartbeat models + manager
+- [ ] CrewRoutines models + manager
 - [ ] Dashboard server
 
 ### Tools, Skills, MCP
@@ -229,7 +229,7 @@ These improvements are recommended during the port process. Some can be done now
 
 **Defer to Go Port (post‑parity or v2):**
 - Unify DM rooms into standard rooms
-- Merge Cron + Heartbeat into one scheduler
+- Merge Cron + CrewRoutines into one scheduler
 - Single orchestrator pipeline (tags → intent → dispatch → aggregation)
 - MemoryPolicy per room
 - Treat CLI/GUI as channels
@@ -250,7 +250,7 @@ These improvements are recommended during the port process. Some can be done now
 
 ## Improvements Carried from Python Plan
 - Unify DM rooms into standard rooms
-- Merge Cron + Heartbeat into one scheduler
+- Merge Cron + CrewRoutines into one scheduler
 - Single orchestrator pipeline (tags → intent → dispatch → aggregation)
 - MemoryPolicy per room
 - Treat CLI/GUI as channels
@@ -266,7 +266,7 @@ These improvements are recommended during the port process. Some can be done now
 - Turn QUICK/FULL flow logic into a stronger state machine
 
 ### 2) Observability
-- Unified metrics for heartbeat checks, cron jobs, and message queues
+- Unified metrics for team routines, user routines, and message queues
 - More detailed audit logs with retention rules
 - Configurable dashboard views for teams and rooms
 
@@ -292,7 +292,7 @@ These improvements are recommended during the port process. Some can be done now
 
 ### 7) UX (GUI + CLI)
 - CLI parity hardened for long sessions
-- GUI additions for room brokers, heartbeats, and cron state
+- GUI additions for room brokers, routines state, and team activity
 - Unified export pipeline (PDF/MD/JSON) for GUI and CLI
 
 ---
@@ -312,4 +312,3 @@ These improvements are recommended during the port process. Some can be done now
 - Every v1 subsystem remains intact and compatible
 - v2 features are additive, not breaking
 - The system remains local-first with clear security boundaries
-

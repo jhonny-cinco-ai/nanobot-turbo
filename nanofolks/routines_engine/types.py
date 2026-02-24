@@ -1,12 +1,12 @@
-"""Cron types."""
+"""Internal routines scheduler types (legacy cron)."""
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 
 @dataclass
 class CronSchedule:
-    """Schedule definition for a cron job."""
+    """Schedule definition for a routine."""
     kind: Literal["at", "every", "cron"]
     # For "at": timestamp in ms
     at_ms: int | None = None
@@ -27,6 +27,11 @@ class CronPayload:
     deliver: bool = False
     channel: str | None = None  # e.g. "whatsapp"
     to: str | None = None  # e.g. phone number
+    # Routine metadata (unifies user and system routines)
+    scope: Literal["user", "system"] = "user"
+    routine: str | None = None  # e.g. "team_check_in", "calibration"
+    bot: str | None = None  # target bot for system routines
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass

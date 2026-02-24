@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 
 if TYPE_CHECKING:
-    from nanofolks.agent.tools.cron import CronService
+    from nanofolks.routines.service import RoutineService
     from nanofolks.config.schema import ExecToolConfig, MemoryConfig, RoutingConfig
     from nanofolks.session.manager import SessionManager
     from nanofolks.agent.chat_onboarding import ChatOnboarding
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 from nanofolks.agent.context import ContextBuilder
 from nanofolks.agent.stages import RoutingContext, RoutingStage
-from nanofolks.agent.tools.cron import CronTool
+from nanofolks.agent.tools.routines import RoutinesTool
 from nanofolks.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from nanofolks.agent.tools.message import MessageTool
 from nanofolks.agent.tools.registry import ToolRegistry
@@ -68,7 +68,7 @@ class AgentLoop:
         max_tokens: int = 4096,
         brave_api_key: str | None = None,
         exec_config: ExecToolConfig | None = None,
-        cron_service: CronService | None = None,
+        cron_service: RoutineService | None = None,
         system_timezone: str = "UTC",
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
@@ -199,7 +199,7 @@ class AgentLoop:
                 config=routing_config,
                 provider=provider,
                 workspace=workspace,
-                cron_service=cron_service,  # Pass cron to check for scheduled calibration
+                cron_service=cron_service,  # Pass routines to check for scheduled calibration
             )
             logger.info("Smart routing enabled")
 
@@ -872,7 +872,7 @@ class AgentLoop:
 
         # Cron tool (for scheduling)
         if self.cron_service:
-            self.tools.register(CronTool(self.cron_service, default_timezone=self.system_timezone))
+            self.tools.register(RoutinesTool(self.cron_service, default_timezone=self.system_timezone))
 
         # Config update tool
         self.tools.register(UpdateConfigTool())
@@ -892,11 +892,7 @@ class AgentLoop:
             self.tools.register(tool)
         logger.info(f"Registered {len(security_tools)} security tools")
 
-        # Heartbeat control tool (for coordinator/leader to manage specialist heartbeats)
-        if self.bot_name == "leader":
-            from nanofolks.agent.tools.heartbeat import HeartbeatControlTool
-            self.tools.register(HeartbeatControlTool())
-            logger.info("Registered heartbeat control tool for coordinator")
+        # Team routines are handled via the routines tool; no crew_routines control tool.
 
         # Apply tool permissions based on bot's SOUL.md/AGENTS.md
         self._apply_tool_permissions()
@@ -1329,9 +1325,9 @@ class AgentLoop:
             if set_context and callable(set_context):
                 set_context(msg.room_id or self._current_room_id)
 
-        cron_tool = self.tools.get("cron")
-        if isinstance(cron_tool, CronTool):
-            cron_tool.set_context(msg.channel, msg.chat_id)
+        routines_tool = self.tools.get("routines")
+        if isinstance(routines_tool, RoutinesTool):
+            routines_tool.set_context(msg.channel, msg.chat_id)
 
         # NEW: Convert credentials to symbolic references before sending to LLM
         # This is the core security feature - credentials never reach the LLM
@@ -1827,9 +1823,9 @@ class AgentLoop:
             if set_context and callable(set_context):
                 set_context(msg.room_id or self._current_room_id)
 
-        cron_tool = self.tools.get("cron")
-        if isinstance(cron_tool, CronTool):
-            cron_tool.set_context(origin_channel, origin_chat_id)
+        routines_tool = self.tools.get("routines")
+        if isinstance(routines_tool, RoutinesTool):
+            routines_tool.set_context(origin_channel, origin_chat_id)
 
         # Build messages with the announce content
         messages = self.context.build_messages(
@@ -1914,7 +1910,7 @@ class AgentLoop:
         stream_callback: callable = None,
     ) -> str:
         """
-        Process a message directly (for CLI or cron usage).
+        Process a message directly (for CLI or routines usage).
 
         Args:
             content: The message content.

@@ -26,7 +26,7 @@ Adopt proven distributed systems patterns from object-storage-based queues (insp
 - **CAS (Compare-And-Set) writes** for conflict-free file updates
 - **Per-room message brokers** for parallel processing with FIFO guarantees
 - **Group commit** to batch writes and reduce I/O contention
-- **Heartbeat-based task tracking** for 6-bot coordination
+- **CrewRoutines-based task tracking** for 6-bot coordination
 
 ---
 
@@ -803,7 +803,7 @@ class RoomMessageBroker:
 
 ---
 
-## Phase 4: Bot Coordination with Heartbeats (Week 3)
+## Phase 4: Bot Coordination with Crew routines (Week 3)
 
 ### 4.1 Problem: Bot Task Assignment
 
@@ -812,7 +812,7 @@ In the 6-bot system, if a bot crashes mid-task:
 - No recovery mechanism
 - Other bots don't know the task failed
 
-### 4.2 Solution: Heartbeat-Based Task Tracking
+### 4.2 Solution: CrewRoutines-Based Task Tracking
 
 ```python
 # nanofolks/bots/coordinator.py
@@ -845,17 +845,17 @@ class BotTask:
     claimed_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    last_heartbeat: Optional[datetime] = None
+    last_crew_routines: Optional[datetime] = None
     result: Optional[dict] = None
     error: Optional[str] = None
 
 
 class BotCoordinator:
     """
-    Coordinates the 6-bot fleet with heartbeats and task reassignment.
+    Coordinates the 6-bot fleet with crew routines and task reassignment.
     
-    Each bot must send heartbeats while processing. If a bot fails to
-    heartbeat within the timeout, its tasks are reassigned.
+    Each bot must send crew routines while processing. If a bot fails to
+    crew_routines within the timeout, its tasks are reassigned.
     """
     
     HEARTBEAT_INTERVAL_SEC = 5
@@ -863,7 +863,7 @@ class BotCoordinator:
     
     def __init__(self):
         self._tasks: Dict[str, BotTask] = {}
-        self._bot_heartbeats: Dict[str, datetime] = {}
+        self._bot_crew_routines: Dict[str, datetime] = {}
         self._lock = asyncio.Lock()
         self._running = False
         self._monitor_task: Optional[asyncio.Task] = None
@@ -889,20 +889,20 @@ class BotCoordinator:
         """Register a bot as active."""
         async with self._lock:
             self._active_bots.add(bot_name)
-            self._bot_heartbeats[bot_name] = datetime.now()
+            self._bot_crew_routines[bot_name] = datetime.now()
         logger.info(f"Bot {bot_name} registered")
     
     async def unregister_bot(self, bot_name: str) -> None:
         """Unregister a bot."""
         async with self._lock:
             self._active_bots.discard(bot_name)
-            self._bot_heartbeats.pop(bot_name, None)
+            self._bot_crew_routines.pop(bot_name, None)
         logger.info(f"Bot {bot_name} unregistered")
     
-    async def heartbeat(self, bot_name: str) -> None:
-        """Record a heartbeat from a bot."""
+    async def crew_routines(self, bot_name: str) -> None:
+        """Record a crew_routines from a bot."""
         async with self._lock:
-            self._bot_heartbeats[bot_name] = datetime.now()
+            self._bot_crew_routines[bot_name] = datetime.now()
     
     async def claim_task(
         self, 
@@ -922,13 +922,13 @@ class BotCoordinator:
                 existing = self._tasks[task_id]
                 if existing.status == TaskStatus.CLAIMED:
                     # Check if claim expired
-                    if existing.last_heartbeat:
-                        elapsed = (datetime.now() - existing.last_heartbeat).total_seconds()
+                    if existing.last_crew_routines:
+                        elapsed = (datetime.now() - existing.last_crew_routines).total_seconds()
                         if elapsed > self.HEARTBEAT_TIMEOUT_SEC:
                             # Reclaim
                             existing.bot_name = bot_name
                             existing.claimed_at = datetime.now()
-                            existing.last_heartbeat = datetime.now()
+                            existing.last_crew_routines = datetime.now()
                             return True
                 return False
             
@@ -940,7 +940,7 @@ class BotCoordinator:
                 bot_name=bot_name,
                 status=TaskStatus.CLAIMED,
                 claimed_at=datetime.now(),
-                last_heartbeat=datetime.now()
+                last_crew_routines=datetime.now()
             )
             self._tasks[task_id] = task
             return True
@@ -988,7 +988,7 @@ class BotCoordinator:
             return False
     
     async def _monitor_loop(self) -> None:
-        """Monitor heartbeats and reassign stuck tasks."""
+        """Monitor crew routines and reassign stuck tasks."""
         while self._running:
             await asyncio.sleep(self.HEARTBEAT_INTERVAL_SEC)
             
@@ -997,7 +997,7 @@ class BotCoordinator:
                 
                 # Check for timed-out bots
                 timed_out_bots = []
-                for bot_name, last_hb in self._bot_heartbeats.items():
+                for bot_name, last_hb in self._bot_crew_routines.items():
                     elapsed = (now - last_hb).total_seconds()
                     if elapsed > self.HEARTBEAT_TIMEOUT_SEC:
                         timed_out_bots.append(bot_name)
@@ -1013,7 +1013,7 @@ class BotCoordinator:
                             task.status = TaskStatus.PENDING
                             task.bot_name = ""
                             task.claimed_at = None
-                            task.last_heartbeat = None
+                            task.last_crew_routines = None
                 
                 # Clean up old completed tasks
                 cutoff = now - timedelta(hours=1)
@@ -1068,9 +1068,9 @@ class RoomMessageBroker:
             return
         
         try:
-            # Start heartbeat task
-            heartbeat_task = asyncio.create_task(
-                self._send_heartbeats(task_id)
+            # Start crew_routines task
+            crew_routines_task = asyncio.create_task(
+                self._send_crew routines(task_id)
             )
             
             # Mark as started
@@ -1094,13 +1094,13 @@ class RoomMessageBroker:
             )
             raise
         finally:
-            heartbeat_task.cancel()
+            crew_routines_task.cancel()
     
-    async def _send_heartbeats(self, task_id: str) -> None:
-        """Send periodic heartbeats while processing."""
+    async def _send_crew routines(self, task_id: str) -> None:
+        """Send periodic crew routines while processing."""
         while True:
             await asyncio.sleep(BotCoordinator.HEARTBEAT_INTERVAL_SEC)
-            await self.coordinator.heartbeat(self.agent_loop.bot_name)
+            await self.coordinator.crew_routines(self.agent_loop.bot_name)
 ```
 
 ---
@@ -1120,7 +1120,7 @@ class RoomMessageBroker:
 - [ ] Day 5: Add group commit buffer
 
 ### Week 3: Bot Coordination & Polish
-- [ ] Day 1-2: Implement `BotCoordinator` with heartbeats
+- [ ] Day 1-2: Implement `BotCoordinator` with crew routines
 - [ ] Day 3: Integration testing across all components
 - [ ] Day 4: Performance benchmarking
 - [ ] Day 5: Documentation and rollout plan
@@ -1157,7 +1157,7 @@ class RoomMessageBroker:
 
 ## Conclusion
 
-This plan addresses the critical concurrency and ordering issues in nanofolks' multi-channel architecture while maintaining the existing Python codebase. The CAS pattern eliminates file corruption, per-room brokers enable parallelism, group commit reduces I/O, and heartbeats ensure reliable bot coordination.
+This plan addresses the critical concurrency and ordering issues in nanofolks' multi-channel architecture while maintaining the existing Python codebase. The CAS pattern eliminates file corruption, per-room brokers enable parallelism, group commit reduces I/O, and crew routines ensure reliable bot coordination.
 
 **Next Steps:**
 1. Review and approve design

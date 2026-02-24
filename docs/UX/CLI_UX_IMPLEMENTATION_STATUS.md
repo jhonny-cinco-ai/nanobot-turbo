@@ -244,7 +244,7 @@ Analysis of the ADVANCED_CLI_UX_DESIGN.md document versus what's currently imple
 ### Missing Integrations
 - **Work Log** - Room activities not logged
 - **Coordinator** - No coordination across rooms
-- **Heartbeat** - Could use room context
+- **CrewRoutines** - Could use room context
 
 ---
 

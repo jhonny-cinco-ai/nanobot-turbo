@@ -17,7 +17,7 @@
 
 **Later (Go Port or Post‑Parity) — Higher Risk**
 - Unify DM rooms into standard rooms
-- Merge Cron + Heartbeat into one scheduler
+- Merge Cron + CrewRoutines into one scheduler
 - Single orchestrator pipeline (tags → intent → dispatch → aggregation)
 - `MemoryPolicy` per room
 - Treat CLI/GUI as channels
@@ -108,12 +108,12 @@ Touchpoints:
 
 ---
 
-### B) Merge Cron + Heartbeat Scheduler
+### B) Merge Cron + CrewRoutines Scheduler
 **Why later**: Deep architectural change, best done cleanly in Go.
 
 Touchpoints:
-- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/cron/*`
-- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/heartbeat/*`
+- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/routines_engine/*`
+- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/crew_routines/*`
 
 ---
 

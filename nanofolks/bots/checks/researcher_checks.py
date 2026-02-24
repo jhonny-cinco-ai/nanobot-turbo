@@ -1,11 +1,11 @@
-"""Heartbeat checks for ResearcherBot (Navigator).
+"""CrewRoutines checks for ResearcherBot (Navigator).
 
 These checks are designed to run automatically every 60 minutes (by default)
 to monitor research-related tasks, data sources, and deadlines.
 
 Usage:
     These checks are automatically registered when the ResearcherBot
-    initializes its heartbeat service. They can also be used standalone:
+    initializes its crew_routines service. They can also be used standalone:
 
     from nanofolks.bots.checks.researcher_checks import check_data_sources
 
@@ -17,7 +17,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.heartbeat.check_registry import register_check
+from nanofolks.crew_routines.check_registry import register_check
 
 
 @register_check(

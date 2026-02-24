@@ -44,7 +44,7 @@ class BotCapabilities:
     """What features/tools are enabled for a bot."""
 
     can_invoke_bots: bool = False
-    can_do_heartbeat: bool = False
+    can_do_routines: bool = False
     can_access_web: bool = True
     can_exec_commands: bool = True
     can_send_messages: bool = True
@@ -226,7 +226,7 @@ class RoleCard:
             "metrics": self.metrics,
             "capabilities": {
                 "can_invoke_bots": self.capabilities.can_invoke_bots,
-                "can_do_heartbeat": self.capabilities.can_do_heartbeat,
+                "can_do_routines": self.capabilities.can_do_routines,
                 "can_access_web": self.capabilities.can_access_web,
                 "can_exec_commands": self.capabilities.can_exec_commands,
                 "can_send_messages": self.capabilities.can_send_messages,
@@ -248,7 +248,7 @@ class RoleCard:
         capabilities_data = data.get("capabilities", {})
         capabilities = BotCapabilities(
             can_invoke_bots=capabilities_data.get("can_invoke_bots", False),
-            can_do_heartbeat=capabilities_data.get("can_do_heartbeat", False),
+            can_do_routines=capabilities_data.get("can_do_routines", False),
             can_access_web=capabilities_data.get("can_access_web", True),
             can_exec_commands=capabilities_data.get("can_exec_commands", True),
             can_send_messages=capabilities_data.get("can_send_messages", True),
@@ -329,7 +329,7 @@ class RoleCard:
 
         lines.append("**Capabilities:**")
         lines.append(f"  - Can invoke other bots: {self.capabilities.can_invoke_bots}")
-        lines.append(f"  - Can do heartbeat: {self.capabilities.can_do_heartbeat}")
+        lines.append(f"  - Can do routines: {self.capabilities.can_do_routines}")
         lines.append(f"  - Can access web: {self.capabilities.can_access_web}")
         lines.append(f"  - Can execute commands: {self.capabilities.can_exec_commands}")
         lines.append(f"  - Can send messages: {self.capabilities.can_send_messages}")
@@ -389,7 +389,7 @@ LEADER_ROLE = RoleCard(
     ],
     capabilities=BotCapabilities(
         can_invoke_bots=True,
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=True,
         can_send_messages=True,
@@ -444,7 +444,7 @@ RESEARCHER_ROLE = RoleCard(
         "User satisfaction with findings",
     ],
     capabilities=BotCapabilities(
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=False,
         can_send_messages=False,
@@ -501,7 +501,7 @@ CODER_ROLE = RoleCard(
         "Implementation time vs estimate",
     ],
     capabilities=BotCapabilities(
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=True,
         can_send_messages=False,
@@ -558,7 +558,7 @@ SOCIAL_ROLE = RoleCard(
         "Brand sentiment tracking",
     ],
     capabilities=BotCapabilities(
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=False,
         can_send_messages=True,
@@ -614,7 +614,7 @@ CREATIVE_ROLE = RoleCard(
         "User satisfaction with creative work",
     ],
     capabilities=BotCapabilities(
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=False,
         can_send_messages=False,
@@ -697,7 +697,7 @@ AUDITOR_ROLE = RoleCard(
         "Process improvement recommendations implemented",
     ],
     capabilities=BotCapabilities(
-        can_do_heartbeat=True,
+        can_do_routines=True,
         can_access_web=True,
         can_exec_commands=True,
         can_send_messages=False,

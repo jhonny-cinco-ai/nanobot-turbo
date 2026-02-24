@@ -1,4 +1,4 @@
-"""Heartbeat checks for AuditorBot (QA).
+"""CrewRoutines checks for AuditorBot (QA).
 
 These checks run every 60 minutes (by default) to monitor code quality,
 compliance issues, audit trails, and review queues.
@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.heartbeat.check_registry import register_check
+from nanofolks.crew_routines.check_registry import register_check
 
 
 @register_check(

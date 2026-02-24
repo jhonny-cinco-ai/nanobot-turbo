@@ -276,7 +276,7 @@ role_card.format_for_prompt()  # NEW
 ## Next Steps
 
 1. **Test the implementation** - Run through various scenarios
-2. **Update bot checks** - Use `should_escalate()` in heartbeat checks
+2. **Update bot checks** - Use `should_escalate()` in routine checks
 3. **Add to agent loop** - Explicit hard ban checking before tool execution
 4. **Monitor metrics** - Track role card effectiveness over time
 5. **User feedback** - Gather feedback on default role cards

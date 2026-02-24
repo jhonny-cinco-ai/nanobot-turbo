@@ -165,7 +165,7 @@ hard_bans:
   - "No ignoring conflicting information between bot outputs"
 ```
 
-## New Heartbeat Checks
+## New CrewRoutines Checks
 
 The Auditor now runs **8 comprehensive checks** every 60 minutes:
 
@@ -276,7 +276,7 @@ metrics:
 
 ```yaml
 capabilities:
-  can_do_heartbeat: True      # Runs continuous quality checks
+  can_do_routines: True       # Runs continuous quality checks
   can_access_web: True        # Verifies external sources/claims
   can_exec_commands: True     # Runs code scans and audits
   can_send_messages: False    # Read-only auditing (reports via escalation)

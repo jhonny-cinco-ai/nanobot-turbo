@@ -79,10 +79,10 @@ User: "Remind me at 9 AM every weekday"
 
 System (internal):
   1. Parse request
-  2. Create cron expression: "0 9 * * 1-5"
+  2. Create schedule expression: "0 9 * * 1-5"
   3. Get system_timezone from config: "America/New_York"
   4. Create CronSchedule(expr="...", tz="America/New_York")
-  5. Save to cron jobs
+  5. Save to routines
   6. Execute at 9 AM EST
 
 Result: No timezone confusion, works automatically ✅
@@ -141,22 +141,24 @@ I work 9-5 Monday-Friday. Please remind me about meetings 30 minutes before.
 
 ## Implementation Details
 
-### CronTool Constructor
+Note: "cron" here refers to the internal routines scheduler. User-facing scheduling is exposed as **routines**.
+
+### RoutinesTool Constructor
 ```python
-def __init__(self, cron_service: CronService, default_timezone: str = "UTC"):
-    self._cron = cron_service
+def __init__(self, routine_service: RoutineService, default_timezone: str = "UTC"):
+    self._routines = routine_service
     self._default_timezone = default_timezone  # From config
 ```
 
 ### Job Creation Logic
 ```python
-def _add_job(self, message, every_seconds, cron_expr, at, timezone=None):
+def _add_routine(self, message, every_seconds, schedule, cron_expr, at, timezone=None):
     # User-provided timezone OR fallback to default
     effective_tz = timezone or self._default_timezone
     
-    if cron_expr:
+    if schedule:
         # Create schedule with effective timezone
-        schedule = CronSchedule(kind="cron", expr=cron_expr, tz=effective_tz)
+        schedule = RoutineSchedule(kind="cron", expr=schedule, tz=effective_tz)
 ```
 
 ## Future Enhancement: AI Timezone Detection
@@ -192,8 +194,8 @@ This would make setup even more automatic for non-technical users.
 ## Implementation Files
 
 - `nanofolks/utils/user_profile.py` - `get_user_timezone()` function
-- `nanofolks/agent/tools/cron.py` - CronTool with timezone support
-- `nanofolks/agent/loop.py` - Passes timezone to CronTool
+- `nanofolks/agent/tools/routines.py` - RoutinesTool with timezone support
+- `nanofolks/agent/loop.py` - Passes timezone to RoutinesTool
 - `nanofolks/cli/commands.py` - Reads from USER.md on startup
 - `nanofolks/agent/context.py` - Already loads USER.md into context
 

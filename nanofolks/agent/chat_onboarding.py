@@ -384,7 +384,7 @@ Need more details on any particular crew member? Just ask!"""
                 caps.append("run commands")
             if role_card.capabilities.can_send_messages:
                 caps.append("send messages")
-            if role_card.capabilities.can_do_heartbeat:
+            if role_card.capabilities.can_do_routines:
                 caps.append("scheduled tasks")
 
             capabilities = ", ".join(caps) if caps else "various tools"

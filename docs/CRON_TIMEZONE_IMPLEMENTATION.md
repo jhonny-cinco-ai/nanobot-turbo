@@ -1,14 +1,16 @@
-# Cron Timezone Implementation
+# Cron Timezone Implementation (Internal Routines Engine)
 
 ## Overview
 
-Implemented timezone-aware cron job scheduling based on commit d3f6c95 from the upstream repository, adapted for nanofolks-turbo's use case.
+Implemented timezone-aware scheduling for the internal routines engine (legacy cron), based on commit d3f6c95 from the upstream repository.
 
-**Key Design**: Uses a global **system_timezone** setting that applies to all cron jobs, optimized for non-technical users who interact through the AI agent.
+Note: "cron" here refers to the internal scheduler. User-facing scheduling is exposed as **routines**.
+
+**Key Design**: Uses a global **system_timezone** setting that applies to all routines, optimized for non-technical users who interact through the AI agent.
 
 ## Changes Made
 
-### 1. **Cron Service (`nanofolks/cron/service.py`)**
+### 1. **Cron Service (`nanofolks/routines_engine/service.py`)**
 
 #### Imports Added
 - `datetime` module
@@ -33,19 +35,19 @@ return int(next_dt.timestamp() * 1000)
 
 ### 2. **CLI Interface (`nanofolks/cli/commands.py`)**
 
-Added `--tz` parameter to `cron add` command:
+Added `--tz` parameter to `routines add` command:
 
 ```bash
 # Usage examples:
-nanofolks cron add --name "Morning Briefing" --cron "0 9 * * *" --tz "America/New_York" --message "What's on my calendar?"
+nanofolks routines add --name "Morning Briefing" --schedule "0 9 * * *" --tz "America/New_York" --message "What's on my calendar?"
 
-nanofolks cron add --name "Tokyo Check" --cron "0 17 * * *" --tz "Asia/Tokyo" --message "Status update"
+nanofolks routines add --name "Tokyo Check" --schedule "0 17 * * *" --tz "Asia/Tokyo" --message "Status update"
 
 # Defaults to local timezone if --tz not specified
-nanofolks cron add --name "Local Job" --cron "0 14 * * *" --message "Reminder"
+nanofolks routines add --name "Local Job" --schedule "0 14 * * *" --message "Reminder"
 ```
 
-### 3. **Agent Tool (`nanofolks/agent/tools/cron.py`)**
+### 3. **Agent Tool (`nanofolks/agent/tools/routines.py`)**
 
 #### Constructor Enhanced
 - Added `default_timezone` parameter (defaults to "UTC")
@@ -62,8 +64,8 @@ nanofolks cron add --name "Local Job" --cron "0 14 * * *" --message "Reminder"
 
 #### Methods Updated
 - `execute()`: Accepts optional `timezone` parameter
-- `_add_job()`: Uses user's default timezone if not specified
-- `_add_calibration_job()`: Uses user's default timezone for background jobs
+- `_add_routine()`: Uses user's default timezone if not specified
+- `_add_calibration_routine()`: Uses user's default timezone for background jobs
 
 ### 4. **User Profile Utility (`nanofolks/utils/user_profile.py`)**
 
@@ -124,13 +126,13 @@ That's it! The system will automatically read this on startup.
 ### Via CLI
 ```bash
 # Uses the configured system_timezone automatically
-nanofolks cron add --name "Morning Check" \
-  --cron "0 9 * * *" \
+nanofolks routines add --name "Morning Check" \
+  --schedule "0 9 * * *" \
   --message "What needs attention today?"
 
 # Override for specific timezone if needed
-nanofolks cron add --name "Tokyo Check" \
-  --cron "0 9 * * *" \
+nanofolks routines add --name "Tokyo Check" \
+  --schedule "0 9 * * *" \
   --tz "Asia/Tokyo" \
   --message "Tokyo office status"
 ```
@@ -192,10 +194,10 @@ next_run = _compute_next_run(schedule, time.time() * 1000)  # Should use local T
 
 ## Files Modified
 
-1. `nanofolks/cron/service.py` - Core timezone-aware scheduling
-2. `nanofolks/cron/types.py` - Already had `tz` field (no changes)
+1. `nanofolks/routines_engine/service.py` - Core timezone-aware scheduling
+2. `nanofolks/routines_engine/types.py` - Already had `tz` field (no changes)
 3. `nanofolks/utils/user_profile.py` - **NEW** - Extract timezone from USER.md
-4. `nanofolks/agent/tools/cron.py` - Agent tool with timezone support
+4. `nanofolks/agent/tools/routines.py` - Routines tool with timezone support
 5. `nanofolks/agent/loop.py` - Pass timezone to CronTool
 6. `nanofolks/cli/commands.py` - Reads timezone from USER.md via `get_user_timezone()`
 

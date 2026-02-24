@@ -1,4 +1,4 @@
-"""Heartbeat checks for CoderBot (Gunner).
+"""CrewRoutines checks for CoderBot (Gunner).
 
 These checks run every 60 minutes (by default) to monitor development
 workflows, CI/CD pipelines, security issues, and repository health.
@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.heartbeat.check_registry import register_check
+from nanofolks.crew_routines.check_registry import register_check
 
 
 @register_check(

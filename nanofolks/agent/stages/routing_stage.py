@@ -66,7 +66,7 @@ class RoutingStage:
         self.config = config
         self.provider = provider
         self.workspace = workspace
-        self._cron_service = cron_service  # Reference to check for scheduled calibration jobs
+        self._cron_service = cron_service  # Reference to check for scheduled calibration routines
 
         # Initialize components
         self._init_classifier()
@@ -145,12 +145,12 @@ class RoutingStage:
             self._record_for_calibration(ctx, decision)
 
         # Check if calibration needed (throttled to reduce overhead)
-        # Skip throttling if user has scheduled a calibration cron job
+        # Skip throttling if user has scheduled a calibration routine
         # (avoids redundant checks when scheduled calibration is active)
         self._calibration_check_counter += 1
         if (self._calibration_check_counter % self._calibration_check_interval == 0 and
             self.calibration and
-            not self._has_scheduled_calibration_job() and  # Skip if cron job exists
+            not self._has_scheduled_calibration_job() and  # Skip if routine exists
             self.calibration.should_calibrate()):
             self._run_calibration()
 
@@ -258,31 +258,31 @@ class RoutingStage:
 
     def _has_scheduled_calibration_job(self) -> bool:
         """
-        Check if user has scheduled a calibration cron job.
+        Check if user has scheduled a calibration routine.
 
-        Returns True if calibration job exists in cron service,
+        Returns True if calibration job exists in routines service,
         which means we should skip the throttled per-request calibration checks.
         """
-        # Access cron service through agent loop if available
+        # Access routines service through agent loop if available
         # Calibration jobs have message="CALIBRATE_ROUTING"
         try:
-            # Check if we can access the cron service
+            # Check if we can access the routines service
             # This is set during agent initialization
             if hasattr(self, '_cron_service') and self._cron_service:
                 jobs = self._cron_service.list_jobs()
                 for job in jobs:
-                    if job.payload.message == "CALIBRATE_ROUTING":
+                    if job.payload.routine == "calibration" or job.payload.message == "CALIBRATE_ROUTING":
                         return True
 
             # Alternative: check via workspace file
-            # Cron jobs are stored in ~/.nanofolks/cron/jobs.json
+            # Routines jobs are stored in ~/.nanofolks/routines/jobs.json
             import json
-            cron_file = self.workspace / "cron" / "jobs.json"
-            if cron_file.exists():
-                data = json.loads(cron_file.read_text())
+            routines_file = self.workspace / "routines" / "jobs.json"
+            if routines_file.exists():
+                data = json.loads(routines_file.read_text())
                 for job in data.get("jobs", []):
                     payload = job.get("payload", {})
-                    if payload.get("message") == "CALIBRATE_ROUTING":
+                    if payload.get("routine") == "calibration" or payload.get("message") == "CALIBRATE_ROUTING":
                         return True
 
             return False

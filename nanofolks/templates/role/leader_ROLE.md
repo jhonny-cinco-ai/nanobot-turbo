@@ -66,7 +66,7 @@
 ## Capabilities
 
 - ✅ Can invoke other bots: **YES**
-- ✅ Can do heartbeat: **YES**
+- ✅ Can do routines: **YES**
 - ✅ Can access web: **YES**
 - ✅ Can execute commands: **YES**
 - ✅ Can send messages: **YES**
