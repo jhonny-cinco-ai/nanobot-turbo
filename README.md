@@ -738,6 +738,10 @@ A **room** is a conversation context where:
 | **DIRECT** | 1-on-1 with a bot | Private DM with @researcher |
 | **COORDINATION** | Leader-managed room | Autonomous coordination mode |
 
+### Room Tasks
+
+Each room can track **tasks** so your crew’s work stays organized. Tasks belong to a room, have an owner and status, and can be listed or updated from the CLI. When the Leader assigns a bot, Nanofolks also creates a matching room task automatically so progress stays visible.
+
 ### Room-Centric Architecture
 
 Nanofolks uses a **room-centric architecture** where everything is organized by room. This provides:
@@ -979,6 +983,15 @@ nanofolks room create project-alpha  # Create a new project room
 nanofolks room invite project-alpha researcher  # Invite bots
 nanofolks room show project-alpha    # See who's in the room
 nanofolks room list                  # List all your rooms
+```
+
+## Room Tasks
+
+```bash
+nanofolks room task list --room project-alpha
+nanofolks room task add --room project-alpha --owner coder --priority high --due 2025-01-15 "Ship landing page"
+nanofolks room task status --room project-alpha <task_id> done
+nanofolks room task assign --room project-alpha <task_id> researcher
 ```
 
 

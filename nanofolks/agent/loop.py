@@ -865,6 +865,11 @@ class AgentLoop:
         invoke_tool = InvokeTool(invoker=self.bot_invoker)
         self.tools.register(invoke_tool)
 
+        # Room task tool
+        from nanofolks.agent.tools.room_tasks import RoomTaskTool
+        room_task_tool = RoomTaskTool()
+        self.tools.register(room_task_tool)
+
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service, default_timezone=self.system_timezone))
@@ -1317,6 +1322,12 @@ class AgentLoop:
                     set_context(msg.channel, msg.chat_id, msg.room_id)
                 except TypeError:
                     set_context(msg.channel, msg.chat_id)
+
+        room_task_tool = self.tools.get("room_task")
+        if room_task_tool:
+            set_context = getattr(room_task_tool, "set_context", None)
+            if set_context and callable(set_context):
+                set_context(msg.room_id or self._current_room_id)
 
         cron_tool = self.tools.get("cron")
         if isinstance(cron_tool, CronTool):
@@ -1809,6 +1820,12 @@ class AgentLoop:
                     set_context(origin_channel, origin_chat_id, msg.room_id)
                 except TypeError:
                     set_context(origin_channel, origin_chat_id)
+
+        room_task_tool = self.tools.get("room_task")
+        if room_task_tool:
+            set_context = getattr(room_task_tool, "set_context", None)
+            if set_context and callable(set_context):
+                set_context(msg.room_id or self._current_room_id)
 
         cron_tool = self.tools.get("cron")
         if isinstance(cron_tool, CronTool):

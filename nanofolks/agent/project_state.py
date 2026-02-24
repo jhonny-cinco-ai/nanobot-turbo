@@ -36,15 +36,38 @@ class ProjectState:
     suggested_bots: List[str] = field(default_factory=list)
 
 
+@dataclass
 class QuickFlowState:
     """State for quick flow (ADVICE/RESEARCH intents)."""
-    def __init__(self):
-        self.intent_type: str = ""
-        self.questions_asked: int = 0
-        self.user_goal: str = ""
-        self.user_answers: List[str] = []
-        self.created_at: datetime = datetime.now()
-        self.updated_at: datetime = datetime.now()
+    intent_type: str = ""
+    questions_asked: int = 0
+    user_goal: str = ""
+    user_answers: List[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "intent_type": self.intent_type,
+            "questions_asked": self.questions_asked,
+            "user_goal": self.user_goal,
+            "user_answers": self.user_answers,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "QuickFlowState":
+        created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now()
+        updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else created_at
+        return cls(
+            intent_type=data.get("intent_type", ""),
+            questions_asked=int(data.get("questions_asked", 0)),
+            user_goal=data.get("user_goal", ""),
+            user_answers=list(data.get("user_answers", []) or []),
+            created_at=created_at,
+            updated_at=updated_at,
+        )
 
 
 class ProjectStateManager:
@@ -75,6 +98,7 @@ class ProjectStateManager:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.state_file = self.state_dir / f"{room_id}.json"
         self._state: Optional[ProjectState] = None
+        self._quick_state: Optional[QuickFlowState] = None
 
     @property
     def state(self) -> ProjectState:
@@ -85,36 +109,88 @@ class ProjectStateManager:
 
     def _load_state(self) -> ProjectState:
         """Load state from disk."""
+        full_state, quick_state = self._load_store()
+        self._quick_state = quick_state
+        return full_state
+
+    def _load_store(self) -> tuple[ProjectState, Optional[QuickFlowState]]:
         if self.state_file.exists():
             try:
-                with open(self.state_file, 'r') as f:
+                with open(self.state_file, "r") as f:
                     data = json.load(f)
-                    data['created_at'] = datetime.fromisoformat(data['created_at'])
-                    data['updated_at'] = datetime.fromisoformat(data['updated_at'])
-                    data['phase'] = ProjectPhase(data['phase'])
-                    return ProjectState(**data)
+                if isinstance(data, dict) and "full" in data:
+                    full_data = data.get("full", {})
+                    quick_data = data.get("quick")
+                else:
+                    full_data = data
+                    quick_data = None
+
+                full_state = self._parse_full_state(full_data)
+                quick_state = self._parse_quick_state(quick_data)
+                return full_state, quick_state
             except Exception as e:
                 logger.warning(f"Failed to load project state: {e}")
-        return ProjectState()
+
+        return ProjectState(), None
+
+    def _parse_full_state(self, data: Dict[str, Any]) -> ProjectState:
+        if not isinstance(data, dict):
+            return ProjectState()
+        created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now()
+        updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else created_at
+        phase_value = data.get("phase", ProjectPhase.IDLE.value)
+        try:
+            phase = ProjectPhase(phase_value)
+        except Exception:
+            phase = ProjectPhase.IDLE
+        return ProjectState(
+            phase=phase,
+            user_goal=data.get("user_goal", ""),
+            intent_type=data.get("intent_type", ""),
+            discovery_log=data.get("discovery_log", []) or [],
+            synthesis=data.get("synthesis"),
+            approval=data.get("approval"),
+            execution_plan=data.get("execution_plan"),
+            created_at=created_at,
+            updated_at=updated_at,
+            iteration=int(data.get("iteration", 0)),
+            suggested_bots=data.get("suggested_bots", []) or [],
+        )
+
+    def _parse_quick_state(self, data: Optional[Dict[str, Any]]) -> Optional[QuickFlowState]:
+        if not data:
+            return None
+        if not isinstance(data, dict):
+            return None
+        return QuickFlowState.from_dict(data)
+
+    def _serialize_full_state(self) -> Dict[str, Any]:
+        return {
+            "phase": self.state.phase.value,
+            "user_goal": self.state.user_goal,
+            "intent_type": self.state.intent_type,
+            "discovery_log": self.state.discovery_log,
+            "synthesis": self.state.synthesis,
+            "approval": self.state.approval,
+            "execution_plan": self.state.execution_plan,
+            "created_at": self.state.created_at.isoformat(),
+            "updated_at": self.state.updated_at.isoformat(),
+            "iteration": self.state.iteration,
+            "suggested_bots": self.state.suggested_bots,
+        }
 
     def _save_state(self):
         """Persist state to disk."""
         self.state.updated_at = datetime.now()
-        data = {
-            'phase': self.state.phase.value,
-            'user_goal': self.state.user_goal,
-            'intent_type': self.state.intent_type,
-            'discovery_log': self.state.discovery_log,
-            'synthesis': self.state.synthesis,
-            'approval': self.state.approval,
-            'execution_plan': self.state.execution_plan,
-            'created_at': self.state.created_at.isoformat(),
-            'updated_at': self.state.updated_at.isoformat(),
-            'iteration': self.state.iteration,
-            'suggested_bots': self.state.suggested_bots,
+        self._save_store()
+
+    def _save_store(self) -> None:
+        payload = {
+            "full": self._serialize_full_state(),
+            "quick": self._quick_state.to_dict() if self._quick_state else None,
         }
-        with open(self.state_file, 'w') as f:
-            json.dump(data, f, indent=2)
+        with open(self.state_file, "w") as f:
+            json.dump(payload, f, indent=2)
 
     def start_discovery(self, user_goal: str, intent_type: str, suggested_bots: Optional[List[str]] = None):
         """Begin discovery phase.
@@ -342,12 +418,12 @@ class ProjectStateManager:
             intent_type: Type of intent (advice, research)
             user_goal: The user's original question/request
         """
-        quick_state = QuickFlowState()
-        quick_state.intent_type = intent_type
-        quick_state.user_goal = user_goal
-        quick_state.questions_asked = 0
-        quick_state.user_answers = []
-
+        quick_state = QuickFlowState(
+            intent_type=intent_type,
+            user_goal=user_goal,
+            questions_asked=0,
+            user_answers=[],
+        )
         self._save_quick_flow_state(quick_state)
         logger.info(f"Started quick flow for: {user_goal[:50]}...")
 
@@ -357,35 +433,19 @@ class ProjectStateManager:
         Returns:
             QuickFlowState if valid, None otherwise
         """
-        quick_file = self.state_dir / f"{self.room_id}_quick.json"
-        if not quick_file.exists():
+        if self._quick_state is None:
+            _ = self.state
+
+        if self._quick_state is None:
             return None
 
-        try:
-            with open(quick_file, 'r') as f:
-                data = json.load(f)
-
-            created_at = datetime.fromisoformat(data['created_at'])
-            updated_at = datetime.fromisoformat(data['updated_at'])
-
-            elapsed = (datetime.now() - updated_at).total_seconds() / 60
-            if elapsed > self.QUICK_FLOW_TIMEOUT_MINUTES:
-                logger.info(f"Quick flow timed out after {elapsed:.0f} minutes")
-                self.clear_quick_flow_state()
-                return None
-
-            quick_state = QuickFlowState()
-            quick_state.intent_type = data.get('intent_type', '')
-            quick_state.questions_asked = data.get('questions_asked', 0)
-            quick_state.user_goal = data.get('user_goal', '')
-            quick_state.user_answers = data.get('user_answers', [])
-            quick_state.created_at = created_at
-            quick_state.updated_at = updated_at
-
-            return quick_state
-        except Exception as e:
-            logger.warning(f"Failed to load quick flow state: {e}")
+        elapsed = (datetime.now() - self._quick_state.updated_at).total_seconds() / 60
+        if elapsed > self.QUICK_FLOW_TIMEOUT_MINUTES:
+            logger.info(f"Quick flow timed out after {elapsed:.0f} minutes")
+            self.clear_quick_flow_state()
             return None
+
+        return self._quick_state
 
     def update_quick_flow_state(self, questions_asked: int, user_answers: List[str]):
         """Update quick flow state.
@@ -402,9 +462,9 @@ class ProjectStateManager:
 
     def clear_quick_flow_state(self):
         """Clear quick flow state."""
-        quick_file = self.state_dir / f"{self.room_id}_quick.json"
-        if quick_file.exists():
-            quick_file.unlink()
+        if self._quick_state is not None:
+            self._quick_state = None
+            self._save_store()
             logger.info("Cleared quick flow state")
 
     def _save_quick_flow_state(self, quick_state: QuickFlowState):
@@ -414,17 +474,9 @@ class ProjectStateManager:
             quick_state: The quick flow state to save
         """
         quick_state.updated_at = datetime.now()
-        data = {
-            'intent_type': quick_state.intent_type,
-            'questions_asked': quick_state.questions_asked,
-            'user_goal': quick_state.user_goal,
-            'user_answers': quick_state.user_answers,
-            'created_at': quick_state.created_at.isoformat(),
-            'updated_at': quick_state.updated_at.isoformat(),
-        }
-        quick_file = self.state_dir / f"{self.room_id}_quick.json"
-        with open(quick_file, 'w') as f:
-            json.dump(data, f, indent=2)
+        self._quick_state = quick_state
+        self._save_store()
+
 
 
 def get_project_state_manager(workspace: Path, room_id: str) -> ProjectStateManager:

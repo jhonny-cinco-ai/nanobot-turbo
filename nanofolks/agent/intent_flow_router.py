@@ -414,6 +414,8 @@ class IntentFlowRouter:
         if approved:
             state_manager.handle_approval(approved=True)
 
+            self._create_execution_tasks(state_manager)
+
             execution_content = self._get_execution_context(state_manager)
 
             from nanofolks.bus.events import MessageEnvelope
@@ -703,6 +705,69 @@ Generate ONLY the JSON, no other text."""
 
         sections.extend(["", "Execute your tasks and report when complete."])
         return "\n".join(sections)
+
+    def _create_execution_tasks(self, state_manager: "ProjectStateManager") -> None:
+        """Create room tasks for execution assignments."""
+        try:
+            from nanofolks.bots.room_manager import get_room_manager
+            from nanofolks.utils.helpers import truncate_string
+
+            synthesis = state_manager.state.synthesis or {}
+            next_steps = synthesis.get("next_steps", {}) or {}
+            if not next_steps:
+                return
+
+            room_id = state_manager.room_id
+            room_manager = get_room_manager()
+            room = room_manager.get_room(room_id)
+            if not room:
+                return
+
+            for bot, task in next_steps.items():
+                if not task:
+                    continue
+
+                iteration = state_manager.state.iteration
+                already = False
+                for existing in room.tasks:
+                    meta = existing.metadata or {}
+                    if (
+                        meta.get("source") == "project_execution"
+                        and meta.get("bot") == bot
+                        and meta.get("iteration") == iteration
+                    ):
+                        already = True
+                        break
+                if already:
+                    continue
+
+                subtasks = []
+                for line in str(task).splitlines():
+                    text = line.strip()
+                    if text.startswith("- "):
+                        subtasks.append(text[2:].strip())
+                if not subtasks and " then " in task:
+                    subtasks = [chunk.strip() for chunk in task.split(" then ") if chunk.strip()]
+                if not subtasks and " and then " in task:
+                    subtasks = [chunk.strip() for chunk in task.split(" and then ") if chunk.strip()]
+
+                title = truncate_string(task, max_len=80, suffix="...")
+                room.add_task(
+                    title=title,
+                    owner=bot,
+                    status="todo",
+                    priority="medium",
+                    metadata={
+                        "source": "project_execution",
+                        "bot": bot,
+                        "iteration": iteration,
+                        "details": task,
+                        "subtasks": subtasks,
+                    },
+                )
+            room_manager._save_room(room)
+        except Exception as e:
+            logger.warning(f"Failed to create execution tasks: {e}")
 
 
 def get_intent_flow_router(agent_loop: "AgentLoop") -> IntentFlowRouter:

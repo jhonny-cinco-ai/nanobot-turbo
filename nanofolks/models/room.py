@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
+import uuid
 
 
 class RoomType(Enum):
@@ -55,6 +56,50 @@ class SharedContext:
 
 
 @dataclass
+class RoomTask:
+    """A task owned by a user or bot inside a room."""
+
+    id: str
+    title: str
+    owner: str  # "user" or bot name
+    status: str = "todo"  # todo, in_progress, done, blocked
+    priority: str = "medium"  # low, medium, high
+    due_date: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "owner": self.owner,
+            "status": self.status,
+            "priority": self.priority,
+            "due_date": self.due_date,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RoomTask":
+        created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now()
+        updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else created_at
+        return cls(
+            id=data.get("id") or uuid.uuid4().hex,
+            title=data.get("title", ""),
+            owner=data.get("owner", "user"),
+            status=data.get("status", "todo"),
+            priority=data.get("priority", "medium"),
+            due_date=data.get("due_date"),
+            created_at=created_at,
+            updated_at=updated_at,
+            metadata=data.get("metadata", {}) or {},
+        )
+
+
+@dataclass
 class Room:
     """A room for crew collaboration."""
 
@@ -79,6 +124,7 @@ class Room:
     shared_context: SharedContext = field(default_factory=SharedContext)
     history: List[Message] = field(default_factory=list)
     summary: str = ""
+    tasks: List[RoomTask] = field(default_factory=list)
 
     # Behavior
     auto_archive: bool = False
@@ -156,6 +202,62 @@ class Room:
         )
         self.history.append(msg)
         return msg
+
+    def add_task(
+        self,
+        title: str,
+        owner: str = "user",
+        status: str = "todo",
+        priority: str = "medium",
+        due_date: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> RoomTask:
+        """Add a task to the room."""
+        task = RoomTask(
+            id=uuid.uuid4().hex,
+            title=title,
+            owner=owner,
+            status=status,
+            priority=priority,
+            due_date=due_date,
+            metadata=metadata or {},
+        )
+        self.tasks.append(task)
+        self.updated_at = datetime.now()
+        return task
+
+    def get_task(self, task_id: str) -> Optional[RoomTask]:
+        """Get a task by id."""
+        for task in self.tasks:
+            if task.id == task_id:
+                return task
+        return None
+
+    def update_task_status(self, task_id: str, status: str) -> bool:
+        """Update a task status."""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        task.status = status
+        task.updated_at = datetime.now()
+        self.updated_at = datetime.now()
+        return True
+
+    def assign_task(self, task_id: str, owner: str) -> bool:
+        """Assign a task to an owner."""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        task.owner = owner
+        task.updated_at = datetime.now()
+        self.updated_at = datetime.now()
+        return True
+
+    def list_tasks(self, status: Optional[str] = None) -> List[RoomTask]:
+        """List tasks, optionally filtered by status."""
+        if status is None:
+            return list(self.tasks)
+        return [task for task in self.tasks if task.status == status]
 
     def add_participant(self, bot_name: str) -> None:
         """Add bot to room.
@@ -287,6 +389,7 @@ class Room:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "summary": self.summary,
+            "tasks": [task.to_dict() for task in self.tasks],
             "auto_archive": self.auto_archive,
             "archive_after_days": self.archive_after_days,
             "coordinator_mode": self.coordinator_mode,
@@ -309,6 +412,11 @@ class Room:
                 metadata=m_data.get("metadata", {}),
             ))
 
+        tasks = []
+        for task_data in data.get("tasks", []) or []:
+            if isinstance(task_data, dict):
+                tasks.append(RoomTask.from_dict(task_data))
+
         return cls(
             id=data["id"],
             name=data.get("name", data["id"]),
@@ -321,6 +429,7 @@ class Room:
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now(),
             summary=data.get("summary", ""),
+            tasks=tasks,
             auto_archive=data.get("auto_archive", False),
             archive_after_days=data.get("archive_after_days", 30),
             coordinator_mode=data.get("coordinator_mode", False),

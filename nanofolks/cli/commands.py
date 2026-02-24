@@ -3631,6 +3631,7 @@ app.add_typer(bot_app, name="bot")
 # ============================================================================
 
 room_app = typer.Typer(help="Manage rooms and bot invitations")
+task_app = typer.Typer(help="Manage room tasks")
 
 
 @room_app.command("list")
@@ -3764,6 +3765,139 @@ def room_show(
     console.print(f"\n[dim]Use 'nanofolks room invite {room_id} <bot>' to add bots[/dim]")
 
 
+@task_app.command("list")
+def task_list(
+    room_id: str = typer.Option("general", "--room", "-r", help="Room ID"),
+    status: Optional[str] = typer.Option(None, "--status", "-s", help="Filter by status"),
+):
+    """List tasks in a room."""
+    from nanofolks.bots.room_manager import get_room_manager
+
+    manager = get_room_manager()
+    room = manager.get_room(room_id)
+    if not room:
+        console.print(f"[red]❌ Room '{room_id}' not found[/red]")
+        raise typer.Exit(1)
+
+    tasks = room.list_tasks(status=status)
+    if not tasks:
+        msg = f"No tasks in room '{room_id}'." if not status else f"No tasks with status '{status}'."
+        console.print(f"[yellow]{msg}[/yellow]")
+        return
+
+    table = Table(title=f"Tasks ({room_id})")
+    table.add_column("ID", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Owner", style="green")
+    table.add_column("Status", style="blue")
+    table.add_column("Priority", style="magenta")
+    table.add_column("Due", style="yellow")
+
+    for task in tasks:
+        table.add_row(
+            task.id[:8],
+            task.title,
+            task.owner,
+            task.status,
+            task.priority,
+            task.due_date or "-",
+        )
+
+    console.print(table)
+
+
+@task_app.command("add")
+def task_add(
+    title: str = typer.Argument(..., help="Task title"),
+    room_id: str = typer.Option("general", "--room", "-r", help="Room ID"),
+    owner: str = typer.Option("user", "--owner", "-o", help="Owner (bot name or user)"),
+    status: str = typer.Option("todo", "--status", "-s", help="Status (todo, in_progress, done, blocked)"),
+    priority: str = typer.Option("medium", "--priority", "-p", help="Priority (low, medium, high)"),
+    due: Optional[str] = typer.Option(None, "--due", help="Due date (YYYY-MM-DD)"),
+):
+    """Add a task to a room."""
+    from nanofolks.bots.room_manager import get_room_manager
+
+    manager = get_room_manager()
+    room = manager.get_room(room_id)
+    if not room:
+        console.print(f"[red]❌ Room '{room_id}' not found[/red]")
+        raise typer.Exit(1)
+
+    task = room.add_task(
+        title=title,
+        owner=owner,
+        status=status,
+        priority=priority,
+        due_date=due,
+    )
+    manager._save_room(room)
+
+    console.print(f"[green]✓ Added task[/green] {task.id[:8]} to {room_id}")
+
+
+@task_app.command("status")
+def task_status(
+    task_id: str = typer.Argument(..., help="Task ID (prefix ok)"),
+    status: str = typer.Argument(..., help="New status (todo, in_progress, done, blocked)"),
+    room_id: str = typer.Option("general", "--room", "-r", help="Room ID"),
+):
+    """Update task status."""
+    from nanofolks.bots.room_manager import get_room_manager
+
+    manager = get_room_manager()
+    room = manager.get_room(room_id)
+    if not room:
+        console.print(f"[red]❌ Room '{room_id}' not found[/red]")
+        raise typer.Exit(1)
+
+    matched = [t for t in room.tasks if t.id.startswith(task_id)]
+    if not matched:
+        console.print(f"[yellow]No task matching '{task_id}' in {room_id}[/yellow]")
+        raise typer.Exit(1)
+    if len(matched) > 1:
+        console.print(f"[yellow]Multiple tasks match '{task_id}'. Use a longer id.[/yellow]")
+        raise typer.Exit(1)
+
+    ok = room.update_task_status(matched[0].id, status)
+    if ok:
+        manager._save_room(room)
+        console.print(f"[green]✓ Updated task {matched[0].id[:8]} status → {status}[/green]")
+    else:
+        console.print(f"[red]Failed to update task {task_id}[/red]")
+
+
+@task_app.command("assign")
+def task_assign(
+    task_id: str = typer.Argument(..., help="Task ID (prefix ok)"),
+    owner: str = typer.Argument(..., help="New owner"),
+    room_id: str = typer.Option("general", "--room", "-r", help="Room ID"),
+):
+    """Assign a task to a new owner."""
+    from nanofolks.bots.room_manager import get_room_manager
+
+    manager = get_room_manager()
+    room = manager.get_room(room_id)
+    if not room:
+        console.print(f"[red]❌ Room '{room_id}' not found[/red]")
+        raise typer.Exit(1)
+
+    matched = [t for t in room.tasks if t.id.startswith(task_id)]
+    if not matched:
+        console.print(f"[yellow]No task matching '{task_id}' in {room_id}[/yellow]")
+        raise typer.Exit(1)
+    if len(matched) > 1:
+        console.print(f"[yellow]Multiple tasks match '{task_id}'. Use a longer id.[/yellow]")
+        raise typer.Exit(1)
+
+    ok = room.assign_task(matched[0].id, owner)
+    if ok:
+        manager._save_room(room)
+        console.print(f"[green]✓ Assigned task {matched[0].id[:8]} → {owner}[/green]")
+    else:
+        console.print(f"[red]Failed to assign task {task_id}[/red]")
+
+
 
 @room_app.command("map")
 def room_map(
@@ -3856,6 +3990,9 @@ def room_channels(
 
     console.print(table)
     console.print(f"\n[dim]{len(mappings)} mapping(s) total[/dim]")
+
+
+room_app.add_typer(task_app, name="task")
 
 
 # ============================================================================
