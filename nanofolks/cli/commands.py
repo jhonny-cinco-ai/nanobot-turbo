@@ -1350,6 +1350,8 @@ def chat(
 
     from nanofolks.agent.loop import AgentLoop
     from nanofolks.bots.room_manager import get_room_manager
+    from nanofolks.channels.cli import CLIChannel
+    from nanofolks.bus.events import MessageEnvelope
     from nanofolks.bus.queue import MessageBus
     from nanofolks.utils.ids import normalize_room_id, room_to_session_id
 
@@ -1402,6 +1404,12 @@ def chat(
         bot_mcp_servers=config.tools.bot_mcp_servers,
     )
 
+    async def _send_cli(_msg: MessageEnvelope) -> None:
+        # Rendering is handled after receiving the final response.
+        return None
+
+    cli_channel = CLIChannel(config=config, bus=bus, send_callback=_send_cli)
+
     # Show spinner when logs are off (no output to miss); skip when logs are on
     def _thinking_ctx():
         if logs:
@@ -1432,19 +1440,43 @@ def chat(
             # Show content directly (not just preview)
             console.print(f"[cyan]{chunk}[/cyan]", end="", highlight=False)
 
+    async def _await_cli_response(chat_id: str, room_id: str | None = None) -> MessageEnvelope | None:
+        while True:
+            outbound = await bus.consume_outbound()
+            if outbound.channel != "cli" or outbound.chat_id != chat_id:
+                continue
+            if room_id and outbound.room_id and outbound.room_id != room_id:
+                continue
+            return outbound
+
+    async def _send_cli_message(content: str) -> MessageEnvelope | None:
+        msg = MessageEnvelope(channel="cli", chat_id="cli", content=content)
+        msg.set_room(room)
+        agent_loop.set_stream_callback(_stream_chunk)
+        await bus.publish_inbound(msg)
+        response = await _await_cli_response(chat_id="cli", room_id=room)
+        agent_loop.set_stream_callback(None)
+        if response:
+            await cli_channel.send(response)
+        return response
+
     if message:
         # Single message mode
         async def run_once():
             try:
+                agent_task = asyncio.create_task(agent_loop.run())
                 with _thinking_ctx():
-                    response = await agent_loop.process_direct(message, session_id, room_id=room, stream_callback=_stream_chunk)
-                _print_agent_response(response, render_markdown=markdown, already_streamed=True)
+                    response = await _send_cli_message(message)
+                if response and response.content is not None:
+                    _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
 
                 # NEW: Show thinking logs after response
                 thinking_display = await _show_thinking_logs(agent_loop)
                 if thinking_display:
                     await _handle_thinking_toggle(thinking_display)
             finally:
+                await agent_loop.stop()
+                agent_task.cancel()
                 await agent_loop.close_mcp()
 
         asyncio.run(run_once())
@@ -1564,6 +1596,8 @@ def chat(
                     logger.debug(f"Could not initialize advanced layout: {e}")
                     layout_manager = None
                     sidebar_manager = None
+
+            agent_task = asyncio.create_task(agent_loop.run())
 
             while True:
                 try:
@@ -1887,10 +1921,11 @@ def chat(
                             continue
 
                     with _thinking_ctx():
-                        response = await agent_loop.process_direct(user_input, session_id, room_id=room, stream_callback=_stream_chunk)
+                        response = await _send_cli_message(user_input)
                     # Clear the streaming indicator line
                     console.print("\r" + " " * 50 + "\r", end="", highlight=False)
-                    _print_agent_response(response, render_markdown=markdown, already_streamed=True)
+                    if response and response.content is not None:
+                        _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
 
                     # NEW: Show thinking logs after response
                     thinking_display = await _show_thinking_logs(agent_loop)
@@ -1904,6 +1939,9 @@ def chat(
                     _restore_terminal()
                     console.print("\nGoodbye!")
                     break
+
+            await agent_loop.stop()
+            agent_task.cancel()
 
         async def run_with_cleanup():
             try:

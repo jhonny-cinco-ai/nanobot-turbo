@@ -988,6 +988,10 @@ class AgentLoop:
         await self.close_mcp()
         logger.info("Agent loop stopping")
 
+    def set_stream_callback(self, callback: callable | None) -> None:
+        """Set a stream callback for incremental output rendering."""
+        self._stream_callback = callback
+
 
     async def _connect_mcp(self, bot_name: str = None, server_name: str = None) -> None:
         """Connect to configured MCP servers (lazy, incremental, discovery-aware).
