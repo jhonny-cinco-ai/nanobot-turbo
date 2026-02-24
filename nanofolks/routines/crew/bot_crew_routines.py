@@ -19,8 +19,8 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 from loguru import logger
 
 from nanofolks.agent.work_log import LogLevel
-from nanofolks.crew_routines.check_registry import check_registry
-from nanofolks.crew_routines.crew_routines_models import (
+from nanofolks.routines.crew.check_registry import check_registry
+from nanofolks.routines.crew.crew_routines_models import (
     CheckDefinition,
     CheckResult,
     CheckStatus,

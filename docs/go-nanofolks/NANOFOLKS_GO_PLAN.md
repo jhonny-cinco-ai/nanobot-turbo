@@ -73,8 +73,8 @@
 | Subsystem | Python Source | Go v1 Target | Parity Notes | Progress |
 |---|---|---|---|---|
 | Routines service + types | `nanofolks/routines/*` | `backend/internal/routines/*` | Include timezone support and job persistence. | Not started |
-| Team routines manager | `nanofolks/crew_routines/*` | `backend/internal/routines/manager/*` | Internal checks and notifications. | Not started |
-| Dashboard server | `nanofolks/crew_routines/dashboard_server.py` | `backend/internal/routines/dashboard_server.go` | HTTP + WS metrics. | Not started |
+| Team routines manager | `nanofolks/routines/crew/*` | `backend/internal/routines/manager/*` | Internal checks and notifications. | Not started |
+| Dashboard server | `nanofolks/routines/crew/dashboard_server.py` | `backend/internal/routines/dashboard_server.go` | HTTP + WS metrics. | Not started |
 
 ---
 

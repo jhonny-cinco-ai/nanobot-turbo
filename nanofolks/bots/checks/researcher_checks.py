@@ -17,7 +17,7 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from nanofolks.crew_routines.check_registry import register_check
+from nanofolks.routines.crew.check_registry import register_check
 
 
 @register_check(

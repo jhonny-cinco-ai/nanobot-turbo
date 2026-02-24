@@ -396,7 +396,7 @@ class SpecialistBot(ABC):
         self._crew_routines_config = config
 
         # Import here to avoid circular imports
-        from nanofolks.crew_routines.bot_crew_routines import BotCrewRoutinesService
+        from nanofolks.routines.crew.bot_crew_routines import BotCrewRoutinesService
 
         # Wrap callbacks to include bot context
         def tick_callback(tick):

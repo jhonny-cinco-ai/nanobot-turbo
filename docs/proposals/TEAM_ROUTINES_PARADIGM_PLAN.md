@@ -128,8 +128,8 @@ Team alive behavior is represented as `scope=system` routines:
 - `nanofolks/agent/tools/routines.py`
 
 De-emphasize and eventually retire:
-- `nanofolks/routines_engine/*` (moved/aliased then removed)
-- `nanofolks/crew_routines/*` scheduling responsibilities (execution logic may be reused under routines executor)
+- `nanofolks/routines/engine/*` (moved/aliased then removed)
+- `nanofolks/routines/crew/*` scheduling responsibilities (execution logic may be reused under routines executor)
 
 ---
 

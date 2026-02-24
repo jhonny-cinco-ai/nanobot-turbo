@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 import yaml
 from loguru import logger
 
-from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckPriority, CrewRoutinesConfig
+from nanofolks.routines.crew.crew_routines_models import CheckDefinition, CheckPriority, CrewRoutinesConfig
 
 # Default interval: 60 minutes for specialists, 30 minutes for coordinator
 DEFAULT_SPECIALIST_INTERVAL_S = 3600  # 60 minutes

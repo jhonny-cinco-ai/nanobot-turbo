@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
-from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckResult, CheckStatus
+from nanofolks.routines.crew.crew_routines_models import CheckDefinition, CheckResult, CheckStatus
 
 
 @dataclass
@@ -76,7 +76,7 @@ class CheckRegistry:
         Raises:
             ValueError: If check name already exists (unless overwritten)
         """
-        from nanofolks.crew_routines.crew_routines_models import CheckDefinition, CheckPriority
+        from nanofolks.routines.crew.crew_routines_models import CheckDefinition, CheckPriority
 
         if name in self._checks:
             logger.warning(f"Check '{name}' already registered, overwriting")
@@ -340,7 +340,7 @@ def register_check(
     This uses the global check_registry instance.
 
     Usage:
-        from nanofolks.crew_routines.check_registry import register_check
+        from nanofolks.routines.crew.check_registry import register_check
 
         @register_check(
             name="github_issues",

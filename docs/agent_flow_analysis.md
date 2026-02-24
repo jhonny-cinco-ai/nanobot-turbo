@@ -501,7 +501,7 @@ Steps:
 
 ## 5. BOT ACTIVITY & STATUS DISPLAY
 
-### Dashboard (`nanofolks/crew_routines/dashboard.py`)
+### Dashboard (`nanofolks/routines/crew/dashboard.py`)
 
 **Real-time monitoring at http://localhost:9090**
 
@@ -657,7 +657,7 @@ async def invoke(bot_name: str, task: str) -> str:
 | WorkLog Manager | `nanofolks/agent/work_log_manager.py` |
 | Bot Dispatch | `nanofolks/bots/dispatch.py` |
 | Bot Implementations | `nanofolks/bots/implementations.py` |
-| Dashboard | `nanofolks/crew_routines/dashboard.py` |
+| Dashboard | `nanofolks/routines/crew/dashboard.py` |
 | MessageBus | `nanofolks/bus/queue.py` |
 | ContextBuilder | `nanofolks/agent/context.py` |
 

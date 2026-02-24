@@ -112,8 +112,8 @@ Touchpoints:
 **Why later**: Deep architectural change, best done cleanly in Go.
 
 Touchpoints:
-- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/routines_engine/*`
-- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/crew_routines/*`
+- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/routines/engine/*`
+- `/Users/rickovelar/Desktop/WORK/AI_Experiments/nanofolks-project/nanofolks/nanofolks/routines/crew/*`
 
 ---
 

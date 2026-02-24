@@ -4,7 +4,7 @@ This keeps one domain name (`routines`) while reusing the current scheduler
 implementation under the hood.
 """
 
-from nanofolks.routines_engine.types import (
+from nanofolks.routines.engine.types import (
     CronJob as Routine,
     CronJobState as RoutineState,
     CronPayload as RoutinePayload,

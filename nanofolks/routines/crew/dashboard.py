@@ -8,7 +8,7 @@ Provides:
 - Alert management
 
 Usage:
-    from nanofolks.crew_routines.dashboard import DashboardService
+    from nanofolks.routines.crew.dashboard import DashboardService
 
     dashboard = DashboardService(port=9090, manager=multi_manager)
     await dashboard.start()

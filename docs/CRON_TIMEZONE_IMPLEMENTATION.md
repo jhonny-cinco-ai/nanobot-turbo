@@ -10,7 +10,7 @@ Note: "cron" here refers to the internal scheduler. User-facing scheduling is ex
 
 ## Changes Made
 
-### 1. **Cron Service (`nanofolks/routines_engine/service.py`)**
+### 1. **Cron Service (`nanofolks/routines/engine/service.py`)**
 
 #### Imports Added
 - `datetime` module
@@ -194,8 +194,8 @@ next_run = _compute_next_run(schedule, time.time() * 1000)  # Should use local T
 
 ## Files Modified
 
-1. `nanofolks/routines_engine/service.py` - Core timezone-aware scheduling
-2. `nanofolks/routines_engine/types.py` - Already had `tz` field (no changes)
+1. `nanofolks/routines/engine/service.py` - Core timezone-aware scheduling
+2. `nanofolks/routines/engine/types.py` - Already had `tz` field (no changes)
 3. `nanofolks/utils/user_profile.py` - **NEW** - Extract timezone from USER.md
 4. `nanofolks/agent/tools/routines.py` - Routines tool with timezone support
 5. `nanofolks/agent/loop.py` - Pass timezone to CronTool

@@ -8,7 +8,7 @@ all bots in the team. It handles:
 - Aggregating metrics
 
 Usage:
-    from nanofolks.crew_routines.multi_manager import MultiCrewRoutinesManager
+    from nanofolks.routines.crew.multi_manager import MultiCrewRoutinesManager
 
     manager = MultiCrewRoutinesManager(bus=interbot_bus)
 
@@ -191,7 +191,7 @@ class MultiCrewRoutinesManager:
         if not config:
             return
 
-        from nanofolks.routines_engine.types import CronSchedule
+        from nanofolks.routines.engine.types import CronSchedule
 
         schedule = CronSchedule(kind="every", every_ms=config.interval_s * 1000)
 

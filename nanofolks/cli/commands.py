@@ -703,9 +703,9 @@ def gateway(
     from nanofolks.channels.manager import ChannelManager
     from nanofolks.routines.models import Routine
     from nanofolks.routines.service import RoutineService
-    from nanofolks.crew_routines.dashboard import DashboardService
-    from nanofolks.crew_routines.dashboard_server import DashboardHTTPServer
-    from nanofolks.crew_routines.multi_manager import MultiCrewRoutinesManager
+    from nanofolks.routines.crew.dashboard import DashboardService
+    from nanofolks.routines.crew.dashboard_server import DashboardHTTPServer
+    from nanofolks.routines.crew.multi_manager import MultiCrewRoutinesManager
     from nanofolks.utils.ids import room_to_session_id
 
     from nanofolks.utils.logging import configure_logging

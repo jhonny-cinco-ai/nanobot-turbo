@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from nanofolks.routines_engine.service import CronService
+from nanofolks.routines.engine.service import CronService
 from nanofolks.routines.models import Routine, RoutinePayload, RoutineSchedule
 from nanofolks.config.loader import get_data_dir
 
