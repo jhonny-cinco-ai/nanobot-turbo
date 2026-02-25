@@ -219,8 +219,8 @@ def _print_agent_response(response: str, render_markdown: bool, already_streamed
     if already_streamed and content:
         console.print()
         console.print(f"{__logo__} [bold cyan]nanofolks[/bold cyan]")
-        console.print()
-        return
+    console.print()
+    return
     
     body = Markdown(content) if render_markdown else Text(content)
     console.print()
@@ -228,6 +228,40 @@ def _print_agent_response(response: str, render_markdown: bool, already_streamed
     console.print(f"{__logo__} [bold cyan]nanofolks[/bold cyan]")
     console.print(body)
     console.print()
+
+
+def _print_compaction_notice(metadata: dict | None) -> None:
+    if not metadata:
+        return
+    notice = metadata.get("compaction_notice")
+    if not notice:
+        return
+    original = notice.get("original_count")
+    compacted = notice.get("compacted_count")
+    tokens_before = notice.get("tokens_before")
+    tokens_after = notice.get("tokens_after")
+    mode = notice.get("mode")
+    if original is None or compacted is None:
+        return
+    token_delta = ""
+    if tokens_before is not None and tokens_after is not None:
+        token_delta = f" | {tokens_before} → {tokens_after} tokens"
+    console.print(
+        f"[dim]🧹 Compressed earlier context ({original} → {compacted} messages, mode={mode}{token_delta}).[/dim]\n"
+    )
+
+
+def _print_context_usage(metadata: dict | None, max_tokens: int | None = None) -> None:
+    if not metadata:
+        return
+    used = metadata.get("tokens_used")
+    remaining = metadata.get("tokens_remaining")
+    usage = metadata.get("context_usage")
+    if used is None or remaining is None:
+        return
+    total = used + remaining if max_tokens is None else max_tokens
+    usage_text = usage or f"{(used / total * 100):.0f}%"
+    console.print(f"[dim]Context: {usage_text} ({used}/{total})[/dim]\n")
 
 
 async def _show_thinking_logs(agent_loop, bot_name: Optional[str] = None) -> Optional["ThinkingDisplay"]:
@@ -1475,6 +1509,13 @@ def chat(
                     response = await _send_cli_message(message)
                 if response and response.content is not None:
                     _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
+                    _print_compaction_notice(response.metadata if response else None)
+                    _print_context_usage(
+                        response.metadata if response else None,
+                        max_tokens=config.memory.enhanced_context.max_context_tokens
+                        if config and config.memory and config.memory.enhanced_context
+                        else None,
+                    )
 
                 # NEW: Show thinking logs after response
                 thinking_display = await _show_thinking_logs(agent_loop)
@@ -1932,6 +1973,13 @@ def chat(
                     console.print("\r" + " " * 50 + "\r", end="", highlight=False)
                     if response and response.content is not None:
                         _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
+                        _print_compaction_notice(response.metadata if response else None)
+                        _print_context_usage(
+                            response.metadata if response else None,
+                            max_tokens=config.memory.enhanced_context.max_context_tokens
+                            if config and config.memory and config.memory.enhanced_context
+                            else None,
+                        )
 
                     # NEW: Show thinking logs after response
                     thinking_display = await _show_thinking_logs(agent_loop)

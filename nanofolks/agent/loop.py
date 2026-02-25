@@ -1405,6 +1405,7 @@ class AgentLoop:
 
         # Phase 8: Check and trigger session compaction if needed
         # Prevents context overflow in long conversations
+        compaction_notice = None
         if self.session_compactor:
             try:
                 from nanofolks.memory.token_counter import count_messages
@@ -1464,6 +1465,15 @@ class AgentLoop:
                         "mode": result.mode,
                         "strategy": strategy["strategy"],
                         "validation_passed": validation["is_valid"]
+                    }
+                    compaction_notice = {
+                        "original_count": result.original_count,
+                        "compacted_count": result.compacted_count,
+                        "tokens_before": result.tokens_before,
+                        "tokens_after": result.tokens_after,
+                        "mode": result.mode,
+                        "strategy": strategy["strategy"],
+                        "validation_passed": validation["is_valid"],
                     }
             except Exception as e:
                 logger.error(f"Session compaction failed: {e}")
@@ -1715,6 +1725,8 @@ class AgentLoop:
                     )
             except Exception as e:
                 logger.debug(f"Failed to calculate context usage: {e}")
+        if compaction_notice:
+            response_metadata["compaction_notice"] = compaction_notice
 
         # Strip thinking blocks from final content
         final_content = self._strip_think(final_content) or final_content
