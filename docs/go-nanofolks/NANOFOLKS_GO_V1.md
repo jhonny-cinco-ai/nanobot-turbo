@@ -1,4 +1,4 @@
-# Nanofolks GUI Technical Specification
+# nanofolks GUI Technical Specification
 
 **Version:** 1.0  
 **Date:** 2026-02-16  
@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-Nanofolks GUI is a cross-platform desktop application that provides a modern, intuitive interface for the Nanofolks AI assistant platform. It maintains full compatibility with the existing nanobot CLI architecture while adding a visual layer for non-technical users.
+nanofolks GUI is a cross-platform desktop application that provides a modern, intuitive interface for the nanofolks AI assistant platform. It maintains full compatibility with the existing nanofolks CLI architecture while adding a visual layer for non-technical users.
 
 ### Key Principles
 - **Local-first**: All data stored locally, privacy by design
@@ -23,7 +23,7 @@ Nanofolks GUI is a cross-platform desktop application that provides a modern, in
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Nanofolks Desktop App                     │
+│                    nanofolks Desktop App                     │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  Frontend (Svelte 5 + Wails v2)                     │   │
 │  │  ├─ Chat Interface                                  │   │
@@ -879,7 +879,7 @@ tailscale up
 # Get Tailscale IP
 tailscale ip -4
 
-# Configure Nanofolks to bind to Tailscale IP
+# Configure nanofolks to bind to Tailscale IP
 # Settings → Gateway → Bind Address: 100.x.x.x
 ```
 
@@ -1066,5 +1066,5 @@ Docker:  /root/.nanofolks/ (volume mounted)
 
 **Document Version:** 1.0  
 **Last Updated:** 2026-02-16  
-**Authors:** Nanofolks Team  
+**Authors:** nanofolks Team  
 **Status:** Draft - Ready for Implementation

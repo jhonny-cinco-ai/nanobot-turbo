@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="nanofolks_header.png" alt="Nanofolks" width="660">
-  <h1>Nanofolks - Your crew's already on it.</h1>
+  <img src="nanofolks_header.png" alt="nanofolks" width="660">
+  <h1>nanofolks - Your crew's already on it.</h1>
   <p>
     <a href="https://pypi.org/project/nanofolks/"><img src="https://img.shields.io/pypi/v/nanofolks" alt="PyPI"></a>
     <a href="https://pepy.tech/project/nanofolks"><img src="https://static.pepy.tech/badge/nanofolks" alt="Downloads"></a>
@@ -10,7 +10,7 @@
   </p>
 </div>
 
-Nanofolks is a platform for building friendly AI crews, teams of characters that collaborate to help you think, create, plan, and build.
+nanofolks is a platform for building friendly AI crews, teams of characters that collaborate to help you think, create, plan, and build.
 
 Instead of a single assistant, you work alongside a crew of AI specialists with distinct roles and personalities.
 
@@ -19,7 +19,7 @@ From pirate captains to space explorers to creative misfits, your companions don
 Pick the kind of crew that fits you.
 
 
-## What Makes Nanofolks Different?
+## What Makes nanofolks Different?
 
 | | |
 |---|---|
@@ -44,7 +44,7 @@ and so much more!
 
 ## Built to work in real life.
 
-Nanofolks provides a flexible architecture for:
+nanofolks provides a flexible architecture for:
 
 | | |
 |---|---|
@@ -54,10 +54,10 @@ Nanofolks provides a flexible architecture for:
 | 💬 | multi-platform interaction |
 | 🏠 | room-centric session organization |
 
-**Inspired by nanobot's simplicity, Nanofolks expands the concept into a more expressive, team-oriented system.**
+**Inspired by nanobot's simplicity, nanofolks expands the concept into a more expressive, team-oriented system.**
 
 > [!TIP]
-> Nanofolks is a fork of [nanobot](https://github.com/HKUDS/nanobot). We maintain certain compatibility while adding crew-based features.
+> nanofolks is a fork of [nanobot](https://github.com/HKUDS/nanobot). We maintain certain compatibility while adding crew-based features.
 
 ---
 
@@ -90,14 +90,14 @@ pip install -e .
 
 `uv` is a modern, ultra-fast Python manager. It automatically manages virtual environments and Python versions for you without touching your system Python.
 
-**1. Install Nanofolks locally:**
+**1. Install nanofolks locally:**
 ```bash
 git clone https://github.com/nanofolks/nanofolks.git
 cd nanofolks
 uv pip install -e .
 ```
 
-*This creates a `.venv` directory instantly and installs Nanofolks in "editable" mode.*
+*This creates a `.venv` directory instantly and installs nanofolks in "editable" mode.*
 
 **2. Run with isolation:**
 You don't need to "activate" anything. Just use `uv run`:
@@ -150,7 +150,7 @@ Smart routing and evolutionary mode are enabled by default and can be changed an
 
 ### Your Team
 
-Each Nanofolks crew has 6 bots:
+Each nanofolks crew has 6 bots:
 
 | Bot | Role | What they do |
 |-----|------|--------------|
@@ -181,7 +181,7 @@ nanofolks chat
 
 # Chat Apps
 
-Connect Nanofolks to your favorite messaging platforms.
+Connect nanofolks to your favorite messaging platforms.
 
 | Channel | Setup | Notes |
 |---------|-------|-------|
@@ -302,12 +302,12 @@ Requires Node.js ≥18.
 
 # Core Concepts
 
-This section explains the architectural concepts behind Nanofolks. Understanding these will help you configure and customize your crew.
+This section explains the architectural concepts behind nanofolks. Understanding these will help you configure and customize your crew.
 
 
 ## 🤖 Multi-Bot Architecture
 
-Nanofolks supports multiple AI characters working together as a crew.
+nanofolks supports multiple AI characters working together as a crew.
 
 ### The Crew Concept
 
@@ -319,7 +319,7 @@ A "crew" is a group of 6 AI characters, each with:
 
 ### Teams & Personalities
 
-Nanofolks comes with **built-in teams** that give your crew distinct personalities:
+nanofolks comes with **built-in teams** that give your crew distinct personalities:
 
 | Team | Vibe | Example |
 |-------|------|---------|
@@ -334,7 +334,7 @@ Choose a team during setup to give your crew personality!
 
 ### Your Team
 
-Each Nanofolks crew has 6 bots:
+Each nanofolks crew has 6 bots:
 
 | Bot | Role | Expertise |
 |-----|------|-----------|
@@ -363,7 +363,7 @@ Workspace/
 
 ### Single Bot Mode
 
-Not ready for a full crew? Nanofolks works perfectly as a single assistant:
+Not ready for a full crew? nanofolks works perfectly as a single assistant:
 - Default General room has one bot
 - Works in DM mode
 - Same memory and learning capabilities
@@ -380,7 +380,7 @@ Not ready for a full crew? Nanofolks works perfectly as a single assistant:
 
 ### Unified Orchestrator Pipeline
 
-Nanofolks runs every message through a single, consistent pipeline:
+nanofolks runs every message through a single, consistent pipeline:
 
 1. **Tag** — Parse explicit @bot mentions and action words.
 2. **Intent** — Detect what the user wants (rule-based with LLM fallback when unsure).
@@ -397,7 +397,7 @@ Bots can spawn short-lived sidekicks for focused sub-tasks. Sidekicks work with 
 
 ## 🧠 Memory System
 
-Nanofolks has a production-hardened memory system that learns from every conversation.
+nanofolks has a production-hardened memory system that learns from every conversation.
 
 ### How It Works
 
@@ -407,12 +407,12 @@ Nanofolks has a production-hardened memory system that learns from every convers
 | **Entity Extraction** | The system automatically identifies people, places, organizations, and concepts mentioned in conversations |
 | **Knowledge Graph** | Entities are connected through relationships, creating a map of what you've discussed |
 | **Fast Semantic Search** | HNSW-based vector index enables millisecond-speed search over millions of memories |
-| **Preference Learning** | Nanofolks detects feedback patterns and learns your communication style, preferences, and habits over time |
-| **Context Assembly** | When you send a message, Nanofolks retrieves relevant memories and assembles them into context |
+| **Preference Learning** | nanofolks detects feedback patterns and learns your communication style, preferences, and habits over time |
+| **Context Assembly** | When you send a message, nanofolks retrieves relevant memories and assembles them into context |
 
 ### Why It Matters
 
-Unlike simple chat histories, Nanofolks builds a persistent knowledge base that:
+Unlike simple chat histories, nanofolks builds a persistent knowledge base that:
 - Survives restarts and new conversations
 - Connects related information across time
 - Searches semantically (find "dog" when you search "pet")
@@ -422,7 +422,7 @@ Unlike simple chat histories, Nanofolks builds a persistent knowledge base that:
 
 ## 💾 Session Storage & CAS
 
-Nanofolks uses **CAS (Compare-And-Set) storage** for conflict-free concurrent writes to session files.
+nanofolks uses **CAS (Compare-And-Set) storage** for conflict-free concurrent writes to session files.
 
 ### The Problem
 
@@ -480,7 +480,7 @@ export NANOFOLKS_USE_CAS_STORAGE=false
 
 ## 💭 Chain of Thought
 
-Nanofolks doesn't just respond. It thinks through problems.
+nanofolks doesn't just respond. It thinks through problems.
 
 ### The Pattern
 
@@ -490,7 +490,7 @@ Observation → Thought → Action → Observation → Thought → (repeat)
 
 ### Multi-Turn Reasoning
 
-For complex tasks, Nanofolks can:
+For complex tasks, nanofolks can:
 - Break down problems into steps
 - Plan before executing
 - Reflect on intermediate results
@@ -498,7 +498,7 @@ For complex tasks, Nanofolks can:
 
 ### Tool Execution Loop
 
-When tools are needed, Nanofolks:
+When tools are needed, nanofolks:
 1. Decides which tool to use
 2. Executes the tool
 3. Observes the result
@@ -510,14 +510,14 @@ When tools are needed, Nanofolks:
 
 ## 📦 Context Compaction
 
-Long conversations can exceed AI model limits. Nanofolks intelligently manages this.
+Long conversations can exceed AI model limits. nanofolks intelligently manages this.
 
 ### The Problem
 
 AI models have maximum context windows (typically 8K-200K tokens). Without management:
 - Conversations eventually hit the limit
 - Old context gets dropped
-- Nanofolks "forgets" earlier parts of the conversation
+- nanofolks "forgets" earlier parts of the conversation
 
 ### How Compaction Works
 
@@ -548,7 +548,7 @@ Tool outputs over 10KB are stored separately in SQLite to prevent:
 
 ## 🎯 Tier-Aware Routing
 
-Not every message needs the most powerful (and expensive) AI model. Nanofolks intelligently routes messages to appropriate models.
+Not every message needs the most powerful (and expensive) AI model. nanofolks intelligently routes messages to appropriate models.
 
 ### The Two-Layer System
 
@@ -619,7 +619,7 @@ Enable automatic model selection:
 
 ## 🛡️ Unified Security Architecture
 
-Nanofolks implements a unified security architecture that protects credentials across all entry points - from user chat input to automated tasks like routines and skill loading.
+nanofolks implements a unified security architecture that protects credentials across all entry points - from user chat input to automated tasks like routines and skill loading.
 
 ### Core Protection Layers
 
@@ -735,7 +735,7 @@ nanofolks skills scan /path/to/skill
 
 ## 🏠 Rooms & Collaboration
 
-Nanofolks uses **rooms** as collaboration spaces where your crew works together. Think of rooms as dedicated spaces for different projects, topics, or conversation types.
+nanofolks uses **rooms** as collaboration spaces where your crew works together. Think of rooms as dedicated spaces for different projects, topics, or conversation types.
 
 ### What Are Rooms?
 
@@ -756,11 +756,11 @@ A **room** is a conversation context where:
 
 ### Room Tasks
 
-Each room can track **tasks** so your crew’s work stays organized. Tasks belong to a room, have an owner and status, and include **handoff history** when ownership changes. When the Leader assigns a bot, Nanofolks also creates a matching room task automatically so progress stays visible.
+Each room can track **tasks** so your crew’s work stays organized. Tasks belong to a room, have an owner and status, and include **handoff history** when ownership changes. When the Leader assigns a bot, nanofolks also creates a matching room task automatically so progress stays visible.
 
 ### Room-Centric Architecture
 
-Nanofolks uses a **room-centric architecture** where everything is organized by room. This provides:
+nanofolks uses a **room-centric architecture** where everything is organized by room. This provides:
 
 | Benefit | Description |
 |---------|-------------|
@@ -871,11 +871,11 @@ Coder: [references previous findings]
 
 ## 💓 Multi-Heartbeat System
 
-Nanofolks doesn't just wait for you to message it. It can proactively act.
+nanofolks doesn't just wait for you to message it. It can proactively act.
 
 ### Routines (Scheduled Tasks)
 
-Nanofolks supports routines (scheduled tasks). There are two kinds:
+nanofolks supports routines (scheduled tasks). There are two kinds:
 
 - **Your Routines**: reminders or recurring tasks you create
 - **Team Routines**: background check-ins that keep the crew “alive”
@@ -893,7 +893,7 @@ nanofolks routines remove <id>
 ### Proactive Wake-Up
 
 Team routines:
-- Wakes Nanofolks at scheduled times
+- Wakes nanofolks at scheduled times
 - Runs background tasks
 - Can message you proactively
 - Maintains state between runs
@@ -908,7 +908,7 @@ Monitors when you're active to:
 
 ## 📝 Work Logs
 
-Nanofolks maintains persistent logs of completed work for future reference.
+nanofolks maintains persistent logs of completed work for future reference.
 
 ### What Gets Logged
 
@@ -925,7 +925,7 @@ Work logs enable:
 - **Audit trail** - Know what was done and when
 - **Context continuity** - Pick up where you left off
 - **Reference** - Look back at previous solutions
-- **Learning** - Nanofolks improves from past work
+- **Learning** - nanofolks improves from past work
 
 ### Access
 
@@ -942,7 +942,7 @@ Work logs are stored in the workspace and can be:
 
 ## Providers
 
-Nanofolks supports multiple AI providers:
+nanofolks supports multiple AI providers:
 
 | Provider | Purpose | Get Key |
 |----------|---------|---------|
@@ -957,7 +957,7 @@ Nanofolks supports multiple AI providers:
 
 ## Environment Variables
 
-Nanofolks also respects these env vars:
+nanofolks also respects these env vars:
 
 - `OPENROUTER_API_KEY`
 - `ANTHROPIC_API_KEY`
@@ -1026,7 +1026,7 @@ nanofolks room task history --room project-alpha <task_id>
 
 ### How Skills Work
 
-Nanofolks uses **progressive loading** to keep responses fast:
+nanofolks uses **progressive loading** to keep responses fast:
 
 1. **Skills Summary** - All available skills are listed in the system prompt with name, description, and file path
 2. **On-Demand Loading** - When the agent needs a skill, it reads the skill file automatically
@@ -1098,7 +1098,7 @@ docker run -v ~/.nanofolks:/root/.nanofolks -p 18790:18790 nanofolks gateway
 
 # 💡 Philosophy
 
-> **Nanofolks isn't about replacing you.**
+> **nanofolks isn't about replacing you.**
 > 
 > It's about expanding what you can do, by surrounding you with the right crew.
 
@@ -1125,7 +1125,7 @@ We believe AI should:
 
 # Credits
 
-Nanofolks started as a fork of [nanobot](https://github.com/HKUDS/nanobot), a project by HKUDS. We're grateful for the foundation they built and continue to draw inspiration from their vision of making AI assistants accessible and fun.
+nanofolks started as a fork of [nanobot](https://github.com/HKUDS/nanobot), a project by HKUDS. We're grateful for the foundation they built and continue to draw inspiration from their vision of making AI assistants accessible and fun.
 
 This project is for educational, research, and technical exchange purposes only.
 

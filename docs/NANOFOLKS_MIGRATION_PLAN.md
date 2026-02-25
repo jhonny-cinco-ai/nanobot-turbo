@@ -1,4 +1,4 @@
-# Nanobot to Nanofolks Migration Plan
+# nanofolks to nanofolks Migration Plan
 
 ## Executive Summary
 
@@ -61,7 +61,7 @@ Current:                          Target:
 
 | Current | Target |
 |---------|--------|
-| `NANOBOT_*` | `NANOFOLKS_*` |
+| `NANOFOLKS_*` | `NANOFOLKS_*` |
 
 ### 5. Hardcoded Path Migration
 
@@ -69,7 +69,7 @@ Current:                          Target:
 |----------|-------------|-------------|
 | `schema.py` | `~/.nanofolks/workspace` | `~/.nanofolks/workspace` |
 | `schema.py` | `~/.nanofolks/config.json` | `~/.nanofolks/config.json` |
-| `schema.py` | `NANOBOT_` env prefix | `NANOFOLKS_` env prefix |
+| `schema.py` | `NANOFOLKS_` env prefix | `NANOFOLKS_` env prefix |
 | `configure.py` | `/projects/nanofolks-turbo` | Update or remove |
 | `configure.py` | `~/.nanofolks` | `~/.nanofolks` |
 | `loader.py` | `~/.nanofolks/config.json` | `~/.nanofolks/config.json` |
@@ -154,7 +154,7 @@ Every Python file needs:
 2. Update internal references
 3. Update docstrings mentioning "nanofolks"
 4. Update hardcoded paths (`~/.nanofolks/` → `~/.nanofolks/`)
-5. Update environment variable prefixes (`NANOBOT_` → `NANOFOLKS_`)
+5. Update environment variable prefixes (`NANOFOLKS_` → `NANOFOLKS_`)
 
 **Affected Directories:**
 - `nanofolks/agent/` (15+ files) - tools, loop, context, etc.
@@ -178,7 +178,7 @@ Every Python file needs:
 | `~/.nanofolks/config.json` | Rename to `~/.nanofolks/config.json` |
 | `~/.nanofolks/team_config.json` | Migrate to new location |
 | `~/.nanofolks/bot_custom_names.json` | Migrate to new location |
-| `nanofolks/config/schema.py` | Update hardcoded paths (~/.nanofolks → ~/.nanofolks, NANOBOT_ → NANOFOLKS_) |
+| `nanofolks/config/schema.py` | Update hardcoded paths (~/.nanofolks → ~/.nanofolks, NANOFOLKS_ → NANOFOLKS_) |
 | `nanofolks/config/loader.py` | Update config path |
 | `nanofolks/agent/loop.py` | Update protected_paths default |
 | `nanofolks/cli/configure.py` | Update example paths |
@@ -246,7 +246,7 @@ name = "nanofolks"
 
 ```bash
 # Replace environment variable prefixes
-find nanofolks -name "*.py" -exec sed -i '' 's/NANOBOT_/NANOFOLKS_/g' {} \;
+find nanofolks -name "*.py" -exec sed -i '' 's/NANOFOLKS_/NANOFOLKS_/g' {} \;
 ```
 
 ### Step 6: Update Hardcoded Paths

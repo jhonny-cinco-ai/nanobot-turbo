@@ -340,7 +340,7 @@ Contains role cards for all 5 bots (1 coordinator + 4 specialists):
 
 ```python
 # THE LEADER/COORDINATOR
-NANOBOT_ROLE = RoleCard(
+NANOFOLKS_ROLE = RoleCard(
     bot_name="nanofolks",
     domain=BotDomain.COORDINATION,
     title="Your Companion",  # Team-styled: "Captain", "Lead Singer", "Commander", etc.
@@ -618,11 +618,11 @@ class SpecialistBot(ABC):
 
 # Concrete implementations
 
-class NanobotLeader(SpecialistBot):
+class nanofolksLeader(SpecialistBot):
     """The Coordinator - your main companion."""
     
     def __init__(self):
-        super().__init__(NANOBOT_ROLE)
+        super().__init__(NANOFOLKS_ROLE)
         self.authority_level = "high"  # Can make decisions
         self.can_create_workspaces = True
         self.can_recruit_bots = True

@@ -906,7 +906,7 @@ def _configure_tools():
                         console.print("Evolutionary mode allows the bot to modify files outside")
                         console.print("the workspace. Only enable if you understand the risks.")
                         console.print("\nDefault allowed paths will be set:")
-                        console.print("  • /projects/nanobot-turbo")
+                        console.print("  • /projects/nanofolks-turbo")
                         console.print("  • ~/.nanofolks")
 
                     if Confirm.ask(
@@ -923,7 +923,7 @@ def _configure_tools():
                             if new_value:
                                 asyncio.run(tool.execute(
                                     path="tools.allowedPaths",
-                                    value=["/projects/nanobot-turbo", "~/.nanofolks"]
+                                    value=["/projects/nanofolks-turbo", "~/.nanofolks"]
                                 ))
 
                         console.print(f"[green]{result}[/green]")

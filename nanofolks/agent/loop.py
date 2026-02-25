@@ -882,6 +882,7 @@ class AgentLoop:
         # Room task tool
         from nanofolks.agent.tools.room_tasks import RoomTaskTool
         room_task_tool = RoomTaskTool()
+        room_task_tool.set_canceller(self.cancel_room_tasks)
         self.tools.register(room_task_tool)
 
         # Cron tool (for scheduling)
@@ -1001,6 +1002,47 @@ class AgentLoop:
 
         await self.close_mcp()
         logger.info("Agent loop stopping")
+
+    def cancel_room_tasks(self, room_id: str) -> dict[str, int]:
+        """Cancel running work in a room (invocations + sidekicks)."""
+        cancelled_invocations = self.bot_invoker.cancel_room_invocations(room_id)
+        cancelled_sidekicks = self.bot_invoker.cancel_room_sidekicks(room_id)
+
+        blocked = 0
+        try:
+            from nanofolks.bots.room_manager import get_room_manager
+
+            manager = get_room_manager()
+            room = manager.get_room(room_id)
+            if room:
+                for task in room.tasks:
+                    if task.status == "in_progress":
+                        room.update_task_status(task.id, "blocked")
+                        task.metadata["cancelled_by"] = "user"
+                        blocked += 1
+                if blocked:
+                    manager._save_room(room)
+        except Exception as exc:
+            logger.warning(f"Failed to mark room tasks blocked after cancel: {exc}")
+
+        if self.work_log_manager:
+            self.work_log_manager.log(
+                level=LogLevel.WARNING,
+                category="general",
+                message="Room tasks cancelled",
+                details={
+                    "room_id": room_id,
+                    "invocations": cancelled_invocations,
+                    "sidekicks": cancelled_sidekicks,
+                    "blocked_tasks": blocked,
+                },
+            )
+
+        return {
+            "invocations": cancelled_invocations,
+            "sidekicks": cancelled_sidekicks,
+            "blocked_tasks": blocked,
+        }
 
     def set_stream_callback(self, callback: callable | None) -> None:
         """Set a stream callback for incremental output rendering."""
@@ -1250,6 +1292,19 @@ class AgentLoop:
                 chat_id=msg.chat_id,
                 content="🐈 nanofolks commands:\n/new — Start a new conversation\n/help — Show available commands",
                 room_id=msg.room_id or self._current_room_id,
+            )
+        if cmd == "/stop":
+            room_id = msg.room_id or self._current_room_id or "general"
+            summary = self.cancel_room_tasks(room_id)
+            return MessageEnvelope(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=(
+                    f"🛑 Stopped running tasks in #{room_id}. "
+                    f"Cancelled invocations: {summary.get('invocations', 0)}, "
+                    f"sidekicks: {summary.get('sidekicks', 0)}."
+                ),
+                room_id=room_id,
             )
 
         # Unified orchestrator pipeline (tag -> intent -> dispatch -> collect -> final)

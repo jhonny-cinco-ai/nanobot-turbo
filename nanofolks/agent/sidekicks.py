@@ -60,6 +60,14 @@ class SidekickOrchestrator:
         self.timeout_seconds = timeout_seconds
         self._active_by_bot: dict[str, int] = defaultdict(int)
         self._active_by_room: dict[str, int] = defaultdict(int)
+        self._active_tasks_by_room: dict[str, set[asyncio.Task]] = defaultdict(set)
+
+    def cancel_room(self, room_id: str) -> int:
+        """Cancel all running sidekicks for a room."""
+        tasks = list(self._active_tasks_by_room.get(room_id, set()))
+        for task in tasks:
+            task.cancel()
+        return len(tasks)
 
     def can_spawn(self, parent_bot_id: str, room_id: str, count: int = 1) -> bool:
         """Check if spawning sidekicks would exceed limits."""
@@ -122,6 +130,14 @@ class SidekickOrchestrator:
                     notes="Timed out",
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )
+            except asyncio.CancelledError:
+                return SidekickResult(
+                    task_id=task.task_id,
+                    status="failed",
+                    summary="",
+                    notes="Cancelled",
+                    duration_ms=int((time.monotonic() - start) * 1000),
+                )
             except Exception as exc:
                 return SidekickResult(
                     task_id=task.task_id,
@@ -131,8 +147,56 @@ class SidekickOrchestrator:
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )
 
+        running: list[tuple[str, asyncio.Task]] = []
         try:
-            return await asyncio.gather(*[_run_one(task) for task in tasks])
+            for task in tasks:
+                runner_task = asyncio.create_task(_run_one(task))
+                running.append((task.room_id, runner_task))
+                self._active_tasks_by_room[task.room_id].add(runner_task)
+
+            gathered = await asyncio.gather(
+                *[runner_task for _, runner_task in running],
+                return_exceptions=True,
+            )
+            results: list[SidekickResult] = []
+            for task, result in zip(tasks, gathered, strict=False):
+                if isinstance(result, SidekickResult):
+                    results.append(result)
+                elif isinstance(result, asyncio.CancelledError):
+                    results.append(
+                        SidekickResult(
+                            task_id=task.task_id,
+                            status="failed",
+                            summary="",
+                            notes="Cancelled",
+                        )
+                    )
+                elif isinstance(result, Exception):
+                    results.append(
+                        SidekickResult(
+                            task_id=task.task_id,
+                            status="failed",
+                            summary="",
+                            notes=str(result),
+                        )
+                    )
+                else:
+                    results.append(
+                        SidekickResult(
+                            task_id=task.task_id,
+                            status="failed",
+                            summary="",
+                            notes="Unknown error",
+                        )
+                    )
+            return results
         finally:
             for task in tasks:
                 self._release(task.parent_bot_id, task.room_id, 1)
+            for room_id, runner_task in running:
+                active = self._active_tasks_by_room.get(room_id)
+                if not active:
+                    continue
+                active.discard(runner_task)
+                if not active:
+                    self._active_tasks_by_room.pop(room_id, None)

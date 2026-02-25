@@ -368,7 +368,7 @@ For safer rollout, add config flags:
 
 ```python
 # In config or environment
-ENABLE_PHASE3_LAYOUT = os.getenv("NANOBOT_PHASE3", "true").lower() == "true"
+ENABLE_PHASE3_LAYOUT = os.getenv("NANOFOLKS_PHASE3", "true").lower() == "true"
 
 # In initialization
 if ENABLE_PHASE3_LAYOUT:

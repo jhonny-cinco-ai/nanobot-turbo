@@ -14,6 +14,7 @@ class RoomTaskTool(Tool):
     def __init__(self):
         self._room_id: str | None = None
         self._memory_store = None
+        self._canceller = None
 
     def set_context(self, room_id: str | None) -> None:
         self._room_id = room_id
@@ -22,13 +23,17 @@ class RoomTaskTool(Tool):
         """Attach a memory store for logging task events."""
         self._memory_store = memory_store
 
+    def set_canceller(self, canceller) -> None:
+        """Attach a canceller callable for stopping room tasks."""
+        self._canceller = canceller
+
     @property
     def name(self) -> str:
         return "room_task"
 
     @property
     def description(self) -> str:
-        return "Manage room tasks: add, list, assign, handoff, or update status."
+        return "Manage room tasks: add, list, assign, handoff, update status, or stop running tasks."
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -37,7 +42,7 @@ class RoomTaskTool(Tool):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "add", "status", "assign", "handoff", "history"],
+                    "enum": ["list", "add", "status", "assign", "handoff", "history", "stop"],
                     "description": "Task action to perform.",
                 },
                 "room_id": {
@@ -182,6 +187,17 @@ class RoomTaskTool(Tool):
                     f"- {handoff.get('from')} -> {handoff.get('to')} | {handoff.get('reason', '')}"
                 )
             return "\n".join(lines)
+
+        if action == "stop":
+            if not self._canceller:
+                return "Error: stop is not available in this context."
+            summary = self._canceller(room_id)
+            return (
+                "Stopped running tasks in room "
+                f"'{room_id}'. "
+                f"Cancelled invocations: {summary.get('invocations', 0)}, "
+                f"sidekicks: {summary.get('sidekicks', 0)}."
+            )
 
         return f"Error: Unknown action '{action}'."
 

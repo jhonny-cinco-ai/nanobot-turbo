@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The Dynamic Layout System transforms Nanofolks from a static chat interface into an adaptive workspace that morphs based on user needs and AI-driven context. By treating layout changes as first-class tools available to AI bots, we enable context-aware UI that evolves with the conversation.
+The Dynamic Layout System transforms nanofolks from a static chat interface into an adaptive workspace that morphs based on user needs and AI-driven context. By treating layout changes as first-class tools available to AI bots, we enable context-aware UI that evolves with the conversation.
 
 ## Core Concept: Layout as a Tool
 
@@ -489,7 +489,7 @@ Users can:
 
 ## Component Library / Bento Page
 
-To streamline development and provide a centralized view of all available UI components, we propose a dedicated **Component Library** page (codename: "Bento"). This serves as a living style guide, development sandbox, and visual inventory of the Nanofolks interface.
+To streamline development and provide a centralized view of all available UI components, we propose a dedicated **Component Library** page (codename: "Bento"). This serves as a living style guide, development sandbox, and visual inventory of the nanofolks interface.
 
 ### Purpose
 
@@ -753,5 +753,5 @@ The Bento page is essential for the Dynamic Layout System because:
 4. Integrate with existing bot tool system
 5. Test with real use cases
 
-**Authors:** Nanofolks Team  
+**Authors:** nanofolks Team  
 **Status:** Draft Proposal - Awaiting Review

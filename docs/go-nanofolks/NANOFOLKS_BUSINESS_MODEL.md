@@ -1,4 +1,4 @@
-# Nanofolks Business Model
+# nanofolks Business Model
 
 **Version:** 1.0  
 **Date:** 2026-02-16  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Nanofolks follows an **Open Core business model**: a fully-featured open-source CLI tool for technical users, and a polished proprietary desktop application with cloud services for everyone else.
+nanofolks follows an **Open Core business model**: a fully-featured open-source CLI tool for technical users, and a polished proprietary desktop application with cloud services for everyone else.
 
 **Core Philosophy:**
 - **Open Source CLI:** Full functionality, self-hosted, for developers and power users
@@ -173,7 +173,7 @@ go build
 │                           │                                 │
 │                           ▼ WebSocket/REST                  │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │  Nanofolks Cloud Backend                             │  │
+│  │  nanofolks Cloud Backend                             │  │
 │  │  ├─ User Management                                  │  │
 │  │  ├─ Model Routing & Billing                          │  │
 │  │  ├─ Sync & Backup                                    │  │
@@ -618,7 +618,7 @@ nanofolks/nanofolks-core (Public)
 
 ## Conclusion
 
-The Open Core model with Go CLI and proprietary GUI is the optimal strategy for Nanofolks:
+The Open Core model with Go CLI and proprietary GUI is the optimal strategy for nanofolks:
 
 1. **Technical users** get full control (CLI)
 2. **Normal users** get convenience (GUI)
@@ -659,5 +659,5 @@ The CLI builds credibility and community. The GUI monetizes the mass market that
 
 ---
 
-**Authors:** Nanofolks Team  
+**Authors:** nanofolks Team  
 **Status:** Proposal - Ready for Implementation

@@ -1,4 +1,4 @@
-# Nanofolks Go Plan (Unified v1 + v2)
+# nanofolks Go Plan (Unified v1 + v2)
 
 **Purpose**: One source of truth for Go v1 parity and Go v2 improvements.
 

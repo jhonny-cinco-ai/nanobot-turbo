@@ -228,7 +228,7 @@ class ToolsConfig(Base):
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     evolutionary: bool = True  # If true, use allowed_paths whitelist instead of restrict_to_workspace
-    allowed_paths: list[str] = Field(default_factory=list)  # Paths allowed when evolutionary mode is enabled (e.g., ["/projects/nanobot-turbo", "~/.nanofolks"])
+    allowed_paths: list[str] = Field(default_factory=list)  # Paths allowed when evolutionary mode is enabled (e.g., ["/projects/nanofolks-turbo", "~/.nanofolks"])
     protected_paths: list[str] = Field(default_factory=lambda: ["~/.nanofolks/config.json"])  # Paths that are always blocked, even within allowed_paths (e.g., config files with secrets)
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)  # Global MCP server configurations (shared by all bots)
     bot_mcp_servers: dict[str, dict[str, MCPServerConfig]] = Field(default_factory=dict)  # Per-bot MCP servers: {"bot_name": {"server_name": {...}}}

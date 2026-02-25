@@ -1,4 +1,4 @@
-# Nanofolks Workflows Index
+# nanofolks Workflows Index
 
 This directory contains the workflow definitions for Phase 1.5 (Communal Discovery Flow).
 

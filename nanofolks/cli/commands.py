@@ -574,11 +574,11 @@ If disabled, your bot will use [bold]{}[/bold] for all queries.
             # Set default allowed paths
             asyncio.run(tool.execute(
                 path="tools.allowedPaths",
-                value=["/projects/nanobot-turbo", "~/.nanofolks"]
+                value=["/projects/nanofolks-turbo", "~/.nanofolks"]
             ))
         if "Error" not in result:
             console.print("[green]✓ Evolutionary mode enabled[/green]")
-            console.print("[dim]Allowed paths: /projects/nanobot-turbo, ~/.nanofolks[/dim]")
+            console.print("[dim]Allowed paths: /projects/nanofolks-turbo, ~/.nanofolks[/dim]")
             console.print("[dim]Configure additional paths later with: nanofolks configure[/dim]\n")
     else:
         console.print("[dim]Evolutionary mode disabled. Bot restricted to workspace only.[/dim]\n")
@@ -1241,6 +1241,45 @@ def _looks_like_room_creation_request(user_message: str) -> bool:
     return any(pattern in message_lower for pattern in create_patterns)
 
 
+def _looks_like_stop_request(user_message: str) -> bool:
+    """Heuristic for stop/cancel requests in chat."""
+    message_lower = user_message.lower().strip()
+    if not message_lower or message_lower.startswith("/"):
+        return False
+
+    quick_phrases = {
+        "stop",
+        "stop now",
+        "please stop",
+        "cancel",
+        "cancel this",
+        "abort",
+        "halt",
+    }
+    if message_lower in quick_phrases:
+        return True
+
+    keywords = ["stop", "cancel", "abort", "halt"]
+    scope_words = ["bot", "bots", "task", "tasks", "sidekick", "sidekicks", "room"]
+    if any(k in message_lower for k in keywords):
+        if len(message_lower) <= 30:
+            return True
+        if any(word in message_lower for word in scope_words):
+            return True
+
+    return False
+
+
+def _stop_room_tasks(agent_loop, room_id: str) -> None:
+    summary = agent_loop.cancel_room_tasks(room_id)
+    console.print(
+        f"\n[bold red]🛑 Stopped running tasks in #{room_id}[/bold red]\n"
+        f"[dim]Cancelled invocations: {summary.get('invocations', 0)} | "
+        f"Sidekicks: {summary.get('sidekicks', 0)} | "
+        f"Blocked tasks: {summary.get('blocked_tasks', 0)}[/dim]\n"
+    )
+
+
 def _display_room_context(room, room_manager=None) -> None:
     """Display current room context (status bar + team roster).
 
@@ -1269,7 +1308,7 @@ async def _detect_room_creation_intent(user_message: str, config) -> Optional[di
 
     Args:
         user_message: The user's message
-        config: Nanobot config for provider setup
+        config: nanofolks config for provider setup
 
     Returns:
         Dict with room creation intent or None
@@ -1326,7 +1365,7 @@ async def _handle_room_creation_intent(
     Args:
         intent: The room creation intent from LLM
         current_room_id: Current room ID (for switching)
-        config: Nanobot config
+        config: nanofolks config
 
     Returns:
         Tuple of (new_room, switched) or None if user declined
@@ -1979,6 +2018,9 @@ def chat(
                         console.print("  [bold]/metrics[/bold]")
                         console.print("    Show live broker/routines metrics")
                         console.print()
+                        console.print("  [bold]/stop[/bold]")
+                        console.print("    Stop running tasks in the current room")
+                        console.print()
                         console.print("  [bold]/help[/bold]")
                         console.print("    Show this help message")
                         console.print()
@@ -2011,6 +2053,10 @@ def chat(
                         console.print()
                         continue
 
+                    if command in ["/stop"]:
+                        _stop_room_tasks(agent_loop, room)
+                        continue
+
                     if command in ["/metrics"]:
                         _print_metrics()
                         console.print()
@@ -2019,6 +2065,9 @@ def chat(
                     # AI-assisted room creation detection
                     # Only for regular messages (not commands)
                     if not command.startswith("/"):
+                        if _looks_like_stop_request(user_input):
+                            _stop_room_tasks(agent_loop, room)
+                            continue
                         intent = await _detect_room_creation_intent(user_input, config)
                         if intent:
                             result = await _handle_room_creation_intent(intent, room, config)
@@ -2571,7 +2620,7 @@ def _get_bridge_dir() -> Path:
         raise typer.Exit(1)
 
     # Find source bridge: first check package data, then source dir
-    pkg_bridge = Path(__file__).parent.parent / "bridge"  # nanobot/bridge (installed)
+    pkg_bridge = Path(__file__).parent.parent / "bridge"  # nanofolks/bridge (installed)
     src_bridge = Path(__file__).parent.parent.parent / "bridge"  # repo root/bridge (dev)
 
     source = None

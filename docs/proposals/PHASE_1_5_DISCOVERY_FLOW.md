@@ -402,7 +402,7 @@ User: "I like option 3, can you help me build it?"
 
 ### Core Patterns Adopted
 
-| GSD Pattern | Nanofolks Implementation |
+| GSD Pattern | nanofolks Implementation |
 |-------------|------------------------|
 | `discuss-phase` | DISCOVERY - Bots ask questions in-room |
 | `plan-phase` | SYNTHESIS - Leader formats findings |

@@ -71,7 +71,7 @@ Recent analysis of OpenClaw's production-hardened context management revealed cr
 
 ### Our Advantage
 
-**Nanobot-Turbo has superior external memory architecture:**
+**nanofolks-Turbo has superior external memory architecture:**
 - ✅ SQLite-based persistent storage (not just JSONL)
 - ✅ Semantic search with embeddings
 - ✅ Knowledge graph with entity resolution
@@ -1182,7 +1182,7 @@ The bot can now:
 ✅ **Context Compaction:** Long conversations fully supported (Phases 8-10 complete)
 
 **Comparison with OpenClaw:**
-| Feature | OpenClaw | Nanobot-Turbo |
+| Feature | OpenClaw | nanofolks-Turbo |
 |---------|----------|---------------|
 | External Memory | Limited | ✅ Superior (SQLite + embeddings) |
 | Context Compaction | ✅ Mature (3 modes) | ✅ **COMPLETE** (3 modes + tool chains) |
@@ -1193,7 +1193,7 @@ The bot can now:
 | Learning System | ⚠️ Basic | ✅ Full feedback loop |
 | **Overall** | Production-ready | ✅ **BEST-IN-CLASS** |
 
-**Strategic Position:** Nanobot-turbo now combines superior external memory (SQLite + embeddings) with OpenClaw's production-hardened compaction. **This creates a best-in-class memory system.**
+**Strategic Position:** nanofolks-turbo now combines superior external memory (SQLite + embeddings) with OpenClaw's production-hardened compaction. **This creates a best-in-class memory system.**
 
 ---
 

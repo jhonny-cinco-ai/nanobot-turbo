@@ -1,4 +1,4 @@
-# Nanobot Multi-Bot Architecture Analysis
+# nanofolks Multi-Bot Architecture Analysis
 
 ## Executive Summary
 
@@ -6,7 +6,7 @@ This document provides a comprehensive Python analysis of the `nanofolks agent` 
 
 ---
 
-## 1. NANOBOT AGENT COMMAND (`nanofolks agent`)
+## 1. NANOFOLKS AGENT COMMAND (`nanofolks agent`)
 
 ### Location
 **File**: `nanofolks/cli/commands.py:827-969`
@@ -117,7 +117,7 @@ async def _process_message(self, msg: MessageEnvelope) -> MessageEnvelope | None
 
 ---
 
-## 2. NANOBOT GATEWAY COMMAND (`nanofolks gateway`)
+## 2. NANOFOLKS GATEWAY COMMAND (`nanofolks gateway`)
 
 ### Location
 **File**: `nanofolks/cli/commands.py:544-817`
@@ -150,7 +150,7 @@ Start Gateway
 4. Create RoutinesService
     ↓
 5. Create Team Manager with 6 Bots:
-   - NanobotLeader (Coordinator)
+   - nanofolksLeader (Coordinator)
    - ResearcherBot
    - CoderBot
    - SocialBot
@@ -176,7 +176,7 @@ asyncio.gather(
 # Create all 6 bot instances
 from nanofolks.bots.implementations import (
     ResearcherBot, CoderBot, SocialBot, 
-    AuditorBot, CreativeBot, NanobotLeader
+    AuditorBot, CreativeBot, nanofolksLeader
 )
 
 # Load appearance configuration (teams and custom names)

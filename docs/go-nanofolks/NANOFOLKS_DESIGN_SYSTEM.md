@@ -1,4 +1,4 @@
-# Nanofolks Design System
+# nanofolks Design System
 ## Panda CSS Integration Guide
 
 **Version:** 1.0  
@@ -9,7 +9,7 @@
 
 ## 1. Overview
 
-### 1.1 Why Panda CSS for Nanofolks
+### 1.1 Why Panda CSS for nanofolks
 
 Panda CSS provides a type-safe, build-time CSS-in-JS solution that enables:
 

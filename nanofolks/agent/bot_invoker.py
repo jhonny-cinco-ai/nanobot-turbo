@@ -109,6 +109,7 @@ class BotInvoker:
         # Active invocations (all async now)
         self._active_invocations: dict[str, asyncio.Task[None]] = {}
         self._invocation_task_map: dict[str, dict[str, str]] = {}
+        self._invocation_room_map: dict[str, str] = {}
         self._cached_team_name: str | None = None
         self._sidekick_orchestrator: SidekickOrchestrator | None = None
 
@@ -121,6 +122,40 @@ class BotInvoker:
                 timeout_seconds=self.sidekick_config.timeout_seconds,
             )
         return self._sidekick_orchestrator
+
+    def cancel_room_sidekicks(self, room_id: str) -> int:
+        """Cancel all running sidekicks for a room."""
+        orchestrator = self._get_sidekick_orchestrator()
+        cancelled = orchestrator.cancel_room(room_id)
+        if cancelled and self.work_log_manager:
+            self.work_log_manager.log(
+                level=LogLevel.WARNING,
+                category="sidekick",
+                message="Cancelled sidekicks for room",
+                details={"room_id": room_id, "cancelled": cancelled},
+            )
+        return cancelled
+
+    def cancel_room_invocations(self, room_id: str) -> int:
+        """Cancel all running bot invocations for a room."""
+        cancelled = 0
+        for invocation_id, task in list(self._active_invocations.items()):
+            if self._invocation_room_map.get(invocation_id) != room_id:
+                continue
+            task.cancel()
+            cancelled += 1
+            self._active_invocations.pop(invocation_id, None)
+            self._invocation_room_map.pop(invocation_id, None)
+            self._invocation_task_map.pop(invocation_id, None)
+
+        if cancelled and self.work_log_manager:
+            self.work_log_manager.log(
+                level=LogLevel.WARNING,
+                category="general",
+                message="Cancelled bot invocations for room",
+                details={"room_id": room_id, "cancelled": cancelled},
+            )
+        return cancelled
 
     async def invoke(
         self,
@@ -196,6 +231,8 @@ class BotInvoker:
                 "room_id": origin_room_id,
                 "task_id": room_task_id,
             }
+        if origin_room_id:
+            self._invocation_room_map[invocation_id] = origin_room_id
 
         # Launch in background, don't wait
         task_handle = asyncio.create_task(
@@ -258,6 +295,10 @@ class BotInvoker:
             # Log the bot's response
             self._log_invocation_response(invocation_id, bot_role, task, result)
 
+        except asyncio.CancelledError:
+            status = "cancelled"
+            result = "Task cancelled by user."
+            self._log_invocation_error(invocation_id, bot_role, task, "cancelled")
         except Exception as e:
             logger.error(f"Async invocation {invocation_id} failed: {e}")
             result = f"Error: {str(e)}"
@@ -266,6 +307,7 @@ class BotInvoker:
         finally:
             # Cleanup
             self._active_invocations.pop(invocation_id, None)
+            self._invocation_room_map.pop(invocation_id, None)
 
             # Announce result back to main agent via system message
             await self._announce_result(
@@ -293,7 +335,12 @@ class BotInvoker:
         """Announce the bot result back to the main agent via system message."""
         bot_info = self.get_bot_info(bot_role)
         bot_title = bot_info.get("bot_name", bot_role) if bot_info else bot_role
-        status_text = "completed" if status == "ok" else "failed"
+        if status == "ok":
+            status_text = "completed"
+        elif status == "cancelled":
+            status_text = "cancelled"
+        else:
+            status_text = "failed"
 
         announce_content = f"""[Bot @{bot_role} ({bot_title}) {status_text}]
 

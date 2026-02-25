@@ -1,4 +1,4 @@
-# Nanofolks Go Security Architecture
+# nanofolks Go Security Architecture
 
 **Version:** 1.1  
 **Date:** 2026-02-16  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This document outlines a defense-in-depth security architecture for Nanofolks Go that protects API keys from:
+This document outlines a defense-in-depth security architecture for nanofolks Go that protects API keys from:
 1. **Accidental exposure** to LLMs through prompts/context
 2. **Memory dumps** and process inspection
 3. **Configuration file theft**
@@ -14,7 +14,7 @@ This document outlines a defense-in-depth security architecture for Nanofolks Go
 
 **Key Innovation: Symbolic Key References**
 
-Unlike traditional approaches where API keys are sanitized after exposure, Nanofolks Go uses **symbolic key references**. LLMs never see actual keys—only symbolic names like `{{openrouter_key}}`. Keys are resolved at execution time and never appear in context, logs, or memory accessible to the LLM.
+Unlike traditional approaches where API keys are sanitized after exposure, nanofolks Go uses **symbolic key references**. LLMs never see actual keys—only symbolic names like `{{openrouter_key}}`. Keys are resolved at execution time and never appear in context, logs, or memory accessible to the LLM.
 
 The architecture uses multiple layers: symbolic references, encrypted storage, secure execution, and audit logging.
 
@@ -24,7 +24,7 @@ The architecture uses multiple layers: symbolic references, encrypted storage, s
 
 ### 1.1 The Problem with Traditional Approaches
 
-**Current approaches (like Python nanobot):**
+**Current approaches (like Python nanofolks):**
 ```
 Config: api_key = "sk-or-v1-abc123..."
    ↓
@@ -45,7 +45,7 @@ Sanitizer masks it reactively
 
 ### 1.2 Symbolic Reference Architecture
 
-**Nanofolks Go approach:**
+**nanofolks Go approach:**
 ```
 Config: api_key = "sk-or-v1-abc123..." stored in KeyVault
    ↓
@@ -986,7 +986,7 @@ This multi-layer security architecture ensures:
 
 **Core Innovation: Symbolic Key References**
 
-Unlike traditional approaches that sanitize keys after exposure, Nanofolks Go ensures keys are **never exposed in the first place**. The LLM only sees symbolic names like `{{openrouter_key}}`, and the actual values are resolved at the last possible moment during tool execution.
+Unlike traditional approaches that sanitize keys after exposure, nanofolks Go ensures keys are **never exposed in the first place**. The LLM only sees symbolic names like `{{openrouter_key}}`, and the actual values are resolved at the last possible moment during tool execution.
 
 **Recommended Implementation Priority:**
 

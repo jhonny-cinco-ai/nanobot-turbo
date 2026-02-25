@@ -210,7 +210,7 @@ CREATIVE_REASONING = ReasoningConfig(
     max_reflection_tokens=180,
 )
 
-# NanobotLeader: Strategic coordination needs full reasoning
+# nanofolksLeader: Strategic coordination needs full reasoning
 COORDINATOR_REASONING = ReasoningConfig(
     cot_level=CoTLevel.FULL,
     always_cot_tools={"delegate", "coordinate", "notify"},

@@ -74,7 +74,7 @@ class BotDispatch:
         """Initialize Bot Dispatch.
 
         Args:
-            leader_bot: The Leader/Nanobot instance
+            leader_bot: The Leader/nanofolks instance
             room_manager: Manager for room operations
         """
         self.leader_bot = leader_bot

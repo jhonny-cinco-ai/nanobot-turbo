@@ -103,7 +103,7 @@ room:
 **Best case scenario** - Discord channels map 1:1 to rooms.
 
 ```
-Discord Server "Nanofolks Crew"
+Discord Server "nanofolks Crew"
 ├── #general → room:general
 ├── #project-alpha → room:project-alpha  
 ├── #dm-coder → room:dm-coder (private channel)
@@ -143,14 +143,14 @@ Slack Workspace
 
 **Option B: Inline Keyboard**
 ```
-User: @NanofolksBot
+User: @nanofolksBot
 Bot: [Select Room]
     [General] [Weekly Web Findings]
     [Project Alpha] [DM Coder]
 ```
 
 **Option C: Group Mapping**
-- Telegram Group "Nanofolks - Project Alpha" → room:project-alpha
+- Telegram Group "nanofolks - Project Alpha" → room:project-alpha
 - Private chat with bot = DM room selection
 
 **Implementation:**
@@ -164,8 +164,8 @@ Bot: [Select Room]
 **Option A: WhatsApp Groups**
 ```
 Create WhatsApp Groups:
-- "Nanofolks - General" → room:general
-- "Nanofolks - Project Alpha" → room:project-alpha
+- "nanofolks - General" → room:general
+- "nanofolks - Project Alpha" → room:project-alpha
 ```
 
 **Option B: Command Interface**
@@ -196,7 +196,7 @@ nanofolks room join a7f3k9d2
 nanofolks room create "New Project" --type project
 
 # Current room shown in prompt
-[Nanofolks:Weekly-Web-Findings] > 
+[nanofolks:Weekly-Web-Findings] > 
 ```
 
 ## Session Storage Changes
@@ -422,7 +422,7 @@ rooms:
 
 ### The Vision: True Crew Dynamics
 
-> **Nanofolks isn't an assistant with tools. It's a crew of characters.**
+> **nanofolks isn't an assistant with tools. It's a crew of characters.**
 
 Current implementation filters everything through the Leader bot, making it feel like "one assistant with subcontractors." The room-centric architecture unlocks true communal interaction where the whole crew participates as distinct personalities.
 
@@ -513,7 +513,7 @@ User: Perfect, thanks team!
 
 ### Leveraging Existing Affinity System
 
-Nanofolks already has **affinity relationships** defined in each bot's IDENTITY.md:
+nanofolks already has **affinity relationships** defined in each bot's IDENTITY.md:
 
 #### **From Pirate Crew - Captain's Relationships:**
 - **Navigator (Sparrow):** "My trusted first mate. We see eye-to-eye on most voyages."

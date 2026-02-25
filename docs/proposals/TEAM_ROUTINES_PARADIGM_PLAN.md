@@ -3,7 +3,7 @@
 Note: In this document, **cron** refers to the internal routines scheduler engine, and **team_routines** refers to the team routines engine. Both are internal; user-facing terminology is **routines**.
 
 **Status**: Proposed  
-**Owner**: Nanofolks Core  
+**Owner**: nanofolks Core  
 **Scope**: Python codebase (with direct path to Go port)
 
 ---
@@ -14,7 +14,7 @@ The current model is partially unified:
 - `when` is mostly unified (scheduler/routines)
 - `what` is still split (team_routines files/checks vs scheduled jobs)
 
-This creates a confusing mental model and a fragile backend. For Nanofolks' target users, this is too technical.
+This creates a confusing mental model and a fragile backend. For nanofolks' target users, this is too technical.
 
 This plan defines a clean paradigm:
 - One backend concept: `routines`

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The inline thinking display allows users to see how Nanobot reasons through problems. After each response, a collapsible section shows the bot's decision-making process.
+The inline thinking display allows users to see how nanofolks reasons through problems. After each response, a collapsible section shows the bot's decision-making process.
 
 ## Usage
 

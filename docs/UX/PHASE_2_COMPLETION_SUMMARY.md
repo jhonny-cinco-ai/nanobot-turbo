@@ -9,7 +9,7 @@
 
 ### Phase 2: Integration
 
-Complete integration of the thinking display components into the Nanobot CLI agent command. Users can now see their bot's thinking process inline after each response, with the ability to toggle between a collapsed summary and expanded details.
+Complete integration of the thinking display components into the nanofolks CLI agent command. Users can now see their bot's thinking process inline after each response, with the ability to toggle between a collapsed summary and expanded details.
 
 ## Key Changes
 
@@ -208,6 +208,6 @@ nanofolks agent
 
 ## Summary
 
-Phase 2 successfully integrates the thinking display components into the Nanobot CLI. Users can now see how their bot reasons through problems, promoting transparency and building trust in the AI system. The implementation is clean, tested, and production-ready.
+Phase 2 successfully integrates the thinking display components into the nanofolks CLI. Users can now see how their bot reasons through problems, promoting transparency and building trust in the AI system. The implementation is clean, tested, and production-ready.
 
 **Ready to move forward with Phase 3 polish and user validation.**
