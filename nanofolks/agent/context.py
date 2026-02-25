@@ -35,9 +35,10 @@ class ContextBuilder:
         # Initialize TurboMemoryStore with config
         config = load_config()
         if config.memory.enabled:
-            self.memory = TurboMemoryStore(config.memory, workspace)
             # Initialize embedding provider for semantic search
             self.embedding_provider = EmbeddingProvider(config.memory.embedding)
+            self.memory = TurboMemoryStore(config.memory, workspace)
+            self.memory.set_embedding_provider(self.embedding_provider)
         else:
             self.memory = None
             self.embedding_provider = None

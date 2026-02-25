@@ -552,9 +552,12 @@ class LearningExchange:
 
             memory_store = TurboMemoryStore(get_data_dir())
 
-            # Save as shared learning (not bot-specific)
-            # This allows all bots to benefit from distributed insights
-            learning_id = memory_store.create_learning(learning)
+            # Save as shared learning with bot-scoping metadata
+            learning_id = memory_store.save_learning_with_bot_scope(
+                learning,
+                bot_id=package.source_bot,
+                is_private=False
+            )
 
             from loguru import logger
             logger.info(
@@ -661,6 +664,12 @@ class LearningExchange:
             relevance_score=1.0,  # Fresh score - independent decay
             times_accessed=0,
             last_accessed=None,
+            metadata={
+                "source_bot": package.source_bot,
+                "source_workspace": package.source_workspace,
+                "category": package.category.value,
+                "scope": package.scope.value,
+            },
         )
 
     def receive_learning_package(self, package: LearningPackage, store):
@@ -681,8 +690,12 @@ class LearningExchange:
             # Convert package to learning object
             learning = self.create_learning_from_package(package)
 
-            # Store in local Turbo Memory
-            store.create_learning(learning)
+            # Store in local Turbo Memory as shared learning with source bot attribution
+            store.save_learning_with_bot_scope(
+                learning,
+                bot_id=package.source_bot,
+                is_private=False
+            )
 
             from loguru import logger
             logger.info(

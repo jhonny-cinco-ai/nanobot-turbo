@@ -127,6 +127,46 @@ def memory_rebuild_index():
         memory_store.close()
 
 
+@memory_app.command("embedding-check")
+def memory_embedding_check(
+    text: str = typer.Option("hello world", "--text", "-t", help="Sample text to embed")
+):
+    """Check embedding generation and report vector stats."""
+    try:
+        from math import sqrt
+
+        from nanofolks.config.loader import load_config
+        from nanofolks.memory.embeddings import EmbeddingProvider
+
+        config = load_config()
+        provider = EmbeddingProvider(config.memory.embedding)
+
+        vector = provider.embed(text)
+        non_zero = sum(1 for v in vector if v != 0.0)
+        norm = sqrt(sum(v * v for v in vector))
+
+        console.print("\n[bold]Embedding Check[/bold]")
+        console.print(f"Provider: {config.memory.embedding.provider}")
+        console.print(f"Model: {config.memory.embedding.local_model}")
+        console.print(f"Vector length: {len(vector)}")
+        console.print(f"Non-zero values: {non_zero}")
+        console.print(f"Vector norm: {norm:.6f}")
+
+        if non_zero == 0:
+            if config.memory.embedding.provider == "local":
+                console.print(
+                    "[yellow]Local embeddings not available. Install fastembed or set provider=api.[/yellow]"
+                )
+            else:
+                console.print(
+                    "[yellow]API embeddings are not implemented yet; vectors will be zeros.[/yellow]"
+                )
+        else:
+            console.print("[green]Embeddings look healthy.[/green]")
+    except Exception as e:
+        console.print(f"[red]Embedding check failed: {e}[/red]")
+
+
 @memory_app.command("search")
 def memory_search(query: str, limit: int = typer.Option(10, "--limit", "-l")):
     """Search memory content."""

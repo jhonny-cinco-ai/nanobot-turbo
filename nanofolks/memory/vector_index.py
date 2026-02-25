@@ -27,6 +27,7 @@ class VectorIndex:
         dimension: int = 384,
         ef_construction: int = 200,
         M: int = 16,
+        max_elements: int = 100000,
         name: str = "events",
     ):
         """
@@ -43,6 +44,7 @@ class VectorIndex:
         self.dimension = dimension
         self.ef_construction = ef_construction
         self.M = M
+        self.max_elements = max_elements
         self.name = name
         
         self.index_path = workspace / "memory" / f"{name}_index.bin"
@@ -82,7 +84,7 @@ class VectorIndex:
         """Create a new index."""
         self._ensure_index()
         self._index.init_index(
-            max_elements=100000,
+            max_elements=self.max_elements,
             ef_construction=self.ef_construction,
             M=self.M
         )
@@ -145,6 +147,12 @@ class VectorIndex:
             embedding: Embedding vector
         """
         self._ensure_index()
+
+        max_elements = self._index.get_max_elements()
+        current_count = self._index.get_current_count()
+        if current_count + 1 > max_elements:
+            new_max = max(current_count + 1, max_elements * 2)
+            self._index.resize_index(new_max)
         
         if event_id in self._id_map:
             logger.debug(f"Vector {event_id} already in index, skipping")
@@ -182,6 +190,13 @@ class VectorIndex:
         new_items = [(eid, emb) for eid, emb in items if eid not in self._id_map]
         if not new_items:
             return
+
+        max_elements = self._index.get_max_elements()
+        current_count = self._index.get_current_count()
+        needed = current_count + len(new_items)
+        if needed > max_elements:
+            new_max = max(needed, max_elements * 2)
+            self._index.resize_index(new_max)
             
         # Convert to numpy array
         vectors = []

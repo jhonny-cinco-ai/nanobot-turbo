@@ -136,9 +136,10 @@ class BackgroundProcessor:
 
         Current tasks:
         1. Extract entities from pending events  (under processing_lock)
-        2. Refresh stale summaries (every 5 min) (under processing_lock)
-        3. Cleanup summaries (daily)             (under processing_lock)
-        4. Apply learning decay (every hour)     (no lock needed – read + update)
+        2. Batch-embed missing events            (under processing_lock)
+        3. Refresh stale summaries (every 5 min) (under processing_lock)
+        4. Cleanup summaries (daily)             (under processing_lock)
+        5. Apply learning decay (every hour)     (no lock needed – read + update)
 
         processing_lock is used for tasks that write to the memory store so that
         the agent's _memory_flush_hook() can safely wait before its own writes.
@@ -153,19 +154,24 @@ class BackgroundProcessor:
             if pending > 0:
                 tasks_ran.append(f"extracted {pending} events")
 
-            # Task 2: Refresh stale summaries (every 5th cycle = every 5 min)
+            # Task 2: Batch-embed missing events
+            embedded = self.memory_store.embed_missing_events(limit=200, batch_size=32)
+            if embedded > 0:
+                tasks_ran.append(f"embedded {embedded} events")
+
+            # Task 3: Refresh stale summaries (every 5th cycle = every 5 min)
             if int(time.time()) % 300 < self.interval_seconds:
                 refreshed = await self._refresh_summaries()
                 if refreshed > 0:
                     tasks_ran.append(f"refreshed {refreshed} summaries")
 
-            # Task 3: Cleanup low-confidence summaries (daily)
+            # Task 4: Cleanup low-confidence summaries (daily)
             if int(time.time()) % 86400 < self.interval_seconds:
                 removed = await self._cleanup_summaries()
                 if removed > 0:
                     tasks_ran.append(f"cleaned {removed} summaries")
 
-        # Task 4: Learning decay – reads then updates individual rows, SQLite WAL
+        # Task 5: Learning decay – reads then updates individual rows, SQLite WAL
         # handles this safely without the shared lock.
         if int(time.time()) % 3600 < self.interval_seconds:
             decayed = await self._decay_learnings()

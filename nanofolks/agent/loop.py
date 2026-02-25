@@ -192,7 +192,9 @@ class AgentLoop:
             from nanofolks.memory.store import TurboMemoryStore
             from nanofolks.memory.summaries import create_summary_manager
 
+            embedding_provider = EmbeddingProvider(memory_config.embedding)
             self.memory_store = TurboMemoryStore(memory_config, workspace)
+            self.memory_store.set_embedding_provider(embedding_provider)
 
             # Initialize summary manager
             self.summary_manager = create_summary_manager(
@@ -224,10 +226,6 @@ class AgentLoop:
             )
 
             # Initialize memory retrieval with embeddings
-            embedding_provider = None
-            if memory_config.embedding.provider == "local":
-                embedding_provider = EmbeddingProvider(memory_config.embedding)
-
             self.memory_retrieval = create_retrieval(
                 self.memory_store,
                 embedding_provider=embedding_provider,

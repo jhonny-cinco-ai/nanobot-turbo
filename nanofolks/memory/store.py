@@ -44,6 +44,7 @@ class TurboMemoryStore:
         """
         self.config = config
         self.workspace = workspace
+        self.embedding_provider: Optional["EmbeddingProvider"] = None
 
         # Database file path
         self.db_path = workspace / config.db_path
@@ -74,6 +75,28 @@ class TurboMemoryStore:
 
         logger.info(f"TurboMemoryStore initialized: {self.db_path}")
 
+    def set_embedding_provider(self, provider: Optional["EmbeddingProvider"]) -> None:
+        """Set embedding provider for semantic indexing."""
+        self.embedding_provider = provider
+
+    def _maybe_embed_text(self, text: str, max_chars: int = 2000) -> Optional[list[float]]:
+        """Generate embedding for text if provider is ready."""
+        if not self.embedding_provider:
+            return None
+        if not text or not text.strip():
+            return None
+        try:
+            if not self.embedding_provider.is_ready():
+                return None
+            content = text[:max_chars] if max_chars and len(text) > max_chars else text
+            embedding = self.embedding_provider.embed(content)
+            if not embedding or not any(embedding):
+                return None
+            return embedding
+        except Exception as e:
+            logger.warning(f"Embedding generation failed: {e}")
+            return None
+
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create database connection with WAL mode."""
         if self._conn is None:
@@ -85,6 +108,10 @@ class TurboMemoryStore:
             self._conn.execute("PRAGMA synchronous=NORMAL;")
             self._conn.execute("PRAGMA cache_size=10000;")
             self._conn.execute("PRAGMA busy_timeout=5000;")
+            self._conn.execute("PRAGMA foreign_keys=ON;")
+            self._conn.execute("PRAGMA temp_store=MEMORY;")
+            self._conn.execute("PRAGMA mmap_size=268435456;")
+            self._conn.execute("PRAGMA journal_size_limit=67108864;")
 
             # Initialize tables
             self._init_tables()
@@ -125,7 +152,9 @@ class TurboMemoryStore:
         # Index on frequently queried columns
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_key);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_session_timestamp ON events(session_key, timestamp DESC);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_extraction ON events(extraction_status);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_extraction_timestamp ON events(extraction_status, timestamp ASC);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_channel ON events(channel);")
 
         # Entities table - people, orgs, concepts
@@ -297,6 +326,11 @@ class TurboMemoryStore:
         """
         conn = self._get_connection()
 
+        if event.content_embedding is None and self.embedding_provider:
+            embedding = self._maybe_embed_text(event.content, max_chars=2000)
+            if embedding:
+                event.content_embedding = embedding
+
         # Serialize embedding if present
         embedding_bytes = None
         if event.content_embedding:
@@ -386,6 +420,19 @@ class TurboMemoryStore:
 
         return [self._row_to_event(row) for row in rows]
 
+    def get_recent_events(self, limit: int = 50) -> list[Event]:
+        """Get most recent events across all sessions."""
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT * FROM events
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,)
+        ).fetchall()
+        return [self._row_to_event(row) for row in rows]
+
     def iter_event_embeddings(self, batch_size: int = 500):
         """Iterate over event embeddings for index rebuild."""
         conn = self._get_connection()
@@ -436,6 +483,84 @@ class TurboMemoryStore:
         ).fetchall()
 
         return [self._row_to_event(row) for row in rows]
+
+    def embed_missing_events(
+        self,
+        limit: int = 100,
+        batch_size: int = 32,
+        max_chars: int = 2000,
+    ) -> int:
+        """
+        Batch-generate embeddings for events missing content embeddings.
+
+        Returns:
+            Number of events updated
+        """
+        if not self.embedding_provider or not self.embedding_provider.is_ready():
+            return 0
+
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT id, content FROM events
+            WHERE content_embedding IS NULL
+            ORDER BY timestamp ASC
+            LIMIT ?
+            """,
+            (limit,)
+        ).fetchall()
+
+        if not rows:
+            return 0
+
+        updated = 0
+        vector_updates: list[tuple[str, list[float]]] = []
+
+        def _prepare_text(text: str) -> str:
+            if not text:
+                return ""
+            return text[:max_chars] if max_chars and len(text) > max_chars else text
+
+        for i in range(0, len(rows), batch_size):
+            batch = rows[i:i + batch_size]
+            texts = [_prepare_text(row["content"]) for row in batch]
+            valid_indices = [idx for idx, t in enumerate(texts) if t and t.strip()]
+            if not valid_indices:
+                continue
+
+            valid_texts = [texts[idx] for idx in valid_indices]
+            embeddings = self.embedding_provider.embed_batch(valid_texts)
+            if len(embeddings) != len(valid_texts):
+                logger.warning(
+                    f"Batch embedding size mismatch: {len(embeddings)} vs {len(valid_texts)}"
+                )
+                continue
+
+            updates = []
+            for local_idx, embedding in zip(valid_indices, embeddings):
+                if not embedding or not any(embedding):
+                    continue
+                event_id = batch[local_idx]["id"]
+                embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+                updates.append((embedding_bytes, event_id))
+                vector_updates.append((event_id, embedding))
+
+            if updates:
+                conn.executemany(
+                    "UPDATE events SET content_embedding = ? WHERE id = ?",
+                    updates
+                )
+                conn.commit()
+                updated += len(updates)
+
+        if vector_updates:
+            try:
+                vector_index = self._get_vector_index()
+                vector_index.add_vectors_batch(vector_updates)
+            except Exception as e:
+                logger.warning(f"Failed to add batch embeddings to vector index: {e}")
+
+        return updated
 
     def mark_event_extracted(self, event_id: str, status: str = "complete"):
         """
@@ -558,6 +683,26 @@ class TurboMemoryStore:
             # Fallback to brute force
             return self._search_events_bruteforce(query_embedding, session_key, limit, threshold)
 
+    def search_similar_events(
+        self,
+        query_embedding: list[float],
+        session_key: str | None = None,
+        limit: int = 10,
+        threshold: float = 0.5
+    ) -> list[Event]:
+        """
+        Compatibility wrapper for semantic event search.
+
+        Returns only Event objects (drops similarity scores).
+        """
+        results = self.search_events(
+            query_embedding=query_embedding,
+            session_key=session_key,
+            limit=limit,
+            threshold=threshold,
+        )
+        return [event for event, _ in results]
+
     def _search_events_bruteforce(
         self,
         query_embedding: list[float],
@@ -606,26 +751,44 @@ class TurboMemoryStore:
     def search_events_by_text(
         self,
         query: str,
-        provider: "EmbeddingProvider",
         session_key: str | None = None,
-        limit: int = 10,
-        threshold: float = 0.5
-    ) -> list[tuple[Event, float]]:
+        limit: int = 10
+    ) -> list[Event]:
         """
-        Search events by text query (automatically embeds query).
+        Search events by simple text matching.
 
         Args:
             query: Text query
-            provider: Embedding provider to use
             session_key: Optional session to restrict search to
             limit: Maximum number of results
-            threshold: Minimum similarity score
 
         Returns:
-            List of (event, similarity_score) tuples
+            List of matching events
         """
-        query_embedding = provider.embed(query)
-        return self.search_events(query_embedding, session_key, limit, threshold)
+        conn = self._get_connection()
+        pattern = f"%{query}%"
+        if session_key:
+            rows = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE LOWER(content) LIKE LOWER(?) AND session_key = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (pattern, session_key, limit)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE LOWER(content) LIKE LOWER(?)
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (pattern, limit)
+            ).fetchall()
+
+        return [self._row_to_event(row) for row in rows]
 
     def get_similar_entities(
         self,
@@ -690,6 +853,15 @@ class TurboMemoryStore:
             The entity ID
         """
         conn = self._get_connection()
+
+        if entity.name_embedding is None and entity.name:
+            embedding = self._maybe_embed_text(entity.name, max_chars=200)
+            if embedding:
+                entity.name_embedding = embedding
+        if entity.description_embedding is None and entity.description:
+            embedding = self._maybe_embed_text(entity.description, max_chars=1000)
+            if embedding:
+                entity.description_embedding = embedding
 
         # Serialize embeddings
         name_embedding_bytes = None
@@ -768,6 +940,31 @@ class TurboMemoryStore:
 
         return self._row_to_entity(row)
 
+    def search_entities_by_name(self, query: str, limit: int = 10) -> list[Entity]:
+        """
+        Search entities by name or aliases using text matching.
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+
+        Returns:
+            List of matching entities
+        """
+        conn = self._get_connection()
+        pattern = f"%{query}%"
+        rows = conn.execute(
+            """
+            SELECT * FROM entities
+            WHERE LOWER(name) LIKE LOWER(?)
+               OR LOWER(aliases) LIKE LOWER(?)
+            ORDER BY event_count DESC
+            LIMIT ?
+            """,
+            (pattern, pattern, limit)
+        ).fetchall()
+        return [self._row_to_entity(row) for row in rows]
+
     def update_entity(self, entity: Entity):
         """
         Update an existing entity.
@@ -776,6 +973,15 @@ class TurboMemoryStore:
             entity: Entity with updated values
         """
         conn = self._get_connection()
+
+        if entity.name_embedding is None and entity.name:
+            embedding = self._maybe_embed_text(entity.name, max_chars=200)
+            if embedding:
+                entity.name_embedding = embedding
+        if entity.description_embedding is None and entity.description:
+            embedding = self._maybe_embed_text(entity.description, max_chars=1000)
+            if embedding:
+                entity.description_embedding = embedding
 
         # Serialize embeddings
         name_embedding_bytes = None
@@ -1264,7 +1470,7 @@ class TurboMemoryStore:
             List of similar entities
         """
         # Get all entities with embeddings
-        entities = self.get_entities_by_type("person", limit=1000)  # Get all types
+        entities = self.get_all_entities(limit=1000)
 
         # Calculate cosine similarity for each
         from nanofolks.memory.embeddings import cosine_similarity
@@ -1416,6 +1622,30 @@ class TurboMemoryStore:
         conn = self._get_connection()
 
         rows = conn.execute("SELECT * FROM summary_nodes").fetchall()
+        return [self._row_to_summary_node(row) for row in rows]
+
+    def get_summary_nodes(self, parent_id: str | None = None, limit: int | None = None) -> list[SummaryNode]:
+        """
+        Get summary nodes, optionally filtered by parent_id.
+
+        Args:
+            parent_id: Parent ID to filter by. Use None for root-level nodes.
+            limit: Optional limit on number of nodes returned
+
+        Returns:
+            List of summary nodes
+        """
+        conn = self._get_connection()
+        params: list[Any] = []
+        if parent_id is None:
+            query = "SELECT * FROM summary_nodes WHERE parent_id IS NULL ORDER BY last_updated DESC"
+        else:
+            query = "SELECT * FROM summary_nodes WHERE parent_id = ? ORDER BY last_updated DESC"
+            params.append(parent_id)
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        rows = conn.execute(query, tuple(params)).fetchall()
         return [self._row_to_summary_node(row) for row in rows]
 
     def update_summary_node(self, node: SummaryNode):
@@ -1664,6 +1894,28 @@ class TurboMemoryStore:
 
         return deleted
 
+    def get_active_learnings(self, limit: int = 10) -> list[Learning]:
+        """
+        Get active (non-superseded) learnings ordered by relevance.
+
+        Args:
+            limit: Maximum number of learnings to return
+
+        Returns:
+            List of active learnings
+        """
+        conn = self._get_connection()
+        rows = conn.execute(
+            """
+            SELECT * FROM learnings
+            WHERE superseded_by IS NULL
+            ORDER BY relevance_score DESC
+            LIMIT ?
+            """,
+            (limit,)
+        ).fetchall()
+        return [self._row_to_learning(row) for row in rows]
+
     def get_learnings_by_source(self, source: str, limit: int = 100) -> list[Learning]:
         """
         Get learnings by source type.
@@ -1761,16 +2013,22 @@ class TurboMemoryStore:
 
         stats = {"events_imported": 0, "files_processed": 0}
 
+        from uuid import uuid4
+
         # Import MEMORY.md as a long-term memory event
         memory_file = memory_dir / "MEMORY.md"
         if memory_file.exists():
             content = memory_file.read_text(encoding="utf-8")
             if content.strip():
                 event = Event(
-                    content=f"Legacy long-term memory:\n\n{content[:1000]}",  # Truncate if too long
+                    id=str(uuid4()),
+                    timestamp=datetime.now(),
+                    channel="internal",
+                    direction="internal",
                     event_type="legacy_import",
-                    source="memory.md_migration",
-                    importance=0.8
+                    content=f"Legacy long-term memory:\n\n{content[:1000]}",  # Truncate if too long
+                    session_key="room:legacy",
+                    metadata={"source": "memory.md_migration", "importance": 0.8},
                 )
                 self.save_event(event)
                 stats["events_imported"] += 1
@@ -1786,11 +2044,14 @@ class TurboMemoryStore:
 
                 if content.strip():
                     event = Event(
-                        content=f"Legacy daily notes ({date_str}):\n\n{content[:2000]}",  # Truncate if too long
-                        event_type="legacy_import",
-                        source="daily_notes_migration",
+                        id=str(uuid4()),
                         timestamp=datetime.strptime(date_str, "%Y-%m-%d"),
-                        importance=0.6
+                        channel="internal",
+                        direction="internal",
+                        event_type="legacy_import",
+                        content=f"Legacy daily notes ({date_str}):\n\n{content[:2000]}",  # Truncate if too long
+                        session_key="room:legacy",
+                        metadata={"source": "daily_notes_migration", "importance": 0.6},
                     )
                     self.save_event(event)
                     stats["events_imported"] += 1
@@ -1842,14 +2103,9 @@ class TurboMemoryStore:
         # Get latest summary
         summaries = self.get_summary_nodes(parent_id=None)
         if summaries:
-            latest = max(summaries, key=lambda s: s.created_at or datetime.min)
-            parts.append(f"\n## Conversation Summary\n{latest.content}")
-
-        return "\n".join(parts) if parts else ""
-        summaries = self.get_summary_nodes(parent_id=None)
-        if summaries:
-            latest = max(summaries, key=lambda s: s.created_at or datetime.min)
-            parts.append(f"\n## Conversation Summary\n{latest.content}")
+            latest = max(summaries, key=lambda s: s.last_updated or datetime.min)
+            if latest.summary:
+                parts.append(f"\n## Conversation Summary\n{latest.summary}")
 
         return "\n".join(parts) if parts else ""
 

@@ -5,6 +5,7 @@ using FastEmbed (local) with optional API fallback. Uses lazy loading to avoid
 downloading models at startup.
 """
 
+import os
 import struct
 
 from loguru import logger
