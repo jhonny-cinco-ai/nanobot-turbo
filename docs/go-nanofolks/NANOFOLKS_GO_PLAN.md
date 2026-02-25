@@ -221,19 +221,19 @@
 These improvements are recommended during the port process. Some can be done now in Python to de‑risk the port, others are best done in Go after parity.
 
 **Do Now in Python (and carry into Go v1 design):**
-- ID normalization helpers (RoomID / SessionID)
-- Single MessageEnvelope type across broker/bus/channels/tools
-- Unified SecretStore interface (keyring/keyvault/symbolic)
-- Team vs Team naming cleanup
-- TeamProfile read‑only aggregator (SOUL + identity + reasoning + permissions)
+- ID normalization helpers (RoomID / SessionID) — **done in Python**
+- Single MessageEnvelope type across broker/bus/channels/tools — **done in Python**
+- Unified SecretStore interface (keyring/keyvault/symbolic) — **done in Python**
+- Team vs Team naming cleanup — **done in Python**
+- TeamProfile read‑only aggregator (SOUL + identity + reasoning + permissions) — **done in Python**
 
 **Defer to Go Port (post‑parity or v2):**
-- Unify DM rooms into standard rooms
-- Merge Cron + TeamRoutines into one scheduler
-- Single orchestrator pipeline (tags → intent → dispatch → aggregation)
-- MemoryPolicy per room
-- Treat CLI/GUI as channels
-- Explicit task ownership + handoff rules
+- Unify DM rooms into standard rooms — **done in Python**
+- Merge Cron + TeamRoutines into one scheduler — **done in Python**
+- Single orchestrator pipeline (tags → intent → dispatch → aggregation) — **done in Python**
+- MemoryPolicy per room — **Go‑only**
+- Treat CLI/GUI as channels — **done in Python**
+- Explicit task ownership + handoff rules — **done in Python**
 
 ---
 
@@ -249,12 +249,12 @@ These improvements are recommended during the port process. Some can be done now
 ---
 
 ## Improvements Carried from Python Plan
-- Unify DM rooms into standard rooms
-- Merge Cron + TeamRoutines into one scheduler
-- Single orchestrator pipeline (tags → intent → dispatch → aggregation)
-- MemoryPolicy per room
-- Treat CLI/GUI as channels
-- Explicit task ownership + handoff rules
+- Unify DM rooms into standard rooms — **done in Python**
+- Merge Cron + TeamRoutines into one scheduler — **done in Python**
+- Single orchestrator pipeline (tags → intent → dispatch → aggregation) — **done in Python**
+- MemoryPolicy per room — **Go‑only**
+- Treat CLI/GUI as channels — **done in Python**
+- Explicit task ownership + handoff rules — **done in Python**
 
 ---
 
