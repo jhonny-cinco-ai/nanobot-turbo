@@ -69,7 +69,7 @@ the current active log.
         """Initialize SQLite database for work logs with multi-agent support."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             # Create work_logs table with multi-agent fields
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS work_logs (
@@ -204,7 +204,7 @@ the current active log.
 
         # Save to database with multi-agent fields
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.execute(
                     """INSERT INTO work_logs
                        (id, session_id, query, start_time, workspace_id, workspace_type, participants_json, coordinator)
@@ -216,7 +216,7 @@ the current active log.
         except sqlite3.IntegrityError:
             # Session already exists, update it with multi-agent fields
             try:
-                with sqlite3.connect(self.db_path) as conn:
+                with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                     conn.execute(
                         """UPDATE work_logs
                            SET workspace_id = ?, workspace_type = ?, participants_json = ?, coordinator = ?
@@ -346,7 +346,7 @@ the current active log.
             return
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.execute(
                         """INSERT INTO work_log_entries
                        (work_log_id, step, timestamp, level, category, message,
@@ -404,7 +404,7 @@ the current active log.
         self.current_log.final_output = final_output
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.execute(
                     """UPDATE work_logs
                        SET end_time = ?, final_output = ?, entry_count = ?
@@ -428,7 +428,7 @@ the current active log.
             The most recent WorkLog, or None if no logs exist
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(
                     "SELECT * FROM work_logs ORDER BY start_time DESC LIMIT 1"
@@ -453,7 +453,7 @@ the current active log.
             The WorkLog, or None if not found
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(
                     "SELECT * FROM work_logs WHERE session_id = ?",
@@ -480,7 +480,7 @@ the current active log.
             List of WorkLog instances for the workspace
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(
                     """SELECT * FROM work_logs
@@ -512,7 +512,7 @@ the current active log.
             List of WorkLog instances
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.row_factory = sqlite3.Row
 
                 if workspace:
@@ -559,7 +559,7 @@ the current active log.
             List of HandoffRecord entries
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 conn.row_factory = sqlite3.Row
 
                 params: list[Any] = [LogLevel.HANDOFF.value]
@@ -893,7 +893,7 @@ the current active log.
             days: Number of days to keep
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=5.0) as conn:
                 # Delete old entries first (foreign key constraint)
                 conn.execute("""
                     DELETE FROM work_log_entries

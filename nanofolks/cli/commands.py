@@ -777,6 +777,13 @@ def _make_provider(config):
         default_model=model,
         extra_headers=p.extra_headers if p else None,
         provider_name=config.get_provider_name(),
+        request_timeout_s=config.llm.timeout_seconds,
+        retry_attempts=config.llm.retry_attempts,
+        retry_delay_s=config.llm.retry_delay_s,
+        retry_backoff=config.llm.retry_backoff,
+        circuit_breaker_enabled=config.llm.circuit_breaker_enabled,
+        circuit_breaker_threshold=config.llm.circuit_breaker_threshold,
+        circuit_breaker_timeout_s=config.llm.circuit_breaker_timeout_s,
     )
 
 
@@ -1330,6 +1337,13 @@ async def _detect_room_creation_intent(user_message: str, config) -> Optional[di
             api_key=config.providers.default.api_key if config.providers else None,
             api_base=config.get_api_base(),
             default_model=model,
+            request_timeout_s=config.llm.timeout_seconds,
+            retry_attempts=config.llm.retry_attempts,
+            retry_delay_s=config.llm.retry_delay_s,
+            retry_backoff=config.llm.retry_backoff,
+            circuit_breaker_enabled=config.llm.circuit_breaker_enabled,
+            circuit_breaker_threshold=config.llm.circuit_breaker_threshold,
+            circuit_breaker_timeout_s=config.llm.circuit_breaker_timeout_s,
         )
 
         response = await provider.chat(
@@ -1598,7 +1612,11 @@ def chat(
         msg = MessageEnvelope(channel="cli", chat_id="cli", content=content)
         msg.set_room(room)
         agent_loop.set_stream_callback(_stream_chunk)
-        await bus.publish_inbound(msg)
+        queued = await bus.publish_inbound(msg)
+        if not queued:
+            agent_loop.set_stream_callback(None)
+            console.print("[yellow]System is busy. Please try again in a few seconds.[/yellow]")
+            return None
         response = await _await_cli_response(chat_id="cli", room_id=room)
         agent_loop.set_stream_callback(None)
         if response:
@@ -2681,8 +2699,11 @@ def channels_login():
     console.print("Scan the QR code to connect.\n")
 
     env = {**os.environ}
-    if config.channels.whatsapp.bridge_token:
-        env["BRIDGE_TOKEN"] = config.channels.whatsapp.bridge_token
+    if not config.channels.whatsapp.bridge_token:
+        console.print("[red]Bridge token is required for WhatsApp bridge auth.[/red]")
+        console.print("[dim]Run: nanofolks configure → Channels → WhatsApp → generate/set bridge token[/dim]")
+        raise typer.Exit(1)
+    env["BRIDGE_TOKEN"] = config.channels.whatsapp.bridge_token
 
     try:
         subprocess.run(["npm", "start"], cwd=bridge_dir, check=True, env=env)

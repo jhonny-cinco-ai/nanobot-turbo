@@ -165,7 +165,17 @@ class BaseChannel(ABC):
             msg.set_room(room_id)
             msg.apply_defaults("user")
             logger.debug(f"Routed {self.name}:{chat_id} → room:{room_id}")
-            await self.bus.publish_inbound(msg)
+            queued = await self.bus.publish_inbound(msg)
+            if not queued:
+                busy = MessageEnvelope(
+                    channel=self.name,
+                    chat_id=str(chat_id),
+                    content="System is busy. Please try again in a few seconds.",
+                    direction="outbound",
+                    room_id=room_id,
+                )
+                busy.apply_defaults("system")
+                await self.send(busy)
 
         except Exception as e:
             logger.error(f"[{self.name}:{chat_id}] Message handling error: {e}")

@@ -77,13 +77,14 @@ class TurboMemoryStore:
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create database connection with WAL mode."""
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0)
             self._conn.row_factory = sqlite3.Row
 
             # Enable WAL mode for better concurrency
             self._conn.execute("PRAGMA journal_mode=WAL;")
             self._conn.execute("PRAGMA synchronous=NORMAL;")
             self._conn.execute("PRAGMA cache_size=10000;")
+            self._conn.execute("PRAGMA busy_timeout=5000;")
 
             # Initialize tables
             self._init_tables()

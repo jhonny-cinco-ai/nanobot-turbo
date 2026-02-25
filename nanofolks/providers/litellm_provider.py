@@ -1,6 +1,8 @@
 """LiteLLM provider implementation for multi-provider support."""
 
+import asyncio
 import os
+import time
 from typing import Any, AsyncGenerator
 
 import json_repair
@@ -31,10 +33,26 @@ class LiteLLMProvider(LLMProvider):
         extra_headers: dict[str, str] | None = None,
         provider_name: str | None = None,
         set_env_vars: bool = False,  # Security: default to False, pass True only if needed
+        request_timeout_s: float = 60.0,
+        retry_attempts: int = 2,
+        retry_delay_s: float = 1.0,
+        retry_backoff: float = 2.0,
+        circuit_breaker_enabled: bool = True,
+        circuit_breaker_threshold: int = 3,
+        circuit_breaker_timeout_s: int = 60,
     ):
         super().__init__(api_key, api_base)
         self.default_model = default_model
         self.extra_headers = extra_headers or {}
+        self.request_timeout_s = max(1.0, float(request_timeout_s))
+        self.retry_attempts = max(0, int(retry_attempts))
+        self.retry_delay_s = max(0.0, float(retry_delay_s))
+        self.retry_backoff = max(1.0, float(retry_backoff))
+        self.circuit_breaker_enabled = bool(circuit_breaker_enabled)
+        self.circuit_breaker_threshold = max(1, int(circuit_breaker_threshold))
+        self.circuit_breaker_timeout_s = max(1.0, float(circuit_breaker_timeout_s))
+        self._cb_failures = 0
+        self._cb_open_until = 0.0
 
         # Store API key securely using SecureString
         # This protects against memory scraping attacks
@@ -63,6 +81,46 @@ class LiteLLMProvider(LLMProvider):
         litellm.suppress_debug_info = True
         # Drop unsupported parameters for providers (e.g., gpt-5 rejects some params)
         litellm.drop_params = True
+
+    def _circuit_open(self) -> bool:
+        if not self.circuit_breaker_enabled:
+            return False
+        return time.monotonic() < self._cb_open_until
+
+    def _record_success(self) -> None:
+        self._cb_failures = 0
+        self._cb_open_until = 0.0
+
+    def _record_failure(self) -> None:
+        if not self.circuit_breaker_enabled:
+            return
+        self._cb_failures += 1
+        if self._cb_failures >= self.circuit_breaker_threshold:
+            self._cb_open_until = time.monotonic() + self.circuit_breaker_timeout_s
+
+    async def _run_with_resilience(self, op, op_name: str) -> Any:
+        if self._circuit_open():
+            raise RuntimeError("LLM circuit breaker open; refusing request")
+
+        delay = self.retry_delay_s
+        last_error: Exception | None = None
+
+        for attempt in range(self.retry_attempts + 1):
+            try:
+                result = await op()
+                self._record_success()
+                return result
+            except Exception as e:
+                last_error = e
+                self._record_failure()
+                if attempt < self.retry_attempts:
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                    delay *= self.retry_backoff
+                    continue
+                break
+
+        raise RuntimeError(f"{op_name} failed after {self.retry_attempts + 1} attempts: {last_error}")
 
     def _get_api_key(self) -> str | None:
         """Get API key from secure storage."""
@@ -225,15 +283,11 @@ class LiteLLMProvider(LLMProvider):
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        try:
-            response = await acompletion(**kwargs)
-            return self._parse_response(response)
-        except Exception as e:
-            # Return error as content for graceful handling
-            return LLMResponse(
-                content=f"Error calling LLM: {str(e)}",
-                finish_reason="error",
-            )
+        async def _op():
+            return await asyncio.wait_for(acompletion(**kwargs), timeout=self.request_timeout_s)
+
+        response = await self._run_with_resilience(_op, "LLM chat")
+        return self._parse_response(response)
 
     async def stream_chat(
         self,
@@ -285,66 +339,98 @@ class LiteLLMProvider(LLMProvider):
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        try:
-            response = await acompletion(**kwargs)
+        if self._circuit_open():
+            raise RuntimeError("LLM circuit breaker open; refusing request")
 
-            accumulated_content = ""
-            accumulated_reasoning = ""
-            tool_calls_buffer = []
+        delay = self.retry_delay_s
+        last_error: Exception | None = None
 
-            async for chunk in response:
-                choice = chunk.choices[0]
-                delta = choice.delta
-
-                # Accumulate content
-                if delta.content:
-                    accumulated_content += delta.content
-
-                # Accumulate reasoning (for models like DeepSeek-R1)
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    accumulated_reasoning += delta.reasoning_content
-
-                # Check for tool calls
-                current_tool_calls = []
-                if hasattr(delta, "tool_calls") and delta.tool_calls:
-                    for tc in delta.tool_calls:
-                        # Parse arguments
-                        args = {}
-                        if hasattr(tc.function, "arguments") and tc.function.arguments:
-                            if isinstance(tc.function.arguments, str):
-                                try:
-                                    args = json_repair.loads(tc.function.arguments)
-                                except Exception:
-                                    args = {"_raw": tc.function.arguments}
-                            else:
-                                args = tc.function.arguments or {}
-
-                        current_tool_calls.append(ToolCallRequest(
-                            id=tc.id or f"call_{len(tool_calls_buffer)}",
-                            name=tc.function.name or "",
-                            arguments=args,
-                        ))
-                    tool_calls_buffer.extend(current_tool_calls)
-
-                finish_reason = choice.finish_reason
-                is_final = finish_reason is not None and finish_reason != "null"
-
-                yield StreamChunk(
-                    content=accumulated_content,
-                    reasoning_content=accumulated_reasoning if accumulated_reasoning else None,
-                    tool_calls=current_tool_calls,
-                    finish_reason=finish_reason,
-                    is_final=is_final,
+        for attempt in range(self.retry_attempts + 1):
+            received_any = False
+            try:
+                response = await asyncio.wait_for(
+                    acompletion(**kwargs),
+                    timeout=self.request_timeout_s,
                 )
 
-                if is_final:
-                    break
+                accumulated_content = ""
+                accumulated_reasoning = ""
+                tool_calls_buffer = []
 
-        except Exception as e:
-            yield StreamChunk(
-                content=f"Error calling LLM: {str(e)}",
-                is_final=True,
-            )
+                aiter = response.__aiter__()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(
+                            aiter.__anext__(),
+                            timeout=self.request_timeout_s,
+                        )
+                    except StopAsyncIteration:
+                        break
+
+                    received_any = True
+                    choice = chunk.choices[0]
+                    delta = choice.delta
+
+                    # Accumulate content
+                    if delta.content:
+                        accumulated_content += delta.content
+
+                    # Accumulate reasoning (for models like DeepSeek-R1)
+                    if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                        accumulated_reasoning += delta.reasoning_content
+
+                    # Check for tool calls
+                    current_tool_calls = []
+                    if hasattr(delta, "tool_calls") and delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            # Parse arguments
+                            args = {}
+                            if hasattr(tc.function, "arguments") and tc.function.arguments:
+                                if isinstance(tc.function.arguments, str):
+                                    try:
+                                        args = json_repair.loads(tc.function.arguments)
+                                    except Exception:
+                                        args = {"_raw": tc.function.arguments}
+                                else:
+                                    args = tc.function.arguments or {}
+
+                            current_tool_calls.append(ToolCallRequest(
+                                id=tc.id or f"call_{len(tool_calls_buffer)}",
+                                name=tc.function.name or "",
+                                arguments=args,
+                            ))
+                        tool_calls_buffer.extend(current_tool_calls)
+
+                    finish_reason = choice.finish_reason
+                    is_final = finish_reason is not None and finish_reason != "null"
+
+                    yield StreamChunk(
+                        content=accumulated_content,
+                        reasoning_content=accumulated_reasoning if accumulated_reasoning else None,
+                        tool_calls=current_tool_calls,
+                        finish_reason=finish_reason,
+                        is_final=is_final,
+                    )
+
+                    if is_final:
+                        break
+
+                self._record_success()
+                return
+
+            except Exception as e:
+                last_error = e
+                self._record_failure()
+                if received_any:
+                    raise RuntimeError(f"LLM stream failed after partial output: {e}")
+                if attempt < self.retry_attempts:
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                    delay *= self.retry_backoff
+                    continue
+                break
+
+        raise RuntimeError(f"LLM stream failed after {self.retry_attempts + 1} attempts: {last_error}")
 
     def _parse_response(self, response: Any) -> LLMResponse:
         """Parse LiteLLM response into our standard format."""

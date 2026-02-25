@@ -78,6 +78,16 @@ apt install gnome-keyring libdbus-glib-1-2
 
 This enables the OS Keychain/Keyring to store API keys securely instead of in config files.
 
+### Docker keyring (optional)
+
+If you run via Docker and want the container keyring unlocked, set:
+
+```bash
+export NANOFOLKS_KEYRING_PASSWORD="your-dev-password"
+```
+
+If not set, the container will skip keyring unlock.
+
 ### From Source (Recommended)
 
 ```bash
@@ -286,11 +296,14 @@ Requires Node.js ≥18.
   "channels": {
     "whatsapp": {
       "enabled": true,
+      "bridgeToken": "YOUR_SHARED_TOKEN",
       "allowFrom": ["+1234567890"]
     }
   }
 }
 ```
+
+Note: `bridgeToken` is required for secure auth between the Python app and the Node.js bridge. Generate it in `nanofolks configure` → Channels → WhatsApp.
 
 3. Run both:
    ```bash

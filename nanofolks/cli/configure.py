@@ -5,6 +5,7 @@ typer and rich for a nice user experience.
 """
 
 import asyncio
+import secrets
 
 import typer
 from rich import box
@@ -17,6 +18,20 @@ from nanofolks.agent.tools.update_config import UpdateConfigTool
 from nanofolks.config.loader import get_config_path, load_config
 
 console = Console()
+
+
+def _field_attr_name(name: str) -> str:
+    """Map config field names (camelCase) to model attributes (snake_case)."""
+    if "_" in name:
+        return name
+    out = []
+    for ch in name:
+        if ch.isupper():
+            out.append("_")
+            out.append(ch.lower())
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def configure_cli():
@@ -437,7 +452,7 @@ def _configure_single_channel(name: str, schema: dict):
             for field_name, field_info in schema['fields'].items():
                 if field_info.get('type') == 'boolean':
                     continue
-                field_value = getattr(channel, field_name, '')
+                field_value = getattr(channel, _field_attr_name(field_name), '')
                 if field_value:
                     # Mask sensitive values
                     if 'password' in field_name.lower() or 'secret' in field_name.lower() or 'token' in field_name.lower():
@@ -474,6 +489,8 @@ def _configure_single_channel(name: str, schema: dict):
                     field_label = "allowed users (allowFrom)"
                 elif field_name == 'bridgeUrl':
                     field_label = "bridge URL"
+                elif field_name == 'bridgeToken':
+                    field_label = "bridge token"
                 else:
                     field_label = field_name.replace('_', ' ').title()
                 console.print(f"  [{option_num}] Configure {field_label}")
@@ -508,7 +525,39 @@ def _configure_single_channel(name: str, schema: dict):
                         if field_info.get('type') == 'boolean':
                             continue
                         if field_info.get('required', False):
-                            field_value = getattr(channel, field_name, '')
+                            field_value = getattr(channel, _field_attr_name(field_name), '')
+                            if not field_value:
+                                missing_fields.append(field_name)
+
+                # WhatsApp: auto-generate bridge token if missing
+                if name == 'whatsapp' and channel:
+                    if not getattr(channel, 'bridge_token', ''):
+                        console.print("\n[yellow]WhatsApp bridge token is required for secure auth.[/yellow]")
+                        if Confirm.ask("Generate a secure bridge token now?", default=True):
+                            token = secrets.token_urlsafe(24)
+                            result = asyncio.run(tool.execute(
+                                path="channels.whatsapp.bridgeToken",
+                                value=token,
+                            ))
+                            if "Error" in result:
+                                console.print(f"[red]{result}[/red]")
+                            else:
+                                console.print("[green]✓ Bridge token generated[/green]")
+                                # Refresh config for required-fields check
+                                config = load_config()
+                                channel = getattr(config.channels, name, None)
+                        else:
+                            console.print("[yellow]⚠ Bridge token required. Channel not enabled.[/yellow]")
+                            continue
+
+                # Recompute missing fields after any auto-generation
+                if 'fields' in schema and channel:
+                    missing_fields = []
+                    for field_name, field_info in schema['fields'].items():
+                        if field_info.get('type') == 'boolean':
+                            continue
+                        if field_info.get('required', False):
+                            field_value = getattr(channel, _field_attr_name(field_name), '')
                             if not field_value:
                                 missing_fields.append(field_name)
 
@@ -544,7 +593,7 @@ def _configure_single_channel(name: str, schema: dict):
                 console.print(f"\n[dim]{help_text}[/dim]")
 
             # Show current value
-            current_value = getattr(channel, field_name, '') if channel else ''
+            current_value = getattr(channel, _field_attr_name(field_name), '') if channel else ''
             if current_value:
                 console.print(f"[dim]Current value: {current_value}[/dim]")
 
@@ -559,10 +608,16 @@ def _configure_single_channel(name: str, schema: dict):
                 prompt_text = "Enter allowed user IDs/usernames (comma-separated, leave empty for all users)"
             elif field_name == 'bridgeUrl':
                 prompt_text = "Enter bridge URL"
+            elif field_name == 'bridgeToken':
+                prompt_text = "Enter bridge token (leave empty to auto-generate)"
             else:
                 prompt_text = f"Enter {field_name.replace('_', ' ')}"
 
             value = Prompt.ask(prompt_text, default=current_value if current_value else '')
+
+            if field_name == 'bridgeToken' and not value:
+                value = secrets.token_urlsafe(24)
+                console.print("[green]✓ Generated bridge token[/green]")
 
             if value:
                 result = asyncio.run(tool.execute(

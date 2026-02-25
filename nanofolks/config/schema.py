@@ -22,7 +22,7 @@ class WhatsAppConfig(Base):
     """
     enabled: bool = False
     bridge_url: str = ""  # Auto-configured if empty: uses Tailscale/LAN IP + random port
-    bridge_token: str = ""  # Shared token for bridge auth (optional, recommended)
+    bridge_token: str = ""  # Shared token for bridge auth (required)
     allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
     _auto_configured: bool = False  # Track if URL was auto-configured
 
@@ -164,6 +164,17 @@ class AgentsConfig(Base):
     """Agent configuration."""
     defaults: AgentDefaults = Field(default_factory=AgentDefaults)
     sidekicks: SidekickConfig = Field(default_factory=SidekickConfig)
+
+
+class LLMRequestConfig(Base):
+    """LLM request resilience configuration."""
+    timeout_seconds: int = 60
+    retry_attempts: int = 2
+    retry_delay_s: float = 1.0
+    retry_backoff: float = 2.0
+    circuit_breaker_enabled: bool = True
+    circuit_breaker_threshold: int = 3
+    circuit_breaker_timeout_s: int = 60
 
 
 class ProviderConfig(Base):
@@ -638,6 +649,7 @@ class Config(BaseSettings):
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    llm: LLMRequestConfig = Field(default_factory=LLMRequestConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     routing: RoutingConfig = Field(default_factory=RoutingConfig)

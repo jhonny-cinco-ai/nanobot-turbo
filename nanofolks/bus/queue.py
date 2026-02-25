@@ -44,18 +44,22 @@ class MessageBus:
         """
         self._broker = broker
 
-    async def publish_inbound(self, msg: MessageEnvelope) -> None:
+    async def publish_inbound(self, msg: MessageEnvelope) -> bool:
         """Publish a message from a channel to the agent.
 
         Routes through the per-room broker if one is attached, otherwise
         falls back to the flat inbound queue consumed by AgentLoop.run().
+
+        Returns:
+            True if queued, False if dropped (e.g., broker full).
         """
         msg.direction = "inbound"
         msg.apply_defaults("user")
         if self._broker is not None:
-            await self._broker.route_message(msg)
+            return await self._broker.route_message(msg)
         else:
             await self.inbound.put(msg)
+            return True
 
     async def consume_inbound(self) -> MessageEnvelope:
         """Consume the next inbound message (blocks until available)."""

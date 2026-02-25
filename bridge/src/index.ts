@@ -27,6 +27,12 @@ const PORT = parseInt(process.env.BRIDGE_PORT || '3001', 10);
 const AUTH_DIR = process.env.AUTH_DIR || join(homedir(), '.nanofolks', 'whatsapp-auth');
 const TOKEN = process.env.BRIDGE_TOKEN || undefined;
 
+if (!TOKEN) {
+  console.error('BRIDGE_TOKEN is required. Set it in your nanofolks config and re-run.');
+  console.error('Hint: nanofolks configure → Channels → WhatsApp → generate bridge token');
+  process.exit(1);
+}
+
 console.log('🐈 nanofolks WhatsApp Bridge');
 console.log('========================\n');
 

@@ -195,6 +195,7 @@ class UpdateConfigTool(Tool):
                     'fields': {
                         'enabled': {'type': 'boolean', 'default': False},
                         'bridgeUrl': {'type': 'url', 'default': '', 'help': 'Leave empty for auto-config (recommended)'},
+                        'bridgeToken': {'type': 'string', 'help': 'Shared secret for bridge auth (required)', 'required': True},
                         'allowFrom': {'type': 'array', 'item_type': 'string', 'help': 'Allowed phone numbers (comma-separated, e.g.: +1234567890, +0987654321)'},
                     },
                 },
