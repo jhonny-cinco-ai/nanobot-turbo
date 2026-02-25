@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from loguru import logger
 
 from nanofolks.config.loader import get_data_dir
-from nanofolks.models.room import Room, RoomMember, RoomType
+from nanofolks.models.room import Message, Room, RoomMember, RoomType
 
 
 class RoomManager:
@@ -234,7 +234,7 @@ class RoomManager:
         context: Optional[dict] = None,
         reply_to: Optional[str] = None,
     ) -> str:
-        """Log a bot-to-bot message into the DM room history.
+        """Log a bot-to-bot message into the direct room history.
 
         Returns:
             Message ID
@@ -244,17 +244,18 @@ class RoomManager:
         room = self.get_or_create_dm_room([sender_bot, recipient_bot])
         message_id = str(uuid.uuid4())
 
-        room.add_message(sender=sender_bot, content=content)
-        room.metadata.setdefault("dm_messages", []).append({
-            "id": message_id,
-            "timestamp": datetime.now().isoformat(),
-            "sender_bot": sender_bot.lower(),
-            "recipient_bot": recipient_bot.lower(),
-            "message_type": message_type,
-            "content": content,
-            "context": context or {},
-            "reply_to": reply_to,
-        })
+        room.add_message(
+            sender=sender_bot,
+            content=content,
+            metadata={
+                "id": message_id,
+                "sender_bot": sender_bot.lower(),
+                "recipient_bot": recipient_bot.lower(),
+                "message_type": message_type,
+                "context": context or {},
+                "reply_to": reply_to,
+            },
+        )
         room.updated_at = datetime.now()
         self._save_room(room)
         return message_id
@@ -362,21 +363,18 @@ class RoomManager:
         ]
 
     def list_dm_rooms(self) -> List[dict]:
-        """List all bot DM rooms."""
+        """List all bot direct rooms."""
         dm_rooms = []
         for room in self._rooms.values():
-            if room.type != RoomType.DIRECT and not room.id.startswith("dm-"):
+            if room.type != RoomType.DIRECT and room.room_type != "direct":
                 continue
-            dm_messages = room.metadata.get("dm_messages", []) or []
             last_activity = None
-            if dm_messages:
-                last_activity = dm_messages[-1].get("timestamp")
-            elif room.history:
+            if room.history:
                 last_activity = room.history[-1].timestamp.isoformat()
             dm_rooms.append({
                 "room_id": room.id,
                 "bots": room.participants,
-                "message_count": len(dm_messages) if dm_messages else len(room.history),
+                "message_count": len(room.history),
                 "last_activity": last_activity or "Never",
             })
         return dm_rooms

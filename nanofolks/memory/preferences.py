@@ -52,6 +52,7 @@ class PreferencesAggregator:
                 parent_id="root",
                 summary="No preferences learned yet.",
                 events_since_update=0,
+                confidence=0.6,
             )
             self.store.create_summary_node(node)
             logger.info("Created user_preferences summary node")
@@ -68,7 +69,7 @@ class PreferencesAggregator:
 
         if not learnings:
             # No learnings yet
-            return self._update_preferences_summary("No preferences learned yet.")
+            return self._update_preferences_summary("No preferences learned yet.", confidence=0.2)
 
         # Categorize learnings
         categorized = self._categorize_learnings(learnings)
@@ -114,7 +115,8 @@ class PreferencesAggregator:
         summary = "\n".join(summary_parts)
 
         # Update node
-        return self._update_preferences_summary(summary)
+        confidence = min(0.95, 0.4 + min(0.55, len(learnings) * 0.05))
+        return self._update_preferences_summary(summary, confidence=confidence)
 
     def _categorize_learnings(self, learnings: list[Learning]) -> dict:
         """Categorize learnings by type/topic."""
@@ -148,7 +150,7 @@ class PreferencesAggregator:
 
         return categories
 
-    def _update_preferences_summary(self, summary: str) -> SummaryNode:
+    def _update_preferences_summary(self, summary: str, confidence: float | None = None) -> SummaryNode:
         """Update the user_preferences summary node."""
         node = self.store.get_summary_node("user_preferences")
         if not node:
@@ -157,6 +159,8 @@ class PreferencesAggregator:
             node = self.store.get_summary_node("user_preferences")
 
         node.summary = summary
+        if confidence is not None:
+            node.confidence = confidence
         node.last_updated = datetime.now()
         node.events_since_update = 0
 

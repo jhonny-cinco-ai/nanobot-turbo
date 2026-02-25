@@ -70,7 +70,7 @@ class OrchestratorPipeline:
     async def _handle_intent_flows(
         self, msg: "MessageEnvelope", session: "Session"
     ) -> Optional["MessageEnvelope"]:
-        from nanofolks.agent.project_state import ProjectPhase, ProjectStateManager
+        from nanofolks.agent.project_state import ProjectStateManager
         from nanofolks.agent.intent_detector import FlowType
         from nanofolks.agent.intent_flow_router import IntentFlowRouter
 
@@ -80,20 +80,6 @@ class OrchestratorPipeline:
         # Check for timeout
         state_manager.check_timeout()
 
-        # Continue full flow if already active
-        if state_manager.state.phase != ProjectPhase.IDLE:
-            if self.agent.hybrid_router is None:
-                self.agent.hybrid_router = IntentFlowRouter(self.agent)
-            return await self.agent.hybrid_router._continue_full_flow(msg, state_manager, session)
-
-        # Continue quick flow if exists
-        quick_state = state_manager.get_quick_flow_state()
-        if quick_state is not None:
-            if self.agent.hybrid_router is None:
-                self.agent.hybrid_router = IntentFlowRouter(self.agent)
-            return await self.agent.hybrid_router.route(msg, session)
-
-        # New intent detection
         if self.agent.hybrid_router is None:
             self.agent.hybrid_router = IntentFlowRouter(self.agent)
 
@@ -107,9 +93,17 @@ class OrchestratorPipeline:
             }
         )
 
-        if intent.flow_type == FlowType.QUICK:
-            logger.info(f"Intent detected: {intent.intent_type.value}, routing to quick flow")
-            return await self.agent.hybrid_router.route(msg, session)
+        orchestrated = await self.agent.hybrid_router.route_state_machine(
+            msg=msg,
+            session=session,
+            state_manager=state_manager,
+            intent=intent,
+            allow_full_start=False,
+            allow_simultaneous=False,
+        )
+        if orchestrated is not None:
+            return orchestrated
+
         if intent.flow_type == FlowType.FULL:
             # Store intent info for Leader to access
             session.metadata["_detected_intent"] = {

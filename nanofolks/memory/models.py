@@ -161,6 +161,7 @@ class SummaryNode:
     # Content
     summary: str = ""  # LLM-generated text
     summary_embedding: Optional[bytes] = None
+    confidence: float = 0.5  # Confidence in the summary quality (0.0-1.0)
 
     # Staleness tracking
     events_since_update: int = 0  # Incremented when new events arrive

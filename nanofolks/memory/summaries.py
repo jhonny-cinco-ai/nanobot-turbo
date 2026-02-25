@@ -37,6 +37,9 @@ class SummaryTreeManager:
         store: TurboMemoryStore,
         staleness_threshold: int = 10,
         max_refresh_batch: int = 20,
+        min_confidence: float = 0.3,
+        max_age_days: int = 90,
+        max_staleness: int = 200,
     ):
         """
         Initialize the summary tree manager.
@@ -49,6 +52,9 @@ class SummaryTreeManager:
         self.store = store
         self.staleness_threshold = staleness_threshold
         self.max_refresh_batch = max_refresh_batch
+        self.min_confidence = min_confidence
+        self.max_age_days = max_age_days
+        self.max_staleness = max_staleness
 
         # Ensure root node exists
         self._ensure_root_node()
@@ -64,6 +70,7 @@ class SummaryTreeManager:
                 node_type="root",
                 key="root",
                 summary="Root of conversation summary tree",
+                confidence=0.7,
             )
             self.store.create_summary_node(root)
             logger.info("Created root summary node")
@@ -140,16 +147,20 @@ class SummaryTreeManager:
                     room_id = node.key.replace("channel:", "")
                 else:
                     room_id = session_to_room_id(node.key)
-                new_summary = self._generate_room_summary(room_id)
+                new_summary, stats = self._generate_room_summary(room_id)
+                confidence = self._score_room_summary(stats)
             elif node.node_type == "entity":
                 entity_id = node.key.replace("entity:", "")
-                new_summary = self._generate_entity_summary(entity_id)
+                new_summary, stats = self._generate_entity_summary(entity_id)
+                confidence = self._score_entity_summary(stats)
             else:
                 # Root or other types
-                new_summary = self._generate_root_summary()
+                new_summary, stats = self._generate_root_summary()
+                confidence = self._score_root_summary(stats)
 
             # Update node
             node.summary = new_summary
+            node.confidence = confidence
             node.events_since_update = 0
             node.last_updated = datetime.now()
 
@@ -207,13 +218,14 @@ class SummaryTreeManager:
                 key=node_key,
                 parent_id="root",
                 summary=f"Summary for room {room_id}",
+                confidence=0.5,
             )
             self.store.create_summary_node(node)
             logger.info(f"Created room summary node: {room_id}")
 
         return node
 
-    def _generate_room_summary(self, room_id: str) -> str:
+    def _generate_room_summary(self, room_id: str) -> tuple[str, dict]:
         """Generate summary for a room."""
         session_key = room_to_session_id(room_id)
 
@@ -221,7 +233,7 @@ class SummaryTreeManager:
         events = self.store.get_events_for_session(session_key, limit=50)
 
         if not events:
-            return f"No recent activity in {room_id}."
+            return f"No recent activity in {room_id}.", {"events": 0, "entities": 0}
 
         # Get entity counts
         entities = self.store.get_entities_for_session(session_key, limit=20)
@@ -237,13 +249,13 @@ class SummaryTreeManager:
             entity_names = [e.name for e in entities[:5]]
             summary_parts.append(f"Key topics: {', '.join(entity_names)}")
 
-        return "\n".join(summary_parts)
+        return "\n".join(summary_parts), {"events": len(events), "entities": len(entities)}
 
-    def _generate_entity_summary(self, entity_id: str) -> str:
+    def _generate_entity_summary(self, entity_id: str) -> tuple[str, dict]:
         """Generate summary for an entity."""
         entity = self.store.get_entity(entity_id)
         if not entity:
-            return "Entity not found."
+            return "Entity not found.", {"mentions": 0, "facts": 0}
 
         # Get facts about this entity
         facts = self.store.get_facts_for_entity(entity_id)
@@ -263,18 +275,72 @@ class SummaryTreeManager:
         if entity.aliases:
             summary_parts.append(f"Also known as: {', '.join(entity.aliases[:3])}")
 
-        return "\n".join(summary_parts)
+        return "\n".join(summary_parts), {"mentions": entity.event_count, "facts": len(facts)}
 
-    def _generate_root_summary(self) -> str:
+    def _generate_root_summary(self) -> tuple[str, dict]:
         """Generate root summary of all conversations."""
         stats = self.store.get_stats()
 
-        return (
+        summary = (
             f"Total events: {stats.get('events', 0)}\n"
             f"Total entities: {stats.get('entities', 0)}\n"
             f"Total facts: {stats.get('facts', 0)}\n"
             f"Summary nodes: {stats.get('summary_nodes', 0)}"
         )
+        return summary, stats
+
+    def _score_room_summary(self, stats: dict) -> float:
+        events = int(stats.get("events", 0) or 0)
+        entities = int(stats.get("entities", 0) or 0)
+        if events == 0:
+            return 0.2
+        score = 0.4
+        score += min(0.4, (events / 50) * 0.4)
+        score += min(0.2, (entities / 10) * 0.2)
+        return min(0.95, max(0.2, score))
+
+    def _score_entity_summary(self, stats: dict) -> float:
+        mentions = int(stats.get("mentions", 0) or 0)
+        facts = int(stats.get("facts", 0) or 0)
+        if mentions == 0:
+            return 0.2
+        score = 0.4
+        score += min(0.4, (mentions / 20) * 0.4)
+        score += min(0.2, (facts / 5) * 0.2)
+        return min(0.95, max(0.2, score))
+
+    def _score_root_summary(self, stats: dict) -> float:
+        total_events = int(stats.get("events", 0) or 0)
+        if total_events == 0:
+            return 0.2
+        score = 0.3 + min(0.6, (total_events / 200) * 0.6)
+        return min(0.9, max(0.2, score))
+
+    def cleanup_nodes(self) -> dict:
+        """Prune stale/low-confidence summary nodes."""
+        nodes = self.store.get_all_summary_nodes()
+        parent_ids = {n.parent_id for n in nodes if n.parent_id}
+        now = datetime.now()
+
+        stats = {"evaluated": len(nodes), "removed": 0}
+        for node in nodes:
+            if node.id in {"root", "user_preferences"}:
+                continue
+            if node.id in parent_ids:
+                continue
+            confidence = node.confidence if node.confidence is not None else 0.5
+            last_updated = node.last_updated or now
+            age_days = (now - last_updated).days
+            too_old = age_days >= self.max_age_days
+            too_stale = node.events_since_update >= self.max_staleness
+
+            if confidence < self.min_confidence and (too_old or too_stale):
+                if self.store.delete_summary_node(node.id):
+                    stats["removed"] += 1
+
+        if stats["removed"]:
+            logger.info(f"Summary cleanup removed {stats['removed']} nodes")
+        return stats
 
     def get_summary_for_context(
         self,
@@ -297,14 +363,14 @@ class SummaryTreeManager:
 
         # Get room summary (room-centric)
         room_node = self.store.get_summary_node(room_to_session_id(room_id))
-        if room_node and room_node.summary:
+        if room_node and room_node.summary and (room_node.confidence or 0.0) >= self.min_confidence:
             summaries.append(f"## Room: {room_id}\n{room_node.summary}")
 
         # Get entity summaries
         if entity_ids:
             for entity_id in entity_ids[:5]:  # Limit to top 5
                 entity_node = self.store.get_summary_node(f"entity:{entity_id}")
-                if entity_node and entity_node.summary:
+                if entity_node and entity_node.summary and (entity_node.confidence or 0.0) >= self.min_confidence:
                     summaries.append(f"## {entity_node.key.replace('entity:', '')}\n{entity_node.summary}")
 
         # Get user preferences (always include)

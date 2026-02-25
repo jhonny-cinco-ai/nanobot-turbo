@@ -210,6 +210,7 @@ class TurboMemoryStore:
                 parent_id TEXT,
                 summary TEXT,
                 summary_embedding BLOB,
+                confidence REAL DEFAULT 0.5,
                 events_since_update INTEGER DEFAULT 0,
                 last_updated REAL,
                 FOREIGN KEY (parent_id) REFERENCES summary_nodes(id)
@@ -1363,8 +1364,8 @@ class TurboMemoryStore:
             """
             INSERT INTO summary_nodes (
                 id, node_type, key, parent_id, summary, summary_embedding,
-                events_since_update, last_updated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                confidence, events_since_update, last_updated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 node.id,
@@ -1373,6 +1374,7 @@ class TurboMemoryStore:
                 node.parent_id,
                 node.summary,
                 None,  # summary_embedding (not implemented yet)
+                node.confidence,
                 node.events_since_update,
                 node.last_updated.timestamp() if node.last_updated else None,
             )
@@ -1428,12 +1430,14 @@ class TurboMemoryStore:
             """
             UPDATE summary_nodes SET
                 summary = ?,
+                confidence = ?,
                 events_since_update = ?,
                 last_updated = ?
             WHERE id = ?
             """,
             (
                 node.summary,
+                node.confidence,
                 node.events_since_update,
                 node.last_updated.timestamp() if node.last_updated else None,
                 node.id,
@@ -1452,9 +1456,17 @@ class TurboMemoryStore:
             parent_id=row['parent_id'],
             summary=row['summary'] or "",
             summary_embedding=row['summary_embedding'],
+            confidence=row["confidence"] if "confidence" in row.keys() else 0.5,
             events_since_update=row['events_since_update'] or 0,
             last_updated=datetime.fromtimestamp(row['last_updated']) if row['last_updated'] else None,
         )
+
+    def delete_summary_node(self, node_id: str) -> bool:
+        """Delete a summary node by ID."""
+        conn = self._get_connection()
+        cursor = conn.execute("DELETE FROM summary_nodes WHERE id = ?", (node_id,))
+        conn.commit()
+        return cursor.rowcount > 0
 
     def get_events_for_channel(self, channel: str, limit: int = 50) -> list[Event]:
         """Get events for a specific channel."""

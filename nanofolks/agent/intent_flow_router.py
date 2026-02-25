@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from enum import Enum
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from loguru import logger
@@ -43,6 +44,19 @@ class IntentFlowRouter:
         self.intent_detector = IntentDetector()
         self._quick_flow_state: dict = {}
 
+    class FlowState(Enum):
+        """Explicit flow states for QUICK/FULL orchestration."""
+
+        SIMULTANEOUS = "simultaneous"
+        QUICK = "quick"
+        FULL_START = "full_start"
+        FULL_DISCOVERY = "full_discovery"
+        FULL_APPROVAL = "full_approval"
+        FULL_EXECUTION = "full_execution"
+        FULL_REVIEW = "full_review"
+        PASS_THROUGH = "pass_through"
+        CANCELLED = "cancelled"
+
     async def route(self, msg: "MessageEnvelope", session: "Session") -> "MessageEnvelope":
         """Route message to appropriate flow based on intent.
 
@@ -53,22 +67,110 @@ class IntentFlowRouter:
         Returns:
             MessageEnvelope with appropriate response
         """
-        intent = await self.detect_intent(msg.content)
+        from nanofolks.agent.project_state import ProjectStateManager
 
+        room_id = session_to_room_id(msg.session_key) or "general"
+        state_manager = ProjectStateManager(self.agent.workspace, room_id)
+        intent = await self.detect_intent(msg.content)
+        return await self.route_state_machine(
+            msg=msg,
+            session=session,
+            state_manager=state_manager,
+            intent=intent,
+            allow_full_start=True,
+        )
+
+    async def route_state_machine(
+        self,
+        msg: "MessageEnvelope",
+        session: "Session",
+        state_manager: "ProjectStateManager",
+        intent: Intent,
+        allow_full_start: bool,
+        allow_simultaneous: bool = True,
+    ) -> Optional["MessageEnvelope"]:
+        """Route via explicit flow state machine.
+
+        Returns:
+            MessageEnvelope if handled, None if caller should pass through.
+        """
         logger.info(
             f"Intent detected: {intent.intent_type.value} "
             f"(confidence: {intent.confidence:.2f}, flow: {intent.flow_type.value})"
         )
 
         if self._is_cancellation(msg.content):
-            return await self._handle_cancellation(msg)
+            return await self._handle_cancellation(msg, state_manager)
 
-        if intent.flow_type == FlowType.SIMULTANEOUS:
+        flow_state = self._resolve_flow_state(
+            intent,
+            state_manager,
+            allow_full_start,
+            allow_simultaneous,
+        )
+        return await self._handle_flow_state(flow_state, msg, intent, session, state_manager)
+
+    def _resolve_flow_state(
+        self,
+        intent: Intent,
+        state_manager: "ProjectStateManager",
+        allow_full_start: bool,
+        allow_simultaneous: bool,
+    ) -> "FlowState":
+        """Resolve the next flow state based on intent + persisted state."""
+        from nanofolks.agent.project_state import ProjectPhase
+
+        if state_manager.state.phase != ProjectPhase.IDLE:
+            phase = state_manager.state.phase
+            if phase == ProjectPhase.DISCOVERY:
+                return self.FlowState.FULL_DISCOVERY
+            if phase == ProjectPhase.APPROVAL:
+                return self.FlowState.FULL_APPROVAL
+            if phase == ProjectPhase.EXECUTION:
+                return self.FlowState.FULL_EXECUTION
+            if phase == ProjectPhase.REVIEW:
+                return self.FlowState.FULL_REVIEW
+            return self.FlowState.FULL_DISCOVERY
+
+        if state_manager.get_quick_flow_state() is not None:
+            return self.FlowState.QUICK
+
+        if intent.flow_type == FlowType.SIMULTANEOUS and allow_simultaneous:
+            return self.FlowState.SIMULTANEOUS
+        if intent.flow_type == FlowType.SIMULTANEOUS and not allow_simultaneous:
+            return self.FlowState.PASS_THROUGH
+        if intent.flow_type == FlowType.QUICK:
+            return self.FlowState.QUICK
+        if intent.flow_type == FlowType.FULL:
+            return self.FlowState.FULL_START if allow_full_start else self.FlowState.PASS_THROUGH
+        return self.FlowState.PASS_THROUGH
+
+    async def _handle_flow_state(
+        self,
+        flow_state: "FlowState",
+        msg: "MessageEnvelope",
+        intent: Intent,
+        session: "Session",
+        state_manager: "ProjectStateManager",
+    ) -> Optional["MessageEnvelope"]:
+        """Dispatch to the correct handler for the given flow state."""
+        if flow_state == self.FlowState.SIMULTANEOUS:
             return await self._handle_simultaneous(msg, intent, session)
-        elif intent.flow_type == FlowType.QUICK:
-            return await self._handle_quick(msg, intent, session)
-        else:  # FULL
-            return await self._handle_full(msg, intent, session)
+        if flow_state == self.FlowState.QUICK:
+            return await self._handle_quick(msg, intent, session, state_manager)
+        if flow_state == self.FlowState.FULL_START:
+            return await self._handle_full(msg, intent, session, state_manager)
+        if flow_state == self.FlowState.FULL_DISCOVERY:
+            return await self._continue_discovery(msg, state_manager)
+        if flow_state == self.FlowState.FULL_APPROVAL:
+            return await self._handle_approval(msg, state_manager)
+        if flow_state == self.FlowState.FULL_EXECUTION:
+            return await self._handle_execution(msg, state_manager)
+        if flow_state == self.FlowState.FULL_REVIEW:
+            return await self._handle_review(msg, state_manager)
+        if flow_state == self.FlowState.CANCELLED:
+            return await self._handle_cancellation(msg, state_manager)
+        return None
 
     async def detect_intent(self, content: str) -> Intent:
         """Detect intent with LLM fallback for low-confidence cases."""
@@ -134,15 +236,20 @@ class IntentFlowRouter:
         content_lower = content.lower()
         return any(kw in content_lower for kw in self.CANCEL_KEYWORDS)
 
-    async def _handle_cancellation(self, msg: "MessageEnvelope") -> "MessageEnvelope":
+    async def _handle_cancellation(
+        self,
+        msg: "MessageEnvelope",
+        state_manager: Optional["ProjectStateManager"] = None,
+    ) -> "MessageEnvelope":
         """Handle cancellation request."""
         logger.info("User requested cancellation")
 
         try:
-            from nanofolks.agent.project_state import ProjectStateManager
+            if state_manager is None:
+                from nanofolks.agent.project_state import ProjectStateManager
 
-            room_id = session_to_room_id(msg.session_key) or "general"
-            state_manager = ProjectStateManager(self.agent.workspace, room_id)
+                room_id = session_to_room_id(msg.session_key) or "general"
+                state_manager = ProjectStateManager(self.agent.workspace, room_id)
             state_manager.clear_quick_flow_state()
             state_manager.reset()
         except Exception as e:
@@ -186,17 +293,19 @@ class IntentFlowRouter:
         self,
         msg: "MessageEnvelope",
         intent: Intent,
-        session: "Session"
+        session: "Session",
+        state_manager: Optional["ProjectStateManager"] = None,
     ) -> "MessageEnvelope":
         """Handle ADVICE/RESEARCH intents - quick 1-2 questions then answer.
 
         This flow asks 1-2 clarifying questions, then provides the answer.
         Uses persisted state via ProjectStateManager for durability.
         """
-        from nanofolks.agent.project_state import ProjectStateManager
+        if state_manager is None:
+            from nanofolks.agent.project_state import ProjectStateManager
 
-        room_id = session_to_room_id(msg.session_key) or "general"
-        state_manager = ProjectStateManager(self.agent.workspace, room_id)
+            room_id = session_to_room_id(msg.session_key) or "general"
+            state_manager = ProjectStateManager(self.agent.workspace, room_id)
 
         quick_state = state_manager.get_quick_flow_state()
 
@@ -253,7 +362,8 @@ class IntentFlowRouter:
         self,
         msg: "MessageEnvelope",
         intent: Intent,
-        session: "Session"
+        session: "Session",
+        state_manager: Optional["ProjectStateManager"] = None,
     ) -> "MessageEnvelope":
         """Handle BUILD/TASK/EXPLORE intents - full discovery flow.
 
@@ -279,7 +389,8 @@ class IntentFlowRouter:
             is_new_project = True
             logger.info(f"Created project room '{room_id}' with Leader. Leader will invite specialists as needed.")
 
-        state_manager = ProjectStateManager(self.agent.workspace, room_id)
+        if state_manager is None:
+            state_manager = ProjectStateManager(self.agent.workspace, room_id)
 
         if state_manager.state.phase == ProjectPhase.IDLE:
             bots_in_room = ["leader"]

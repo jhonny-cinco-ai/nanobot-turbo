@@ -137,7 +137,8 @@ class BackgroundProcessor:
         Current tasks:
         1. Extract entities from pending events  (under processing_lock)
         2. Refresh stale summaries (every 5 min) (under processing_lock)
-        3. Apply learning decay (every hour)     (no lock needed – read + update)
+        3. Cleanup summaries (daily)             (under processing_lock)
+        4. Apply learning decay (every hour)     (no lock needed – read + update)
 
         processing_lock is used for tasks that write to the memory store so that
         the agent's _memory_flush_hook() can safely wait before its own writes.
@@ -145,7 +146,7 @@ class BackgroundProcessor:
         import time
         tasks_ran = []
 
-        # Tasks 1 & 2 share the processing_lock so flush hook can interleave safely
+        # Tasks 1-3 share the processing_lock so flush hook can interleave safely
         async with self.processing_lock:
             # Task 1: Extract entities from pending events
             pending = await self._extract_pending_events()
@@ -158,7 +159,13 @@ class BackgroundProcessor:
                 if refreshed > 0:
                     tasks_ran.append(f"refreshed {refreshed} summaries")
 
-        # Task 3: Learning decay – reads then updates individual rows, SQLite WAL
+            # Task 3: Cleanup low-confidence summaries (daily)
+            if int(time.time()) % 86400 < self.interval_seconds:
+                removed = await self._cleanup_summaries()
+                if removed > 0:
+                    tasks_ran.append(f"cleaned {removed} summaries")
+
+        # Task 4: Learning decay – reads then updates individual rows, SQLite WAL
         # handles this safely without the shared lock.
         if int(time.time()) % 3600 < self.interval_seconds:
             decayed = await self._decay_learnings()
@@ -307,6 +314,9 @@ class BackgroundProcessor:
                     store=self.memory_store,
                     staleness_threshold=10,
                     max_refresh_batch=20,
+                    min_confidence=0.3,
+                    max_age_days=90,
+                    max_staleness=200,
                 )
 
             # Refresh stale summaries
@@ -319,6 +329,28 @@ class BackgroundProcessor:
 
         except Exception as e:
             logger.error(f"Failed to refresh summaries: {e}")
+            return 0
+
+    async def _cleanup_summaries(self) -> int:
+        """Remove stale/low-confidence summary nodes."""
+        summary_manager = self.summary_manager
+        if summary_manager is None:
+            from nanofolks.memory.summaries import SummaryTreeManager
+
+            summary_manager = SummaryTreeManager(
+                store=self.memory_store,
+                staleness_threshold=10,
+                max_refresh_batch=20,
+                min_confidence=0.3,
+                max_age_days=90,
+                max_staleness=200,
+            )
+
+        try:
+            stats = summary_manager.cleanup_nodes()
+            return int(stats.get("removed", 0))
+        except Exception as e:
+            logger.error(f"Failed to cleanup summaries: {e}")
             return 0
 
     async def _decay_learnings(self) -> int:

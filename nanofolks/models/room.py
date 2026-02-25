@@ -36,6 +36,7 @@ class Message:
     timestamp: datetime  # When sent
     room_id: str  # Which room
     attachments: List[str] = field(default_factory=list)  # File paths
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -209,12 +210,21 @@ class Room:
                 return m
         return None
 
-    def add_message(self, sender: str, content: str) -> Message:
+    def add_message(
+        self,
+        sender: str,
+        content: str,
+        *,
+        attachments: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Message:
         """Add a message to room history.
 
         Args:
             sender: Bot name or "user"
             content: Message content
+            attachments: Optional list of file paths
+            metadata: Optional metadata for the message
 
         Returns:
             Created Message object
@@ -224,6 +234,8 @@ class Room:
             content=content,
             timestamp=datetime.now(),
             room_id=self.id,
+            attachments=attachments or [],
+            metadata=metadata or {},
         )
         self.history.append(msg)
         return msg
@@ -439,6 +451,17 @@ class Room:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "summary": self.summary,
+            "history": [
+                {
+                    "sender": msg.sender,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
+                    "room_id": msg.room_id,
+                    "attachments": msg.attachments,
+                    "metadata": msg.metadata,
+                }
+                for msg in self.history
+            ],
             "tasks": [task.to_dict() for task in self.tasks],
             "auto_archive": self.auto_archive,
             "archive_after_days": self.archive_after_days,
@@ -467,6 +490,21 @@ class Room:
             if isinstance(task_data, dict):
                 tasks.append(RoomTask.from_dict(task_data))
 
+        history = []
+        for msg_data in data.get("history", []) or []:
+            if not isinstance(msg_data, dict):
+                continue
+            history.append(
+                Message(
+                    sender=msg_data.get("sender", ""),
+                    content=msg_data.get("content", ""),
+                    timestamp=datetime.fromisoformat(msg_data["timestamp"]) if msg_data.get("timestamp") else datetime.now(),
+                    room_id=msg_data.get("room_id", data.get("id", "")),
+                    attachments=msg_data.get("attachments", []) or [],
+                    metadata=msg_data.get("metadata", {}) or {},
+                )
+            )
+
         return cls(
             id=data["id"],
             name=data.get("name", data["id"]),
@@ -479,6 +517,7 @@ class Room:
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now(),
             summary=data.get("summary", ""),
+            history=history,
             tasks=tasks,
             auto_archive=data.get("auto_archive", False),
             archive_after_days=data.get("archive_after_days", 30),

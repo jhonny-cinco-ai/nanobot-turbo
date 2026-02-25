@@ -4414,10 +4414,10 @@ def project_brief(
 # Separate command for bot-to-bot DM room peeking
 @app.command("peek")
 def peek(
-    room_id: str = typer.Argument(..., help="Bot DM room ID (e.g., dm-leader-researcher)"),
+    room_id: str = typer.Argument(..., help="Direct room ID (e.g., dm-leader-researcher)"),
     limit: int = typer.Option(20, "--limit", "-n", help="Number of messages to show"),
 ):
-    """Peek into bot-to-bot DM room conversations.
+    """Peek into bot-to-bot direct room conversations.
 
     Examples:
         nanofolks peek dm-leader-researcher
@@ -4428,22 +4428,6 @@ def peek(
 
     room_manager = get_room_manager()
 
-    # Parse room_id: dm-bot_a-bot_b
-    if not room_id.startswith("dm-"):
-        console.print("[red]❌ Invalid room ID format.[/red]")
-        console.print("[dim]Format should be: dm-bot_a-bot_b (e.g., dm-leader-researcher)[/dim]")
-        raise typer.Exit(1)
-
-    # Parse bots from room_id
-    parts = room_id.split("-")
-    if len(parts) < 3:
-        console.print("[red]❌ Invalid room ID format.[/red]")
-        console.print("[dim]Format should be: dm-bot_a-bot_b (e.g., dm-leader-researcher)[/dim]")
-        raise typer.Exit(1)
-
-    bots = parts[1:]  # Remove 'dm' prefix
-    bot_a, bot_b = bots[0], bots[1]
-
     # Get conversation history
     room = room_manager.get_room(room_id)
     if not room:
@@ -4451,7 +4435,11 @@ def peek(
         console.print("[dim]This room will be populated when bots communicate.[/dim]")
         return
 
-    messages = (room.metadata.get("dm_messages", []) or [])[-limit:]
+    if room.type.value != "direct" and room.room_type != "direct":
+        console.print(f"[red]❌ Room '{room_id}' is not a direct room.[/red]")
+        return
+
+    messages = room.history[-limit:]
 
     if not messages:
         console.print(f"[yellow]📭 No messages in {room_id} yet[/yellow]")
@@ -4459,7 +4447,7 @@ def peek(
         return
 
     # Display formatted conversation
-    console.print(f"\n[bold cyan]🔍 Bot-to-Bot Conversation:[/bold cyan] [yellow]@{bot_a}[/yellow] ↔ [yellow]@{bot_b}[/yellow]")
+    console.print(f"\n[bold cyan]🔍 Bot-to-Bot Conversation:[/bold cyan] [yellow]{room.name}[/yellow]")
     console.print("=" * 70)
 
     # Bot emoji mapping
@@ -4474,28 +4462,30 @@ def peek(
 
     for msg in messages:
         try:
-            from datetime import datetime
-            timestamp_str = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
+            timestamp_str = msg.timestamp.strftime("%H:%M")
         except Exception:
             timestamp_str = "??:??"
-        emoji = bot_emojis.get(msg.get("sender_bot"), "🤖")
+        sender = getattr(msg, "sender", "unknown")
+        metadata = getattr(msg, "metadata", {}) or {}
+        emoji = bot_emojis.get(metadata.get("sender_bot", sender), "🤖")
 
         # Format based on message type
-        if msg.get("message_type") == "query":
+        message_type = metadata.get("message_type")
+        if message_type == "query":
             prefix = "[bold cyan]❓[/bold cyan] Query"
-        elif msg.get("message_type") == "response":
+        elif message_type == "response":
             prefix = "[bold green]💬[/bold green] Response"
-        elif msg.get("message_type") == "escalation":
+        elif message_type == "escalation":
             prefix = "[bold red]🚨[/bold red] Escalation"
-        elif msg.get("message_type") == "coordination":
+        elif message_type == "coordination":
             prefix = "[bold yellow]📋[/bold yellow] Coordination"
         else:
             prefix = "[dim]📝[/dim] Info"
 
-        console.print(f"\n{emoji} [bold]{msg.get('sender_bot')}[/bold] [{timestamp_str}] {prefix}:")
+        console.print(f"\n{emoji} [bold]{sender}[/bold] [{timestamp_str}] {prefix}:")
 
         # Word wrap the content
-        content_lines = (msg.get("content") or "").split("\n")
+        content_lines = (msg.content or "").split("\n")
         for line in content_lines:
             if len(line) > 70:
                 # Simple word wrap
@@ -4519,7 +4509,7 @@ def peek(
 
 @app.command("dm-rooms")
 def list_dm_rooms():
-    """List all bot-to-bot DM rooms."""
+    """List all bot-to-bot direct rooms."""
     from nanofolks.bots.room_manager import get_room_manager
 
     room_manager = get_room_manager()
@@ -4527,7 +4517,7 @@ def list_dm_rooms():
 
     if not rooms:
         console.print("[yellow]No bot-to-bot DM rooms found.[/yellow]")
-        console.print("[dim]DM rooms are created when bots communicate with each other.[/dim]")
+        console.print("[dim]Direct rooms are created when bots communicate with each other.[/dim]")
         return
 
     table = Table(title="Bot-to-Bot DM Rooms")

@@ -237,6 +237,9 @@ class AgentLoop:
                 self.memory_store,
                 staleness_threshold=memory_config.summary.staleness_threshold,
                 max_refresh_batch=memory_config.summary.max_refresh_batch,
+                min_confidence=memory_config.summary.min_confidence,
+                max_age_days=memory_config.summary.max_age_days,
+                max_staleness=memory_config.summary.max_staleness,
             )
 
             # Initialize activity tracker for background processing

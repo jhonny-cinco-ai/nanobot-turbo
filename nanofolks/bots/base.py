@@ -594,7 +594,7 @@ class SpecialistBot(ABC):
         For complex coordination or task delegation, use notify_coordinator()
         or ask Leader to invoke the bot.
 
-        Messages are logged to DM rooms for transparency - users can peek
+        Messages are logged to direct rooms for transparency - users can peek
         into bot-to-bot conversations.
 
         Args:

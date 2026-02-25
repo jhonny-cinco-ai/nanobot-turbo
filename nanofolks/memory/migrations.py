@@ -53,6 +53,7 @@ class MigrationManager:
                 ("007_create_coordinator_messages", self._migration_007_coordinator_messages),
                 ("008_create_coordinator_tasks", self._migration_008_coordinator_tasks),
                 ("009_create_coordinator_decisions", self._migration_009_coordinator_decisions),
+                ("010_add_summary_confidence", self._migration_010_summary_confidence),
             ]
 
             # Apply pending migrations
@@ -294,3 +295,13 @@ class MigrationManager:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_coord_decisions_type ON coordinator_decisions(decision_type)")
 
         logger.debug("Created coordinator_decisions table")
+
+    @staticmethod
+    def _migration_010_summary_confidence(conn: sqlite3.Connection) -> None:
+        """Add confidence column to summary_nodes table."""
+        cursor = conn.execute("PRAGMA table_info(summary_nodes)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "confidence" not in columns:
+            conn.execute("ALTER TABLE summary_nodes ADD COLUMN confidence REAL DEFAULT 0.5")
+            logger.debug("Added confidence column to summary_nodes table")

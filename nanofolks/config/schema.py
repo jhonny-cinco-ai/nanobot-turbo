@@ -478,6 +478,9 @@ class SummaryConfig(Base):
     staleness_threshold: int = 10       # Events before refresh
     max_refresh_batch: int = 20         # Max nodes to refresh per cycle
     model: str = ""                     # Uses LLM classifier model if empty
+    min_confidence: float = 0.3         # Minimum confidence to keep/use summaries
+    max_age_days: int = 90              # Prune summaries older than this (if low confidence)
+    max_staleness: int = 200            # Prune summaries with high staleness (if low confidence)
 
 
 class LearningConfig(Base):
