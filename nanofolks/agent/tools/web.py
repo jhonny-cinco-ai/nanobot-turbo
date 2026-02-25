@@ -102,7 +102,7 @@ class WebSearchTool(Tool):
 
 
 class WebFetchTool(Tool):
-    """Fetch and extract content from a URL using Readability."""
+    """Fetch and extract content from a URL using Readability with optional Scrapling fallback."""
 
     name = "web_fetch"
     description = "Fetch URL and extract readable content (HTML → markdown/text)."
@@ -116,8 +116,17 @@ class WebFetchTool(Tool):
         "required": ["url"]
     }
 
-    def __init__(self, max_chars: int = 50000):
+    def __init__(
+        self,
+        max_chars: int = 50000,
+        scrapling_enabled: bool = False,
+        scrapling_min_chars: int = 800,
+        scrapling_mode: str = "auto",
+    ):
         self.max_chars = max_chars
+        self.scrapling_enabled = scrapling_enabled
+        self.scrapling_min_chars = scrapling_min_chars
+        self.scrapling_mode = scrapling_mode
 
     async def execute(self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any) -> str:
         from readability import Document
@@ -130,36 +139,141 @@ class WebFetchTool(Tool):
             return json.dumps({"error": f"URL validation failed: {error_msg}", "url": url})
 
         try:
-            async with httpx.AsyncClient(
-                follow_redirects=True,
-                max_redirects=MAX_REDIRECTS,
-                timeout=30.0
-            ) as client:
-                r = await client.get(url, headers={"User-Agent": USER_AGENT})
-                r.raise_for_status()
+            http_result = await self._fetch_with_httpx(url, extractMode)
+            text = http_result.get("text", "")
+            fallback_needed = self._needs_fallback(http_result)
 
-            ctype = r.headers.get("content-type", "")
-
-            # JSON
-            if "application/json" in ctype:
-                text, extractor = json.dumps(r.json(), indent=2), "json"
-            # HTML
-            elif "text/html" in ctype or r.text[:256].lower().startswith(("<!doctype", "<html")):
-                doc = Document(r.text)
-                content = self._to_markdown(doc.summary()) if extractMode == "markdown" else _strip_tags(doc.summary())
-                text = f"# {doc.title()}\n\n{content}" if doc.title() else content
-                extractor = "readability"
-            else:
-                text, extractor = r.text, "raw"
+            if self.scrapling_enabled and fallback_needed:
+                scrapling_result = await self._fetch_with_scrapling(url, extractMode)
+                if scrapling_result.get("text"):
+                    http_result = scrapling_result
+                    text = http_result.get("text", "")
 
             truncated = len(text) > max_chars
             if truncated:
                 text = text[:max_chars]
 
-            return json.dumps({"url": url, "finalUrl": str(r.url), "status": r.status_code,
-                              "extractor": extractor, "truncated": truncated, "length": len(text), "text": text})
+            http_result["truncated"] = truncated
+            http_result["length"] = len(text)
+            http_result["text"] = text
+            return json.dumps(http_result)
         except Exception as e:
             return json.dumps({"error": str(e), "url": url})
+
+    def _needs_fallback(self, result: dict[str, Any]) -> bool:
+        if result.get("error"):
+            return True
+        text = (result.get("text") or "").strip()
+        if not text:
+            return True
+        return len(text) < self.scrapling_min_chars
+
+    async def _fetch_with_httpx(self, url: str, extractMode: str) -> dict[str, Any]:
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            max_redirects=MAX_REDIRECTS,
+            timeout=30.0
+        ) as client:
+            r = await client.get(url, headers={"User-Agent": USER_AGENT})
+            r.raise_for_status()
+
+        ctype = r.headers.get("content-type", "")
+
+        # JSON
+        if "application/json" in ctype:
+            text, extractor = json.dumps(r.json(), indent=2), "json"
+        # HTML
+        elif "text/html" in ctype or r.text[:256].lower().startswith(("<!doctype", "<html")):
+            from readability import Document
+            doc = Document(r.text)
+            content = self._to_markdown(doc.summary()) if extractMode == "markdown" else _strip_tags(doc.summary())
+            text = f"# {doc.title()}\n\n{content}" if doc.title() else content
+            extractor = "readability"
+        else:
+            text, extractor = r.text, "raw"
+
+        return {
+            "url": url,
+            "finalUrl": str(r.url),
+            "status": r.status_code,
+            "extractor": extractor,
+            "text": text,
+        }
+
+    async def _fetch_with_scrapling(self, url: str, extractMode: str) -> dict[str, Any]:
+        try:
+            from scrapling.fetchers import DynamicFetcher, StealthyFetcher
+        except Exception as e:
+            return {"error": f"Scrapling not available: {e}", "url": url}
+
+        mode = (self.scrapling_mode or "auto").lower()
+        fetchers = []
+        if mode == "dynamic":
+            fetchers = [DynamicFetcher]
+        elif mode == "stealth":
+            fetchers = [StealthyFetcher]
+        else:
+            fetchers = [StealthyFetcher, DynamicFetcher]
+
+        result = None
+        last_error: Exception | None = None
+        for fetcher in fetchers:
+            try:
+                result = await fetcher.async_fetch(
+                    url,
+                    headless=True,
+                    disable_resources=True,
+                    timeout=30000,
+                )
+                break
+            except Exception as e:
+                last_error = e
+
+        if result is None:
+            return {"error": f"Scrapling fetch failed: {last_error}", "url": url}
+
+        html_text = await self._extract_scrapling_html(result)
+        if not html_text:
+            return {"error": "Scrapling returned empty content", "url": url}
+
+        from readability import Document
+        doc = Document(html_text)
+        content = self._to_markdown(doc.summary()) if extractMode == "markdown" else _strip_tags(doc.summary())
+        text = f"# {doc.title()}\n\n{content}" if doc.title() else content
+
+        final_url = getattr(result, "url", url)
+        status = getattr(result, "status", None) or getattr(result, "status_code", None)
+
+        return {
+            "url": url,
+            "finalUrl": str(final_url),
+            "status": status,
+            "extractor": "scrapling",
+            "text": text,
+        }
+
+    async def _extract_scrapling_html(self, result: Any) -> str | None:
+        if result is None:
+            return None
+        if isinstance(result, str):
+            return result
+        text = getattr(result, "text", None)
+        if isinstance(text, str) and text.strip():
+            return text
+        content = getattr(result, "content", None)
+        if callable(content):
+            try:
+                html = content()
+                if hasattr(html, "__await__"):
+                    html = await html
+                if isinstance(html, str):
+                    return html
+            except Exception:
+                return None
+        html_attr = getattr(result, "html", None)
+        if isinstance(html_attr, str):
+            return html_attr
+        return None
 
     def _to_markdown(self, html: str) -> str:
         """Convert HTML to markdown."""

@@ -87,6 +87,8 @@ class BotInvoker:
         protected_paths: list[str] | None = None,
         sidekick_config: "SidekickConfig | None" = None,
         routing_config: "RoutingConfig | None" = None,
+        web_config: "WebToolsConfig | None" = None,
+        browser_config: "BrowserToolsConfig | None" = None,
     ):
         self.provider = provider
         self.workspace = workspace
@@ -102,6 +104,8 @@ class BotInvoker:
         self.allowed_paths = allowed_paths or []
         self.sidekick_config = sidekick_config or SidekickConfig()
         self.routing_config = routing_config
+        self.web_config = web_config
+        self.browser_config = browser_config
         self.routing_stage: RoutingStage | None = None
         if routing_config and routing_config.enabled:
             self.routing_stage = RoutingStage(
@@ -523,8 +527,10 @@ Focus only on your domain expertise and provide a helpful response.
 
         registry = create_bot_registry(
             workspace=self.workspace,
-            bot_role=bot_role,
+            bot_name=bot_role,
             brave_api_key=self.brave_api_key,
+            web_config=self.web_config,
+            browser_config=self.browser_config,
             exec_config=self.exec_config,
             restrict_to_workspace=self.restrict_to_workspace,
         )

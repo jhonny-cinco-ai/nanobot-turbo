@@ -81,8 +81,10 @@ class AgentLoop:
         mcp_servers: dict | None = None,
         bot_mcp_servers: dict | None = None,
         sidekick_config: "SidekickConfig | None" = None,
+        web_config: "WebToolsConfig | None" = None,
+        browser_config: "BrowserToolsConfig | None" = None,
     ):
-        from nanofolks.config.schema import ExecToolConfig, SidekickConfig
+        from nanofolks.config.schema import BrowserToolsConfig, ExecToolConfig, SidekickConfig, WebToolsConfig
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -107,6 +109,8 @@ class AgentLoop:
         self.max_tokens = max_tokens
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
+        self.web_config = web_config or WebToolsConfig()
+        self.browser_config = browser_config or BrowserToolsConfig()
         self.cron_service = cron_service
         self.system_timezone = system_timezone
         self.restrict_to_workspace = restrict_to_workspace
@@ -392,6 +396,8 @@ class AgentLoop:
             protected_paths=protected_paths,
             sidekick_config=sidekick_config or SidekickConfig(),
             routing_config=self.routing_config,
+            web_config=self.web_config,
+            browser_config=self.browser_config,
         )
 
         # Initialize hybrid flow router for Phase 2 intent detection
@@ -872,7 +878,19 @@ class AgentLoop:
 
         # Web tools
         self.tools.register(WebSearchTool(api_key=self.brave_api_key))
-        self.tools.register(WebFetchTool())
+        self.tools.register(WebFetchTool(
+            scrapling_enabled=self.web_config.scrapling_enabled,
+            scrapling_min_chars=self.web_config.scrapling_min_chars,
+            scrapling_mode=self.web_config.scrapling_mode,
+        ))
+
+        # Agent-browser tool (opt-in)
+        if self.browser_config.enabled:
+            from nanofolks.agent.tools.browser import AgentBrowserTool
+            self.tools.register(AgentBrowserTool(
+                binary=self.browser_config.binary,
+                allowlist=self.browser_config.allowlist,
+            ))
 
         # Message tool
         message_tool = MessageTool(send_callback=self.bus.publish_outbound)

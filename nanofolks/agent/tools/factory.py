@@ -22,6 +22,8 @@ def create_bot_registry(
     bot_name: str,
     provider: Optional[Any] = None,
     brave_api_key: Optional[str] = None,
+    web_config: Optional[Any] = None,
+    browser_config: Optional[Any] = None,
     exec_config: Optional[ExecToolConfig] = None,
     restrict_to_workspace: bool = False,
     base_registry: Optional[ToolRegistry] = None,
@@ -58,6 +60,8 @@ def create_bot_registry(
             workspace=workspace,
             provider=provider,
             brave_api_key=brave_api_key,
+            web_config=web_config,
+            browser_config=browser_config,
             exec_config=exec_config,
             restrict_to_workspace=restrict_to_workspace,
         )
@@ -67,6 +71,8 @@ def create_bot_registry(
         workspace=workspace,
         provider=provider,
         brave_api_key=brave_api_key,
+        web_config=web_config,
+        browser_config=browser_config,
         exec_config=exec_config,
         restrict_to_workspace=restrict_to_workspace,
     )
@@ -78,6 +84,8 @@ def create_default_registry(
     workspace: Path,
     provider: Optional[Any] = None,
     brave_api_key: Optional[str] = None,
+    web_config: Optional[Any] = None,
+    browser_config: Optional[Any] = None,
     exec_config: Optional[ExecToolConfig] = None,
     restrict_to_workspace: bool = False,
     evolutionary: bool = False,
@@ -111,6 +119,7 @@ def create_default_registry(
     from nanofolks.agent.tools.shell import ExecTool
     from nanofolks.agent.tools.room_tasks import RoomTaskTool
     from nanofolks.agent.tools.web import WebFetchTool, WebSearchTool
+    from nanofolks.agent.tools.browser import AgentBrowserTool
 
     # File tools
     allowed_dir = workspace if restrict_to_workspace else None
@@ -144,7 +153,17 @@ def create_default_registry(
     # Web tools
     if brave_api_key:
         registry.register(WebSearchTool(api_key=brave_api_key))
-    registry.register(WebFetchTool())
+    registry.register(WebFetchTool(
+        scrapling_enabled=bool(getattr(web_config, "scrapling_enabled", False)),
+        scrapling_min_chars=int(getattr(web_config, "scrapling_min_chars", 800)),
+        scrapling_mode=str(getattr(web_config, "scrapling_mode", "auto")),
+    ))
+
+    if getattr(browser_config, "enabled", False):
+        registry.register(AgentBrowserTool(
+            binary=getattr(browser_config, "binary", "agent-browser"),
+            allowlist=getattr(browser_config, "allowlist", []),
+        ))
 
     # Room task tool (task ownership & handoffs)
     registry.register(RoomTaskTool())

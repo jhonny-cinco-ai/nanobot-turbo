@@ -863,6 +863,8 @@ def gateway(
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
         sidekick_config=config.agents.sidekicks,
+        web_config=config.tools.web,
+        browser_config=config.tools.browser,
     )
 
     # Wire per-room FIFO broker (Phase 1: single AgentLoop, per-room queues)
@@ -983,6 +985,9 @@ def gateway(
             tool_registry = create_bot_registry(
                 workspace=config.workspace_path,
                 bot_name=bot.name,
+                brave_api_key=config.tools.web.search.api_key or None,
+                web_config=config.tools.web,
+                browser_config=config.tools.browser,
             )
             bot.initialize_team_routines(
                 workspace=config.workspace_path,
@@ -1536,6 +1541,8 @@ def chat(
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
         sidekick_config=config.agents.sidekicks,
+        web_config=config.tools.web,
+        browser_config=config.tools.browser,
     )
 
     async def _send_cli(_msg: MessageEnvelope) -> None:
@@ -2861,6 +2868,8 @@ def routines_run(
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
         sidekick_config=config.agents.sidekicks,
+        web_config=config.tools.web,
+        browser_config=config.tools.browser,
     )
 
     store_path = get_data_dir() / "routines" / "jobs.json"

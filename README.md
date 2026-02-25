@@ -148,6 +148,21 @@ This will guide you through:
 
 Smart routing and evolutionary mode are enabled by default and can be changed anytime with `nanofolks configure`.
 
+### Web Tools
+
+nanofolks ships with a fast web search + robust page fetching pipeline:
+
+- **Brave Search** for quick discovery (enable by adding a Brave API key).
+- **Smart page fetching** with `web_fetch` using Readability.
+- **Scrapling fallback** for hard/anti‑bot pages (enabled by default).
+- **Agent‑browser** for authenticated actions (enabled by default, but always requires user confirmation).
+
+Configure these in:
+
+```bash
+nanofolks configure
+```
+
 ### Your Team
 
 Each nanofolks crew has 6 bots:

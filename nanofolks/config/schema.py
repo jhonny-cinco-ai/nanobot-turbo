@@ -204,6 +204,16 @@ class WebSearchConfig(Base):
 class WebToolsConfig(Base):
     """Web tools configuration."""
     search: WebSearchConfig = Field(default_factory=WebSearchConfig)
+    scrapling_enabled: bool = True
+    scrapling_min_chars: int = 800
+    scrapling_mode: str = "auto"  # auto | stealth | dynamic
+
+
+class BrowserToolsConfig(Base):
+    """Browser automation tool configuration."""
+    enabled: bool = True
+    allowlist: list[str] = Field(default_factory=list)
+    binary: str = "agent-browser"
 
 
 class ExecToolConfig(Base):
@@ -226,6 +236,7 @@ class ToolsConfig(Base):
     """Tools configuration."""
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
+    browser: BrowserToolsConfig = Field(default_factory=BrowserToolsConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     evolutionary: bool = True  # If true, use allowed_paths whitelist instead of restrict_to_workspace
     allowed_paths: list[str] = Field(default_factory=list)  # Paths allowed when evolutionary mode is enabled (e.g., ["/projects/nanofolks-turbo", "~/.nanofolks"])

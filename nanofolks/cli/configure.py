@@ -1026,60 +1026,169 @@ def _configure_tools():
                     console.print(f"[green]✓ Removed {path_to_remove} from protected paths[/green]")
 
         elif choice == "2":
-            # Web Search API Key
-            console.print("\n[dim]Web Search Configuration:[/dim]")
+            # Web Search & Browser Tools
+            while True:
+                console.print("\n[dim]Web Search & Browser Tools:[/dim]")
 
-            config = load_config()
-            has_key = bool(config.tools.web.search.api_key)
+                config = load_config()
+                has_key = bool(config.tools.web.search.api_key)
 
-            console.print(f"\nBrave Search API: {'[green]✓ Configured[/green]' if has_key else '[dim]○ Not configured[/dim]'}")
-            console.print("[dim]Required for web search functionality[/dim]")
-            console.print("[dim]Get API key from: https://api.search.brave.com/app/keys[/dim]")
+                console.print(f"\nBrave Search API: {'[green]✓ Configured[/green]' if has_key else '[dim]○ Not configured[/dim]'}")
+                console.print("[dim]Required for web search functionality[/dim]")
+                console.print("[dim]Get API key from: https://api.search.brave.com/app/keys[/dim]")
 
-            console.print("\n  [1] Enter API key")
-            console.print("  [0] Back")
-            console.print()
+                console.print(f"\nScrapling fallback: {'[green]Enabled[/green]' if config.tools.web.scrapling_enabled else '[dim]Disabled[/dim]'}")
+                console.print(f"  Min chars: [bright_magenta]{config.tools.web.scrapling_min_chars}[/bright_magenta]")
+                console.print(f"  Mode: [bright_magenta]{config.tools.web.scrapling_mode}[/bright_magenta]")
 
-            choice = Prompt.ask("Select", choices=["0", "1"], default="1")
+                console.print(f"\nAgent browser: {'[green]Enabled[/green]' if config.tools.browser.enabled else '[dim]Disabled[/dim]'}")
+                console.print(f"  Binary: [bright_magenta]{config.tools.browser.binary}[/bright_magenta]")
+                if config.tools.browser.allowlist:
+                    console.print("  Allowlist:")
+                    for domain in config.tools.browser.allowlist:
+                        console.print(f"    • {domain}")
+                else:
+                    console.print("  Allowlist: [dim](none)[/dim]")
 
-            if choice == "1":
-                api_key = Prompt.ask("Enter Brave Search API key", password=False)
+                console.print("\n  [1] Enter Brave API key")
+                console.print("  [2] Toggle Scrapling fallback")
+                console.print("  [3] Set Scrapling min chars")
+                console.print("  [4] Set Scrapling mode (auto/stealth/dynamic)")
+                console.print("  [5] Toggle agent browser")
+                console.print("  [6] Set agent browser binary")
+                console.print("  [7] Add browser allowlist domain")
+                console.print("  [8] Remove browser allowlist domain")
+                console.print("  [0] Back")
+                console.print()
 
-                if api_key:
-                    # Store in OS keyring (secure by default)
-                    from nanofolks.security.keyring_manager import (
-                        get_keyring_manager,
-                        is_keyring_available,
-                    )
+                choice = Prompt.ask("Select", choices=["0","1","2","3","4","5","6","7","8"], default="0")
 
-                    keyring_available = is_keyring_available()
+                if choice == "0":
+                    break
 
-                    if keyring_available:
-                        keyring = get_keyring_manager()
-                        with console.status("[bright_magenta]Saving Brave Search API key to OS keyring...[/bright_magenta]", spinner="dots"):
-                            keyring.store_key("brave", api_key)
+                if choice == "1":
+                    api_key = Prompt.ask("Enter Brave Search API key", password=False)
 
-                        # Save marker to config
-                        result = asyncio.run(tool.execute(
-                            path="tools.web.search.apiKey",
-                            value="__KEYRING__"  # Marker for keyring
-                        ))
-                        console.print("[green]✓[/green] API key saved securely to OS keyring")
-                    else:
-                        # Fallback to config file
-                        with console.status("[bright_magenta]Saving web search configuration...[/bright_magenta]", spinner="dots"):
+                    if api_key:
+                        # Store in OS keyring (secure by default)
+                        from nanofolks.security.keyring_manager import (
+                            get_keyring_manager,
+                            is_keyring_available,
+                        )
+
+                        keyring_available = is_keyring_available()
+
+                        if keyring_available:
+                            keyring = get_keyring_manager()
+                            with console.status("[bright_magenta]Saving Brave Search API key to OS keyring...[/bright_magenta]", spinner="dots"):
+                                keyring.store_key("brave", api_key)
+
+                            # Save marker to config
                             result = asyncio.run(tool.execute(
                                 path="tools.web.search.apiKey",
-                                value=api_key
+                                value="__KEYRING__"  # Marker for keyring
                             ))
+                            console.print("[green]✓[/green] API key saved securely to OS keyring")
+                        else:
+                            # Fallback to config file
+                            with console.status("[bright_magenta]Saving web search configuration...[/bright_magenta]", spinner="dots"):
+                                result = asyncio.run(tool.execute(
+                                    path="tools.web.search.apiKey",
+                                    value=api_key
+                                ))
 
-                    if "Error" not in result:
-                        console.print(f"[green]{result}[/green]")
-                        console.print("[dim]Web search is now enabled[/dim]")
+                        if "Error" not in result:
+                            console.print(f"[green]{result}[/green]")
+                            console.print("[dim]Web search is now enabled[/dim]")
+                        else:
+                            console.print(f"[red]{result}[/red]")
                     else:
-                        console.print(f"[red]{result}[/red]")
-                else:
-                    console.print("[yellow]⚠ No API key provided, skipping[/yellow]")
+                        console.print("[yellow]⚠ No API key provided, skipping[/yellow]")
+
+                elif choice == "2":
+                    new_value = not config.tools.web.scrapling_enabled
+                    with console.status("[bright_magenta]Updating Scrapling fallback...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.web.scraplingEnabled",
+                            value=new_value
+                        ))
+                    console.print(f"[green]{result}[/green]")
+
+                elif choice == "3":
+                    new_value = Prompt.ask("Min chars before fallback", default=str(config.tools.web.scrapling_min_chars))
+                    try:
+                        new_value = max(100, int(new_value))
+                    except ValueError:
+                        console.print("[red]Invalid number[/red]")
+                        continue
+                    with console.status("[bright_magenta]Updating Scrapling min chars...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.web.scraplingMinChars",
+                            value=new_value
+                        ))
+                    console.print(f"[green]{result}[/green]")
+
+                elif choice == "4":
+                    mode = Prompt.ask("Scrapling mode", choices=["auto", "stealth", "dynamic"], default=config.tools.web.scrapling_mode)
+                    with console.status("[bright_magenta]Updating Scrapling mode...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.web.scraplingMode",
+                            value=mode
+                        ))
+                    console.print(f"[green]{result}[/green]")
+
+                elif choice == "5":
+                    new_value = not config.tools.browser.enabled
+                    with console.status("[bright_magenta]Updating agent browser...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.browser.enabled",
+                            value=new_value
+                        ))
+                    console.print(f"[green]{result}[/green]")
+
+                elif choice == "6":
+                    binary = Prompt.ask("Agent browser binary", default=config.tools.browser.binary)
+                    with console.status("[bright_magenta]Updating agent browser binary...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.browser.binary",
+                            value=binary
+                        ))
+                    console.print(f"[green]{result}[/green]")
+
+                elif choice == "7":
+                    domain = Prompt.ask("Add allowlist domain (e.g., twitter.com)")
+                    if domain:
+                        updated = list(config.tools.browser.allowlist)
+                        if domain not in updated:
+                            updated.append(domain)
+                            with console.status("[bright_magenta]Updating allowlist...[/bright_magenta]", spinner="dots"):
+                                result = asyncio.run(tool.execute(
+                                    path="tools.browser.allowlist",
+                                    value=updated
+                                ))
+                            console.print(f"[green]{result}[/green]")
+                        else:
+                            console.print("[yellow]Domain already in allowlist[/yellow]")
+
+                elif choice == "8":
+                    if not config.tools.browser.allowlist:
+                        console.print("[yellow]No allowlist entries to remove[/yellow]")
+                        continue
+                    console.print("\nSelect domain to remove:")
+                    for i, domain in enumerate(config.tools.browser.allowlist, 1):
+                        console.print(f"  [{i}] {domain}")
+                    console.print("  [0] Cancel")
+                    rm_idx = Prompt.ask("Select number", choices=["0"] + [str(i) for i in range(1, len(config.tools.browser.allowlist) + 1)], default="0")
+                    if rm_idx == "0":
+                        continue
+                    domain_to_remove = config.tools.browser.allowlist[int(rm_idx) - 1]
+                    updated = [d for d in config.tools.browser.allowlist if d != domain_to_remove]
+                    with console.status("[bright_magenta]Updating allowlist...[/bright_magenta]", spinner="dots"):
+                        result = asyncio.run(tool.execute(
+                            path="tools.browser.allowlist",
+                            value=updated
+                        ))
+                    console.print(f"[green]{result}[/green]")
 
 
 def _configure_gateway():
