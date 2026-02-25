@@ -10,6 +10,10 @@ __all__ = [
     "LogLevel",
     "WorkLogManager",
     "get_work_log_manager",
+    "SidekickTaskEnvelope",
+    "SidekickResult",
+    "SidekickOrchestrator",
+    "SidekickLimitError",
 ]
 
 
@@ -32,6 +36,19 @@ def __getattr__(name: str):
     if name == "TurboMemoryStore":
         from nanofolks.memory.store import TurboMemoryStore
         return TurboMemoryStore
+    if name in {"SidekickTaskEnvelope", "SidekickResult", "SidekickOrchestrator", "SidekickLimitError"}:
+        from nanofolks.agent.sidekicks import (
+            SidekickLimitError,
+            SidekickOrchestrator,
+            SidekickResult,
+            SidekickTaskEnvelope,
+        )
+        return {
+            "SidekickTaskEnvelope": SidekickTaskEnvelope,
+            "SidekickResult": SidekickResult,
+            "SidekickOrchestrator": SidekickOrchestrator,
+            "SidekickLimitError": SidekickLimitError,
+        }[name]
     raise AttributeError(f"module 'nanofolks.agent' has no attribute {name!r}")
 
 

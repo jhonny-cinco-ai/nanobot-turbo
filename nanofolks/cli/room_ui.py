@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 console = Console()
+ACCENT_COLOR = "bright_magenta"
 
 
 class TeamRoster:
@@ -70,7 +71,7 @@ class TeamRoster:
         Returns:
             Formatted team display string
         """
-        output = "[bold cyan]TEAM[/bold cyan]\n"
+        output = f"[bold {ACCENT_COLOR}]TEAM[/bold {ACCENT_COLOR}]\n"
 
         for bot_role, role_label in self.BOT_ROLES:
             profile = self._get_profile(bot_role)
@@ -152,7 +153,7 @@ class RoomList:
         Returns:
             Formatted room list string
         """
-        output = "[bold cyan]ROOMS[/bold cyan]\n"
+        output = f"[bold {ACCENT_COLOR}]ROOMS[/bold {ACCENT_COLOR}]\n"
 
         for room in rooms:
             room_id = room['id']
@@ -221,7 +222,13 @@ class RoomList:
 class StatusBar:
     """Top status bar showing current room and team."""
 
-    def render(self, room_id: str, participants_count: int, bot_emojis: str = "") -> str:
+    def render(
+        self,
+        room_id: str,
+        participants_count: int,
+        bot_emojis: str = "",
+        context_usage: str | None = None,
+    ) -> str:
         """
         Render status bar.
 
@@ -233,8 +240,10 @@ class StatusBar:
         Returns:
             Formatted status bar
         """
-        status = f"[dim]Room:[/dim] [bold cyan]#{room_id}[/bold cyan]"
-        status += f" • [dim]Team:[/dim] [green]{participants_count}[/green]"
+        status = f"[dim]Room:[/dim] [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]"
+        status += f" • [dim]Team:[/dim] [{ACCENT_COLOR}]{participants_count}[/{ACCENT_COLOR}]"
+        if context_usage:
+            status += f" • [dim]Context:[/dim] [{ACCENT_COLOR}]{context_usage}[/{ACCENT_COLOR}]"
 
         if bot_emojis:
             status += f" {bot_emojis}"

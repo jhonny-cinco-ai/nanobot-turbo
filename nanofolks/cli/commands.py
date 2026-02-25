@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import os
 import select
 import signal
@@ -38,6 +39,7 @@ from nanofolks.config.loader import get_data_dir, load_config
 
 # Initialize Rich console
 console = Console()
+ACCENT_COLOR = "bright_magenta"
 
 # Main CLI app
 app = typer.Typer(name="nanofolks", help="🐱 nanofolks - Your friendly AI crew")
@@ -205,7 +207,12 @@ async def _read_interactive_input_async(room_id: str = "general") -> str:
         raise KeyboardInterrupt from exc
 
 
-def _print_agent_response(response: str, render_markdown: bool, already_streamed: bool = False) -> None:
+def _print_agent_response(
+    response: str,
+    render_markdown: bool,
+    already_streamed: bool = False,
+    room_id: str | None = None,
+) -> None:
     """Render assistant response with clean, copy-friendly header.
     
     Args:
@@ -218,14 +225,24 @@ def _print_agent_response(response: str, render_markdown: bool, already_streamed
     # If content was already streamed in real-time, just show the header
     if already_streamed and content:
         console.print()
-        console.print(f"{__logo__} [bold cyan]nanofolks[/bold cyan]")
-    console.print()
-    return
+        header_room = f" · [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]" if room_id else ""
+        timestamp = datetime.now().strftime("%H:%M")
+        console.print(
+            f"{__logo__} [bold {ACCENT_COLOR}]nanofolks[/bold {ACCENT_COLOR}]"
+            f"{header_room} · [dim]{timestamp}[/dim]"
+        )
+        console.print()
+        return
     
     body = Markdown(content) if render_markdown else Text(content)
     console.print()
     # Use a simple header instead of a Panel box, making it easier to copy text
-    console.print(f"{__logo__} [bold cyan]nanofolks[/bold cyan]")
+    header_room = f" · [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]" if room_id else ""
+    timestamp = datetime.now().strftime("%H:%M")
+    console.print(
+        f"{__logo__} [bold {ACCENT_COLOR}]nanofolks[/bold {ACCENT_COLOR}]"
+        f"{header_room} · [dim]{timestamp}[/dim]"
+    )
     console.print(body)
     console.print()
 
@@ -262,6 +279,42 @@ def _print_context_usage(metadata: dict | None, max_tokens: int | None = None) -
     total = used + remaining if max_tokens is None else max_tokens
     usage_text = usage or f"{(used / total * 100):.0f}%"
     console.print(f"[dim]Context: {usage_text} ({used}/{total})[/dim]\n")
+
+
+def _print_team_inline(participants: list[str]) -> None:
+    if not participants:
+        return
+    roster = TeamRoster()
+    items = []
+    for bot in participants:
+        info = roster.get_bot_info(bot)
+        if info:
+            items.append(f"{info['emoji']} {info['name']} ({info['title']})")
+        else:
+            items.append(f"@{bot}")
+    console.print(f"[dim]Team:[/dim] [{' | '.join(items)}]\n")
+
+
+def _print_status_bar_line(
+    room_id: str,
+    participants: list[str],
+    context_usage: str | None = None,
+) -> None:
+    status_bar = StatusBar()
+    bot_emojis = TeamRoster().render_compact_inline(participants or [])
+    status = status_bar.render(room_id, len(participants or []), bot_emojis, context_usage)
+    console.print(f"{status}\n")
+
+
+def _render_activity_line(text: str, final: bool = False) -> None:
+    if not text:
+        return
+    # Clear line then render activity
+    console.print("\r" + " " * 120 + "\r", end="", highlight=False)
+    if final:
+        console.print(f"[dim]{text}[/dim]")
+    else:
+        console.print(f"[dim]{text}[/dim]", end="\r", highlight=False)
 
 
 async def _show_thinking_logs(agent_loop, bot_name: Optional[str] = None) -> Optional["ThinkingDisplay"]:
@@ -809,6 +862,7 @@ def gateway(
         protected_paths=config.tools.protected_paths,
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
+        sidekick_config=config.agents.sidekicks,
     )
 
     # Wire per-room FIFO broker (Phase 1: single AgentLoop, per-room queues)
@@ -1115,7 +1169,7 @@ def _render_room_list(room_manager, current_room_id: str) -> str:
         "coordination": "🤖"
     }
 
-    output = "\n[bold cyan]ROOMS[/bold cyan]\n"
+    output = f"\n[bold {ACCENT_COLOR}]ROOMS[/bold {ACCENT_COLOR}]\n"
 
     for room_info in rooms:
         room_id = room_info['id']
@@ -1125,7 +1179,7 @@ def _render_room_list(room_manager, current_room_id: str) -> str:
         icon = room_icons.get(room_type, "📌")
 
         if room_id == current_room_id:
-            output += f"→ [bold green]{icon} {room_id:15}[/bold green] ({participant_count})\n"
+            output += f"→ [bold {ACCENT_COLOR}]{icon} {room_id:15}[/bold {ACCENT_COLOR}] ({participant_count})\n"
         else:
             output += f"  {icon} {room_id:15} ({participant_count})\n"
 
@@ -1158,8 +1212,8 @@ def _render_status_bar(room_id: str, participants: list, team_manager) -> str:
     emoji_str = " ".join(emojis) if emojis else ""
     count = len(participants) if isinstance(participants, list) else 0
 
-    status = f"[dim]Room:[/dim] [bold cyan]#{room_id}[/bold cyan]"
-    status += f" • [dim]Team:[/dim] [green]{count}[/green]"
+    status = f"[dim]Room:[/dim] [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]"
+    status += f" • [dim]Team:[/dim] [{ACCENT_COLOR}]{count}[/{ACCENT_COLOR}]"
     if emoji_str:
         status += f" {emoji_str}"
 
@@ -1442,6 +1496,7 @@ def chat(
         protected_paths=config.tools.protected_paths,
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
+        sidekick_config=config.agents.sidekicks,
     )
 
     async def _send_cli(_msg: MessageEnvelope) -> None:
@@ -1461,24 +1516,26 @@ def chat(
     # Streaming callback for real-time chunk display
     streaming_content = ""
     tool_progress = []
+    activity_line = ""
     
     def _stream_chunk(chunk: str):
-        nonlocal streaming_content, tool_progress
+        nonlocal streaming_content, tool_progress, activity_line
         # Check if this is a tool progress message (starts with ↳)
         if chunk.startswith("↳ "):
             tool_progress.append(chunk)
+            activity_line = f"Activity: {chunk.replace('↳ ', '')}"
             # Show tool progress with distinctive styling
             if "..." in chunk:
-                # Tool is running
-                console.print(f"[dim]{chunk}[/dim]\r", end="", highlight=False)
+                # Tool is running (single-line activity strip)
+                _render_activity_line(activity_line, final=False)
             else:
                 # Tool completed
-                console.print(f"[green]{chunk}[/green]\n")
+                _render_activity_line(activity_line.replace("...", "done"), final=True)
         else:
             # Regular content chunk - show in real-time
             streaming_content += chunk
             # Show content directly (not just preview)
-            console.print(f"[cyan]{chunk}[/cyan]", end="", highlight=False)
+            console.print(f"[{ACCENT_COLOR}]{chunk}[/{ACCENT_COLOR}]", end="", highlight=False)
 
     async def _await_cli_response(chat_id: str, room_id: str | None = None) -> MessageEnvelope | None:
         while True:
@@ -1508,7 +1565,12 @@ def chat(
                 with _thinking_ctx():
                     response = await _send_cli_message(message)
                 if response and response.content is not None:
-                    _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
+                    _print_agent_response(
+                        response.content,
+                        render_markdown=markdown,
+                        already_streamed=True,
+                        room_id=response.room_id or room,
+                    )
                     _print_compaction_notice(response.metadata if response else None)
                     _print_context_usage(
                         response.metadata if response else None,
@@ -1516,6 +1578,12 @@ def chat(
                         if config and config.memory and config.memory.enhanced_context
                         else None,
                     )
+                    _print_status_bar_line(
+                        room,
+                        current_room.participants if current_room else [],
+                        context_usage=(response.metadata or {}).get("context_usage") if response else None,
+                    )
+                    _print_team_inline(current_room.participants if current_room else [])
 
                 # NEW: Show thinking logs after response
                 thinking_display = await _show_thinking_logs(agent_loop)
@@ -1970,9 +2038,14 @@ def chat(
                     with _thinking_ctx():
                         response = await _send_cli_message(user_input)
                     # Clear the streaming indicator line
-                    console.print("\r" + " " * 50 + "\r", end="", highlight=False)
+                    console.print("\r" + " " * 120 + "\r", end="", highlight=False)
                     if response and response.content is not None:
-                        _print_agent_response(response.content, render_markdown=markdown, already_streamed=True)
+                        _print_agent_response(
+                            response.content,
+                            render_markdown=markdown,
+                            already_streamed=True,
+                            room_id=response.room_id or room,
+                        )
                         _print_compaction_notice(response.metadata if response else None)
                         _print_context_usage(
                             response.metadata if response else None,
@@ -1980,6 +2053,12 @@ def chat(
                             if config and config.memory and config.memory.enhanced_context
                             else None,
                         )
+                        _print_status_bar_line(
+                            room,
+                            current_room.participants if current_room else [],
+                            context_usage=(response.metadata or {}).get("context_usage") if response else None,
+                        )
+                        _print_team_inline(current_room.participants if current_room else [])
 
                     # NEW: Show thinking logs after response
                     thinking_display = await _show_thinking_logs(agent_loop)
@@ -2732,6 +2811,7 @@ def routines_run(
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
         bot_mcp_servers=config.tools.bot_mcp_servers,
+        sidekick_config=config.agents.sidekicks,
     )
 
     store_path = get_data_dir() / "routines" / "jobs.json"

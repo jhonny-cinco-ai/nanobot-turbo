@@ -23,14 +23,14 @@ def configure_cli():
     """Main entry point for the configuration wizard."""
     # Show welcome
     console.print(Panel.fit(
-        "[bold blue]🐱 nanofolks Setup[/bold blue]\n\n"
+        "[bold bright_magenta]🐱 nanofolks Setup[/bold bright_magenta]\n\n"
         "Configure your nanofolks installation interactively.",
         title="Welcome",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Check current config status with spinner
-    with console.status("[cyan]Loading configuration...[/cyan]", spinner="dots"):
+    with console.status("[bright_magenta]Loading configuration...[/bright_magenta]", spinner="dots"):
         tool = UpdateConfigTool()
         summary = tool.get_config_summary()
 
@@ -44,8 +44,8 @@ def configure_cli():
         if choice == "exit":
             console.print("\n[green]✓[/green] Configuration complete!")
             console.print("\nYou can now start using nanofolks:")
-            console.print("  [cyan]nanofolks chat[/cyan] - Start interactive chat")
-            console.print("  [cyan]nanofolks gateway[/cyan] - Start gateway server")
+            console.print("  [bright_magenta]nanofolks chat[/bright_magenta] - Start interactive chat")
+            console.print("  [bright_magenta]nanofolks gateway[/bright_magenta] - Start gateway server")
             break
 
         elif choice == "providers":
@@ -79,7 +79,7 @@ def configure_cli():
 def _show_status(summary: dict):
     """Show current configuration status."""
     table = Table(title="Current Configuration", box=box.ROUNDED)
-    table.add_column("Component", style="cyan")
+    table.add_column("Component", style="bright_magenta")
     table.add_column("Status", style="green")
 
     # Providers
@@ -183,7 +183,7 @@ def _show_main_menu(summary: dict) -> str:
     console.print(Panel(
         "[bold]Main Menu[/bold]\n"
         "Select a category to configure:",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     options = []
@@ -238,7 +238,7 @@ def _configure_providers(summary: dict):
     console.print(Panel(
         "[bold]Model Providers[/bold]\n"
         "Select a provider to configure:",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Show provider options
@@ -273,7 +273,7 @@ def _configure_single_provider(name: str, schema: dict):
     """Configure a single provider."""
     console.print(Panel(
         f"[bold]{name.title()} Configuration[/bold]",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     tool = UpdateConfigTool()
@@ -320,13 +320,13 @@ def _configure_single_provider(name: str, schema: dict):
         # Store in keyring (secure default)
         manager = get_secret_manager()
 
-        with console.status(f"[cyan]Saving {name} API key to OS keyring...[/cyan]", spinner="dots"):
+        with console.status(f"[bright_magenta]Saving {name} API key to OS keyring...[/bright_magenta]", spinner="dots"):
             manager.store_key(name, api_key)
 
         console.print("[green]✓[/green] API key saved securely to OS keyring")
 
         # Save marker to config (empty - key loaded from keyring)
-        with console.status("[cyan]Updating configuration...[/cyan]", spinner="dots"):
+        with console.status("[bright_magenta]Updating configuration...[/bright_magenta]", spinner="dots"):
             result = asyncio.run(tool.execute(
                 path=f"providers.{name}.apiKey",
                 value=""  # Empty - key loaded from keyring
@@ -339,7 +339,7 @@ def _configure_single_provider(name: str, schema: dict):
         console.print("[yellow]⚠ API key stored in config file (less secure)[/yellow]")
         console.print("[dim]Recommendation: Set up your OS keyring for better security[/dim]")
 
-        with console.status(f"[cyan]Saving {name} configuration...[/cyan]", spinner="dots"):
+        with console.status(f"[bright_magenta]Saving {name} configuration...[/bright_magenta]", spinner="dots"):
             result = asyncio.run(tool.execute(
                 path=f"providers.{name}.apiKey",
                 value=api_key
@@ -380,7 +380,7 @@ def _configure_channels(summary: dict):
     console.print(Panel(
         "[bold]Chat Channels[/bold]\n"
         "Configure integrations with chat platforms:",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Show channel options
@@ -421,7 +421,7 @@ def _configure_single_channel(name: str, schema: dict):
 
         console.print(Panel(
             f"[bold]{name.title()} Configuration[/bold]",
-            border_style="blue"
+            border_style="bright_magenta"
         ))
 
         # Show setup notes
@@ -444,7 +444,7 @@ def _configure_single_channel(name: str, schema: dict):
                         display_value = field_value[:4] + '****' if len(field_value) > 4 else '****'
                     else:
                         display_value = field_value
-                    console.print(f"  {field_name}: [cyan]{display_value}[/cyan]")
+                    console.print(f"  {field_name}: [bright_magenta]{display_value}[/bright_magenta]")
 
         # Build menu options
         console.print("\n[dim]What would you like to do?[/dim]")
@@ -518,7 +518,7 @@ def _configure_single_channel(name: str, schema: dict):
                     continue
 
                 # Enable the channel
-                with console.status(f"[cyan]Enabling {name} channel...[/cyan]", spinner="dots"):
+                with console.status(f"[bright_magenta]Enabling {name} channel...[/bright_magenta]", spinner="dots"):
                     result = asyncio.run(tool.execute(path=f"channels.{name}.enabled", value=True))
                 if "Error" not in result:
                     console.print(f"[green]✓ {name.title()} channel enabled![/green]")
@@ -529,7 +529,7 @@ def _configure_single_channel(name: str, schema: dict):
                         _check_and_offer_groq_setup()
             else:
                 # Disable the channel
-                with console.status(f"[cyan]Disabling {name} channel...[/cyan]", spinner="dots"):
+                with console.status(f"[bright_magenta]Disabling {name} channel...[/bright_magenta]", spinner="dots"):
                     result = asyncio.run(tool.execute(path=f"channels.{name}.enabled", value=False))
                 if "Error" not in result:
                     console.print(f"[green]✓ {name.title()} channel disabled![/green]")
@@ -588,7 +588,7 @@ def _check_and_offer_groq_setup():
         return
 
     # Offer to set up Groq for voice transcription
-    console.print("\n[bold cyan]🎤 Voice Message Support[/bold cyan]")
+    console.print("\n[bold bright_magenta]🎤 Voice Message Support[/bold bright_magenta]")
     console.print("""
 [dim]Telegram/WhatsApp users can send voice messages.
 To transcribe them, you need Groq's Whisper API (free tier available).[/dim]
@@ -599,7 +599,7 @@ To transcribe them, you need Groq's Whisper API (free tier available).[/dim]
         api_key = Prompt.ask("Enter Groq API key", password=False)
 
         if api_key:
-            with console.status("[cyan]Saving Groq configuration...[/cyan]", spinner="dots"):
+            with console.status("[bright_magenta]Saving Groq configuration...[/bright_magenta]", spinner="dots"):
                 result = asyncio.run(tool.execute(
                     path="providers.groq.apiKey",
                     value=api_key
@@ -620,7 +620,7 @@ def _configure_agents():
 
     console.print(Panel(
         "[bold]Agent Settings[/bold]",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Show current settings
@@ -667,7 +667,7 @@ def _configure_routing():
     console.print(Panel(
         "[bold]Smart Routing Configuration[/bold]\n"
         "Smart routing automatically selects the best model based on query complexity",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Show current status
@@ -686,7 +686,7 @@ def _configure_routing():
         # Show current tier configuration
         console.print("[bold]Current Model Tiers:[/bold]")
         tiers_table = Table(box=box.ROUNDED)
-        tiers_table.add_column("Tier", style="cyan")
+        tiers_table.add_column("Tier", style="bright_magenta")
         tiers_table.add_column("Model", style="green")
         tiers_table.add_column("Cost/M tokens", style="yellow")
         tiers_table.add_column("Use Case", style="dim")
@@ -797,7 +797,7 @@ def _configure_routing():
             # Change LLM classifier model
             console.print("\n[bold]LLM Classifier Model:[/bold]")
             console.print("This model is used to classify ambiguous queries when the client-side classifier is unsure.")
-            console.print(f"Current: [cyan]{config.routing.llm_classifier.model}[/cyan]")
+            console.print(f"Current: [bright_magenta]{config.routing.llm_classifier.model}[/bright_magenta]")
 
             new_model = Prompt.ask("Enter new classifier model (or press Enter to keep)", default="")
             if new_model:
@@ -827,7 +827,7 @@ def _configure_tools():
     while True:
         console.print(Panel(
             "[bold]Tool Settings[/bold]",
-            border_style="blue"
+            border_style="bright_magenta"
         ))
 
         # Show menu
@@ -855,7 +855,7 @@ def _configure_tools():
 
                 console.print(Panel(
                     "[bold]Security Settings[/bold]",
-                    border_style="blue"
+                    border_style="bright_magenta"
                 ))
 
                 # Show current status
@@ -913,7 +913,7 @@ def _configure_tools():
                         f"{'Disable' if is_evolutionary else 'Enable'} evolutionary mode?",
                         default=False
                     ):
-                        with console.status("[cyan]Updating security settings...[/cyan]", spinner="dots"):
+                        with console.status("[bright_magenta]Updating security settings...[/bright_magenta]", spinner="dots"):
                             result = asyncio.run(tool.execute(
                                 path="tools.evolutionary",
                                 value=new_value
@@ -944,7 +944,7 @@ def _configure_tools():
                         current_paths = config.tools.allowed_paths
                         if new_path not in current_paths:
                             updated_paths = current_paths + [new_path]
-                            with console.status("[cyan]Adding path...[/cyan]", spinner="dots"):
+                            with console.status("[bright_magenta]Adding path...[/bright_magenta]", spinner="dots"):
                                 asyncio.run(tool.execute(
                                     path="tools.allowedPaths",
                                     value=updated_paths
@@ -971,7 +971,7 @@ def _configure_tools():
                     path_to_remove = config.tools.allowed_paths[int(rm_idx)-1]
 
                     updated_paths = [p for p in config.tools.allowed_paths if p != path_to_remove]
-                    with console.status("[cyan]Removing path...[/cyan]", spinner="dots"):
+                    with console.status("[bright_magenta]Removing path...[/bright_magenta]", spinner="dots"):
                         asyncio.run(tool.execute(
                             path="tools.allowedPaths",
                             value=updated_paths
@@ -992,7 +992,7 @@ def _configure_tools():
                         current_paths = config.tools.protected_paths
                         if new_path not in current_paths:
                             updated_paths = current_paths + [new_path]
-                            with console.status("[cyan]Adding protected path...[/cyan]", spinner="dots"):
+                            with console.status("[bright_magenta]Adding protected path...[/bright_magenta]", spinner="dots"):
                                 asyncio.run(tool.execute(
                                     path="tools.protectedPaths",
                                     value=updated_paths
@@ -1018,7 +1018,7 @@ def _configure_tools():
                     path_to_remove = config.tools.protected_paths[int(rm_idx)-1]
 
                     updated_paths = [p for p in config.tools.protected_paths if p != path_to_remove]
-                    with console.status("[cyan]Removing protected path...[/cyan]", spinner="dots"):
+                    with console.status("[bright_magenta]Removing protected path...[/bright_magenta]", spinner="dots"):
                         asyncio.run(tool.execute(
                             path="tools.protectedPaths",
                             value=updated_paths
@@ -1056,7 +1056,7 @@ def _configure_tools():
 
                     if keyring_available:
                         keyring = get_keyring_manager()
-                        with console.status("[cyan]Saving Brave Search API key to OS keyring...[/cyan]", spinner="dots"):
+                        with console.status("[bright_magenta]Saving Brave Search API key to OS keyring...[/bright_magenta]", spinner="dots"):
                             keyring.store_key("brave", api_key)
 
                         # Save marker to config
@@ -1067,7 +1067,7 @@ def _configure_tools():
                         console.print("[green]✓[/green] API key saved securely to OS keyring")
                     else:
                         # Fallback to config file
-                        with console.status("[cyan]Saving web search configuration...[/cyan]", spinner="dots"):
+                        with console.status("[bright_magenta]Saving web search configuration...[/bright_magenta]", spinner="dots"):
                             result = asyncio.run(tool.execute(
                                 path="tools.web.search.apiKey",
                                 value=api_key
@@ -1091,13 +1091,13 @@ def _configure_gateway():
 
         console.print(Panel(
             "[bold]Gateway Configuration[/bold]",
-            border_style="blue"
+            border_style="bright_magenta"
         ))
 
         # Show current settings
         console.print("\n[bold]Current Settings:[/bold]")
-        console.print(f"  Host: [cyan]{config.gateway.host}[/cyan]")
-        console.print(f"  Port: [cyan]{config.gateway.port}[/cyan]")
+        console.print(f"  Host: [bright_magenta]{config.gateway.host}[/bright_magenta]")
+        console.print(f"  Port: [bright_magenta]{config.gateway.port}[/bright_magenta]")
         console.print("\n[dim]The gateway server listens for incoming requests from chat channels.[/dim]")
 
         # Show menu
@@ -1115,7 +1115,7 @@ def _configure_gateway():
         elif choice == "1":
             new_host = Prompt.ask("Enter new host (e.g., 0.0.0.0, 127.0.0.1, localhost)", default=config.gateway.host)
             if new_host and new_host != config.gateway.host:
-                with console.status("[cyan]Updating host...[/cyan]", spinner="dots"):
+                with console.status("[bright_magenta]Updating host...[/bright_magenta]", spinner="dots"):
                     result = asyncio.run(tool.execute(
                         path="gateway.host",
                         value=new_host
@@ -1128,7 +1128,7 @@ def _configure_gateway():
                 try:
                     port_int = int(new_port)
                     if port_int != config.gateway.port:
-                        with console.status("[cyan]Updating port...[/cyan]", spinner="dots"):
+                        with console.status("[bright_magenta]Updating port...[/bright_magenta]", spinner="dots"):
                             result = asyncio.run(tool.execute(
                                 path="gateway.port",
                                 value=port_int
@@ -1145,7 +1145,7 @@ def _configure_storage():
     console.print(Panel(
         "[bold]Storage Configuration[/bold]\n\n"
         "Configure storage behavior for session data.",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     config = load_config()
@@ -1163,7 +1163,7 @@ def _configure_storage():
 
     if choice == "1":
         new_value = not use_cas
-        with console.status("[cyan]Updating storage settings...[/cyan]", spinner="dots"):
+        with console.status("[bright_magenta]Updating storage settings...[/bright_magenta]", spinner="dots"):
             result = asyncio.run(tool.execute(
                 path="storage.use_cas_storage",
                 value=new_value
@@ -1187,7 +1187,7 @@ def _configure_mcp_servers():
             "[bold]MCP Servers Configuration[/bold]\n\n"
             "MCP servers provide additional tools to nanofolks.\n"
             "Configure stdio servers (npx, uvx) or HTTP endpoints.",
-            border_style="blue"
+            border_style="bright_magenta"
         ))
 
         # Show current servers
@@ -1195,11 +1195,11 @@ def _configure_mcp_servers():
             console.print("\n[bold]Configured Servers:[/bold]")
             for name, server_config in mcp_servers.items():
                 if server_config.url:
-                    console.print(f"  • {name}: [cyan]{server_config.url}[/cyan] (HTTP)")
+                    console.print(f"  • {name}: [bright_magenta]{server_config.url}[/bright_magenta] (HTTP)")
                 else:
                     cmd = server_config.command or "?"
                     args = " ".join(server_config.args or [])
-                    console.print(f"  • {name}: [cyan]{cmd} {args}[/cyan] (stdio)")
+                    console.print(f"  • {name}: [bright_magenta]{cmd} {args}[/bright_magenta] (stdio)")
         else:
             console.print("\n[dim]No MCP servers configured[/dim]")
 
@@ -1236,7 +1236,7 @@ def _add_mcp_server(tool: UpdateConfigTool):
     console.print(Panel(
         "[bold]Add MCP Server[/bold]\n\n"
         "Choose connection type:",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     console.print("  [1] Stdio (local command like npx, uvx)")
@@ -1297,7 +1297,7 @@ def _add_mcp_server(tool: UpdateConfigTool):
         return
 
     # Save to config
-    with console.status("[cyan]Saving MCP server...[/cyan]", spinner="dots"):
+    with console.status("[bright_magenta]Saving MCP server...[/bright_magenta]", spinner="dots"):
         try:
             # Get current MCP servers config
             config = load_config()
@@ -1336,7 +1336,7 @@ def _remove_mcp_server(tool: UpdateConfigTool, mcp_servers: dict):
     server_to_remove = servers[int(choice) - 1]
 
     if Confirm.ask(f"Remove MCP server '{server_to_remove}'?", default=False):
-        with console.status("[cyan]Removing MCP server...[/cyan]", spinner="dots"):
+        with console.status("[bright_magenta]Removing MCP server...[/bright_magenta]", spinner="dots"):
             try:
                 del mcp_servers[server_to_remove]
                 asyncio.run(tool.execute(
@@ -1371,7 +1371,7 @@ def _test_mcp_server(mcp_servers: dict):
     server_name = servers[int(choice) - 1]
     server_config = mcp_servers[server_name]
 
-    console.print(f"\n[cyan]Testing connection to '{server_name}'...[/cyan]")
+    console.print(f"\n[bright_magenta]Testing connection to '{server_name}'...[/bright_magenta]")
 
     # This is a simplified test - just check if we can list tools
     # In practice, you'd want to actually connect and list tools
@@ -1393,7 +1393,7 @@ def _show_detailed_status():
 
     console.print(Panel(
         "[bold]Detailed Configuration Status[/bold]",
-        border_style="blue"
+        border_style="bright_magenta"
     ))
 
     # Config file location
@@ -1403,7 +1403,7 @@ def _show_detailed_status():
     # ═══════════════════════════════════════════════════════════
     # AGENT SETTINGS
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Agent Settings[/bold cyan]")
+    console.print("[bold bright_magenta]Agent Settings[/bold bright_magenta]")
     if config.routing.enabled:
         console.print(f"  Default Model: [dim]{config.agents.defaults.model}[/dim] [yellow](overridden by Smart Routing)[/yellow]")
     else:
@@ -1416,11 +1416,11 @@ def _show_detailed_status():
     # ═══════════════════════════════════════════════════════════
     # MODEL PROVIDERS
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Model Providers[/bold cyan]")
+    console.print("[bold bright_magenta]Model Providers[/bold bright_magenta]")
     default_model = config.agents.defaults.model
 
     table = Table(box=box.SIMPLE_HEAD)
-    table.add_column("Provider", style="cyan")
+    table.add_column("Provider", style="bright_magenta")
     table.add_column("API Key", style="green", justify="center")
     table.add_column("Status", style="yellow")
 
@@ -1467,13 +1467,13 @@ def _show_detailed_status():
     # ═══════════════════════════════════════════════════════════
     # SMART ROUTING
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Smart Routing[/bold cyan]")
+    console.print("[bold bright_magenta]Smart Routing[/bold bright_magenta]")
     if config.routing.enabled:
         console.print("  Status: [green]Enabled[/green]")
         console.print("\n  [dim]Tier Configuration:[/dim]")
 
         tiers_table = Table(box=box.SIMPLE)
-        tiers_table.add_column("Tier", style="cyan")
+        tiers_table.add_column("Tier", style="bright_magenta")
         tiers_table.add_column("Model", style="green")
         tiers_table.add_column("Cost/Mtok", style="yellow")
 
@@ -1501,18 +1501,18 @@ def _show_detailed_status():
     # ═══════════════════════════════════════════════════════════
     # GATEWAY SERVER
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Gateway Server[/bold cyan]")
-    console.print(f"  Host: [cyan]{config.gateway.host}[/cyan]")
-    console.print(f"  Port: [cyan]{config.gateway.port}[/cyan]")
+    console.print("[bold bright_magenta]Gateway Server[/bold bright_magenta]")
+    console.print(f"  Host: [bright_magenta]{config.gateway.host}[/bright_magenta]")
+    console.print(f"  Port: [bright_magenta]{config.gateway.port}[/bright_magenta]")
     console.print(f"  URL: http://{config.gateway.host}:{config.gateway.port}\n")
 
     # ═══════════════════════════════════════════════════════════
     # CHAT CHANNELS
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Chat Channels[/bold cyan]")
+    console.print("[bold bright_magenta]Chat Channels[/bold bright_magenta]")
 
     channels_table = Table(box=box.SIMPLE_HEAD)
-    channels_table.add_column("Channel", style="cyan")
+    channels_table.add_column("Channel", style="bright_magenta")
     channels_table.add_column("Status", style="green")
     channels_table.add_column("Details", style="dim")
 
@@ -1552,7 +1552,7 @@ def _show_detailed_status():
     # ═══════════════════════════════════════════════════════════
     # TOOL SETTINGS
     # ═══════════════════════════════════════════════════════════
-    console.print("[bold cyan]Tool Settings[/bold cyan]")
+    console.print("[bold bright_magenta]Tool Settings[/bold bright_magenta]")
 
     # Web Search
     has_web_search = bool(config.tools.web.search.api_key)

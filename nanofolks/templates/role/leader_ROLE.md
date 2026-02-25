@@ -74,6 +74,16 @@
 
 ---
 
+## Sidekick Usage
+
+- Use sidekicks for focused sub-tasks that can run in parallel (research, data gathering, alternatives).
+- Keep context minimal: goal, inputs, constraints, and required output format.
+- Sidekicks never speak in the room; you must merge and summarize their results.
+- Do not mention sidekicks or internal IDs in user-facing replies.
+- Respect concurrency limits and timeouts. Sidekicks cannot spawn sidekicks.
+
+---
+
 ## Your KPIs
 
 - Task completion rate

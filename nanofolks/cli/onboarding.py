@@ -146,7 +146,7 @@ class OnboardingWizard:
         """Display welcome panel."""
         console.print(
             Panel.fit(
-                "[bold cyan]🚀 Welcome to nanofolks![/bold cyan]\n\n"
+                "[bold bright_magenta]🚀 Welcome to nanofolks![/bold bright_magenta]\n\n"
                 "Let's set up your multi-agent team in just a few steps.\n"
                 "This wizard will guide you through:\n"
                 "  1. [bold]Security[/bold] - Keyring setup for secure API key storage\n"
@@ -155,7 +155,7 @@ class OnboardingWizard:
                 "  4. [bold]Team[/bold] - Choose your crew's personality\n"
                 "  5. [bold]Launch[/bold] - Create your workspace and crew",
                 title="🎉",
-                border_style="cyan",
+                border_style="bright_magenta",
             )
         )
         console.print()
@@ -210,7 +210,7 @@ class OnboardingWizard:
             progress.update(task, description="Done!", completed=True)
 
         status_table = Table(title="Keyring Status", box=box.ROUNDED, show_header=False)
-        status_table.add_column("Property", style="cyan")
+        status_table.add_column("Property", style="bright_magenta")
         status_table.add_column("Value", style="white")
 
         status_table.add_row("OS", f"{info.os_name} ({info.os_detail})")
@@ -237,7 +237,7 @@ class OnboardingWizard:
             if init_keyring:
                 password = self._prompt("Enter a password to unlock the keyring", password=True)
                 if password:
-                    console.print("\n[cyan]Initializing GNOME keyring...[/cyan]")
+                    console.print("\n[bright_magenta]Initializing GNOME keyring...[/bright_magenta]")
                     
                     with Progress(
                         SpinnerColumn(),
@@ -259,7 +259,7 @@ class OnboardingWizard:
 
     def _configure_provider(self) -> None:
         """Step 1: Configure AI provider and API key."""
-        console.print("[bold cyan]Step 2: AI Provider Setup[/bold cyan]\n")
+        console.print("[bold bright_magenta]Step 2: AI Provider Setup[/bold bright_magenta]\n")
         console.print("Choose the AI provider for your crew:\n")
 
         for key, (name, desc) in self.PROVIDERS.items():
@@ -292,7 +292,7 @@ class OnboardingWizard:
             self.config_result["api_key"] = None
         else:
             # Save API key
-            console.print(f"\n[cyan]Saving API key for {provider_name}...[/cyan]")
+            console.print(f"\n[bright_magenta]Saving API key for {provider_name}...[/bright_magenta]")
             self.config_result["provider"] = provider_name
             self.config_result["api_key"] = api_key
 
@@ -343,7 +343,7 @@ class OnboardingWizard:
 
     def _configure_network_security(self) -> None:
         """Step 3: Configure Network & Security."""
-        console.print("[bold cyan]Step 3: Network & Security[/bold cyan]\n")
+        console.print("[bold bright_magenta]Step 3: Network & Security[/bold bright_magenta]\n")
         console.print("""
 [dim]Configure how nanofolks services are accessed:[/dim]
   • Dashboard & bridge will use secure defaults
@@ -392,7 +392,7 @@ class OnboardingWizard:
         console.print(
             Panel.fit(
                 """
-[bold cyan]Install Tailscale:[/bold cyan]
+[bold bright_magenta]Install Tailscale:[/bold bright_magenta]
 
 [bold]macOS:[/bold]
   brew install tailscale
@@ -409,7 +409,7 @@ After install, run: [bold]tailscale up[/bold]
 Then restart nanofolks for secure access.
             """,
                 title="Tailscale Setup Guide",
-                border_style="cyan",
+                border_style="bright_magenta",
             )
         )
 
@@ -554,7 +554,7 @@ Then restart nanofolks for secure access.
 
     def _select_team(self) -> None:
         """Interactive team selection."""
-        console.print("[bold cyan]Step 4: Choose Your Crew Team[/bold cyan]\n")
+        console.print("[bold bright_magenta]Step 4: Choose Your Crew Team[/bold bright_magenta]\n")
 
         teams = list_teams()
         [t["name"] for t in teams]
@@ -609,7 +609,7 @@ Then restart nanofolks for secure access.
         # Create a table showing each team member
         team_table = Table(title="Your Crew Members", box=box.ROUNDED, show_lines=True)
         team_table.add_column("Name", style="green", width=12)
-        team_table.add_column("Title", style="cyan", width=15)
+        team_table.add_column("Title", style="bright_magenta", width=15)
         team_table.add_column("Role", style="magenta", width=12)
         team_table.add_column("Description", style="white")
 
@@ -632,11 +632,11 @@ Then restart nanofolks for secure access.
 
     def _confirm_and_create(self) -> None:
         """Final confirmation and room creation."""
-        console.print("[bold cyan]Step 5: Ready to Launch![/bold cyan]\n")
+        console.print("[bold bright_magenta]Step 5: Ready to Launch![/bold bright_magenta]\n")
 
         # Show summary table
         summary_table = Table(title="Your Setup Summary", box=box.ROUNDED)
-        summary_table.add_column("Setting", style="cyan")
+        summary_table.add_column("Setting", style="bright_magenta")
         summary_table.add_column("Value", style="green")
 
         # Provider info
@@ -659,10 +659,10 @@ Then restart nanofolks for secure access.
             console.print("\n[green]✓ Setup complete![/green]\n")
             console.print("Your AI crew is ready!")
             console.print("\n[bold]Get started:[/bold]")
-            console.print("  [cyan]nanofolks chat[/cyan]        - Start chatting")
-            console.print("  [cyan]#general[/cyan]            - Crew chat room")
-            console.print("  [cyan]@researcher[/cyan]        - DM a bot directly")
-            console.print("  [cyan]nanofolks configure[/cyan]  - Add more providers/models\n")
+            console.print("  [bright_magenta]nanofolks chat[/bright_magenta]        - Start chatting")
+            console.print("  [bright_magenta]#general[/bright_magenta]            - Crew chat room")
+            console.print("  [bright_magenta]@researcher[/bright_magenta]        - DM a bot directly")
+            console.print("  [bright_magenta]nanofolks configure[/bright_magenta]  - Add more providers/models\n")
         else:
             console.print("[yellow]Setup cancelled[/yellow]\n")
 
@@ -737,7 +737,7 @@ Then restart nanofolks for secure access.
             soul_manager = SoulManager(workspace_path)
 
             if self.selected_team:
-                console.print("\n[cyan]Initializing crew personalities...[/cyan]")
+                console.print("\n[bright_magenta]Initializing crew personalities...[/bright_magenta]")
 
                 # Apply team to entire crew
                 crew = ["leader", "researcher", "coder", "social", "creative", "auditor"]
@@ -785,7 +785,7 @@ Then restart nanofolks for secure access.
             soul_manager = SoulManager(workspace_path)
             team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
-            console.print("\n[cyan]Creating bot configuration files...[/cyan]")
+            console.print("\n[bright_magenta]Creating bot configuration files...[/bright_magenta]")
 
             # Create AGENTS.md for each bot
             agents_results = soul_manager.apply_agents_to_team(team)

@@ -45,10 +45,11 @@ class UserProfileAnswers:
     """Collected answers from the user during onboarding."""
 
     name: str = ""
-    timezone: str = ""
+    location: str = ""
     language: str = ""
-    role: str = ""
-    projects: str = ""
+    work: str = ""
+    help: str = ""
+    more_details: bool = False
     tools: str = ""
     topics: str = ""
     team_name: str = ""
@@ -76,46 +77,51 @@ class ChatOnboarding:
             "follow_up": "Got it! And what's your {field}?",
         },
         {
-            "field": "timezone",
-            "key": "timezone",
-            "question": "What timezone are you in? (e.g., UTC-5, America/New_York)",
+            "field": "location",
+            "key": "location",
+            "question": "Where are you located? (City or country is fine — you can say 'skip')",
             "skip_if": lambda a: not a.name,
         },
         {
             "field": "language",
             "key": "language",
-            "question": "What language do you prefer? (e.g., English, Spanish)",
+            "question": "What language do you prefer? (You can say 'skip')",
             "skip_if": lambda a: not a.name,
         },
         {
-            "field": "role",
-            "key": "role",
-            "question": "So what do you do for a living?",
-            "follow_up": "Nice! And what kind of {field} work do you do?",
+            "field": "work",
+            "key": "work",
+            "question": "What are you working on these days? (You can say 'skip')",
         },
         {
-            "field": "projects",
-            "key": "projects",
-            "question": "What kind of projects are you working on?",
-            "skip_if": lambda a: not a.role,
+            "field": "help",
+            "key": "help",
+            "question": "How should we help you most right now? (You can say 'skip')",
+            "skip_if": lambda a: not a.work,
+        },
+        {
+            "field": "more_details",
+            "key": "more_details",
+            "question": "Want to add a few more details (tools, topics, team name)? (yes/no)",
+            "skip_if": lambda a: not a.name,
         },
         {
             "field": "tools",
             "key": "tools",
-            "question": "What tools do you use? (e.g., VS Code, Figma, Photoshop)",
-            "skip_if": lambda a: not a.projects,
+            "question": "What tools do you use? (Optional)",
+            "skip_if": lambda a: not a.more_details,
         },
         {
             "field": "topics",
             "key": "topics",
-            "question": "What topics are you interested in?",
-            "skip_if": lambda a: not a.tools,
+            "question": "Any topics you're into? (Optional)",
+            "skip_if": lambda a: not a.more_details,
         },
         {
             "field": "team_name",
             "key": "team_name",
-            "question": "One more thing — would you like to call your team something cool? (e.g., 'The Ravagers', 'Dream Team') or just keep the default?",
-            "skip_if": lambda a: not a.name,
+            "question": "Want to name your team? (Optional)",
+            "skip_if": lambda a: not a.more_details,
         },
     ]
 
@@ -133,7 +139,7 @@ class ChatOnboarding:
         content = user_file.read_text()
 
         # Check if user has filled in real info (not placeholders)
-        placeholders = ["(your name)", "(your timezone)", "(your role)"]
+        placeholders = ["(your name)", "(your location)", "(what you're working on)"]
         has_real_data = not any(p in content for p in placeholders)
 
         return not has_real_data
@@ -162,9 +168,20 @@ class ChatOnboarding:
             self.state = OnboardingState.TEAM_INTRO
             return self._get_team_intro_message()
 
-        # Store the answer
+        # Store the answer (support skip)
         field_name = question["key"]
-        setattr(self.answers, field_name, user_message)
+        normalized = user_message.strip()
+        skip_inputs = {"skip", "skip for now", "pass", "n/a"}
+        if normalized.lower() in skip_inputs:
+            if field_name == "more_details":
+                setattr(self.answers, field_name, False)
+            else:
+                setattr(self.answers, field_name, "")
+        elif field_name == "more_details":
+            yes_inputs = {"y", "yes", "yeah", "yep", "sure", "ok", "okay"}
+            setattr(self.answers, field_name, normalized.lower() in yes_inputs)
+        else:
+            setattr(self.answers, field_name, user_message)
 
         # Save to USER.md
         self._save_to_user_md()
@@ -193,15 +210,22 @@ class ChatOnboarding:
         if answered_q["key"] == "name":
             responses.append(f"Gotcha, {self.answers.name}!")
             responses.append(f"Alright {self.answers.name}, nice to meet you!")
+            responses.append("You’ve got a full team backing you — I’ll introduce everyone soon.")
 
-        elif answered_q["key"] == "role":
-            responses.append(f"Interesting! So you're a {self.answers.role}.")
+        elif answered_q["key"] == "work":
+            responses.append("Awesome — that gives us good context.")
 
-        elif answered_q["key"] == "projects":
-            responses.append("Awesome! Sounds like interesting work.")
+        elif answered_q["key"] == "help":
+            responses.append("Got it — we’ll focus on that.")
 
         elif answered_q["key"] == "tools":
             responses.append("Cool tools! I know some of those.")
+
+        elif answered_q["key"] == "more_details":
+            if self.answers.more_details:
+                responses.append("Great — just a couple quick ones.")
+            else:
+                responses.append("No problem — we can add details later.")
 
         elif answered_q["key"] == "team_name":
             if self.answers.team_name:
@@ -225,34 +249,20 @@ Information about the user to help personalize interactions.
 ## Basic Information
 
 - **Name**: {self.answers.name or "(your name)"}
-- **Timezone**: {self.answers.timezone or "(your timezone)"}
+- **Location**: {self.answers.location or "(your location)"}
 - **Language**: {self.answers.language or "(preferred language)"}
 - **Team Name**: {self.answers.team_name or "(default from team)"}
 
 ## Preferences
 
-### Communication Style
-
-- [x] {self.answers.communication_style or "Casual"}
-- [ ] Professional
-- [ ] Technical
-
-### Response Length
-
-- [x] {self.answers.response_length or "Adaptive based on question"}
-- [ ] Brief and concise
-- [ ] Detailed explanations
-
-### Technical Level
-
-- [x] {self.answers.technical_level or "Intermediate"}
-- [ ] Beginner
-- [ ] Expert
+- **Communication Style**: {self.answers.communication_style or "Casual"}
+- **Response Length**: {self.answers.response_length or "Adaptive based on question"}
+- **Technical Level**: {self.answers.technical_level or "Intermediate"}
 
 ## Work Context
 
-- **Primary Role**: {self.answers.role or "(your role)"}
-- **Main Projects**: {self.answers.projects or "(what you're working on)"}
+- **Current Focus**: {self.answers.work or "(what you're working on)"}
+- **How We Should Help**: {self.answers.help or "(what you want help with)"}
 - **Tools You Use**: {self.answers.tools or "(tools and software)"}
 
 ## Topics of Interest
@@ -297,9 +307,9 @@ Now, let me introduce you to {team_name}!
 
 {table}
 
-That's your team! We're all here to help you with your {self.answers.projects or "work"}.
+That's your team! We're all here to help you with your {self.answers.work or "work"}.
 
-Need more details on any particular crew member? Just ask!"""
+Need more details on any particular team member? Just ask!"""
 
     def _build_team_table(self) -> Table:
         """Build a team-styled table of all bots."""
@@ -415,10 +425,11 @@ They can: {capabilities}
             "state": self.state.value,
             "answers": {
                 "name": self.answers.name,
-                "timezone": self.answers.timezone,
+                "location": self.answers.location,
                 "language": self.answers.language,
-                "role": self.answers.role,
-                "projects": self.answers.projects,
+                "work": self.answers.work,
+                "help": self.answers.help,
+                "more_details": self.answers.more_details,
                 "tools": self.answers.tools,
                 "topics": self.answers.topics,
                 "team_name": self.answers.team_name,
@@ -435,7 +446,9 @@ They can: {capabilities}
         onboarding.state = OnboardingState(data.get("state", "not_started"))
         onboarding.current_question = data.get("current_question", 0)
 
-        answers = data.get("answers", {})
-        onboarding.answers = UserProfileAnswers(**answers)
+        answers = dict(data.get("answers", {}))
+        valid_fields = set(UserProfileAnswers.__dataclass_fields__.keys())
+        filtered = {k: v for k, v in answers.items() if k in valid_fields}
+        onboarding.answers = UserProfileAnswers(**filtered)
 
         return onboarding

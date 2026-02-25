@@ -150,9 +150,20 @@ class AgentDefaults(Base):
     # This is here for backward compatibility and CLI defaults only
 
 
+class SidekickConfig(Base):
+    """Sidekick helper configuration."""
+    enabled: bool = True
+    max_sidekicks_per_bot: int = 3
+    max_sidekicks_per_room: int = 6
+    max_tokens: int = 2048
+    timeout_seconds: int = 120
+    max_context_chars: int = 4000
+
+
 class AgentsConfig(Base):
     """Agent configuration."""
     defaults: AgentDefaults = Field(default_factory=AgentDefaults)
+    sidekicks: SidekickConfig = Field(default_factory=SidekickConfig)
 
 
 class ProviderConfig(Base):

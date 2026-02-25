@@ -390,6 +390,10 @@ Nanofolks runs every message through a single, consistent pipeline:
 
 This keeps multi-bot teamwork predictable and easy to debug, while still letting the Leader coordinate the crew.
 
+### Sidekicks (Focused Helpers)
+
+Bots can spawn short-lived sidekicks for focused sub-tasks. Sidekicks work with minimal context, return summaries to their parent bot, and never speak in the room directly. The parent bot merges results and responds in its own voice.
+
 
 ## 🧠 Memory System
 

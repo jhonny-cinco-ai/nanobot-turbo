@@ -14,10 +14,16 @@ from typing import Any, Optional
 from loguru import logger
 
 from nanofolks.agent.tools.registry import ToolRegistry
+from nanofolks.agent.sidekicks import (
+    SidekickLimitError,
+    SidekickOrchestrator,
+    SidekickResult,
+    SidekickTaskEnvelope,
+)
 from nanofolks.agent.work_log import LogLevel
 from nanofolks.bus.events import MessageEnvelope
 from nanofolks.bus.queue import MessageBus
-from nanofolks.config.schema import ExecToolConfig
+from nanofolks.config.schema import ExecToolConfig, SidekickConfig
 from nanofolks.providers.base import LLMProvider
 from nanofolks.security.sanitizer import SecretSanitizer
 from nanofolks.utils.ids import room_to_session_id
@@ -77,6 +83,7 @@ class BotInvoker:
         evolutionary: bool = False,
         allowed_paths: list[str] | None = None,
         protected_paths: list[str] | None = None,
+        sidekick_config: "SidekickConfig | None" = None,
     ):
         self.provider = provider
         self.workspace = workspace
@@ -90,6 +97,7 @@ class BotInvoker:
         self.evolutionary = evolutionary
         self.protected_paths = protected_paths or []
         self.allowed_paths = allowed_paths or []
+        self.sidekick_config = sidekick_config or SidekickConfig()
 
         # Initialize secret sanitizer
         self.sanitizer = SecretSanitizer()
@@ -102,6 +110,17 @@ class BotInvoker:
         self._active_invocations: dict[str, asyncio.Task[None]] = {}
         self._invocation_task_map: dict[str, dict[str, str]] = {}
         self._cached_team_name: str | None = None
+        self._sidekick_orchestrator: SidekickOrchestrator | None = None
+
+    def _get_sidekick_orchestrator(self) -> SidekickOrchestrator:
+        if self._sidekick_orchestrator is None:
+            self._sidekick_orchestrator = SidekickOrchestrator(
+                max_per_bot=self.sidekick_config.max_sidekicks_per_bot,
+                max_per_room=self.sidekick_config.max_sidekicks_per_room,
+                max_tokens=self.sidekick_config.max_tokens,
+                timeout_seconds=self.sidekick_config.timeout_seconds,
+            )
+        return self._sidekick_orchestrator
 
     async def invoke(
         self,
@@ -427,7 +446,7 @@ Focus only on your domain expertise and provide a helpful response.
 
         return system_prompt
 
-    def _create_bot_tool_registry(self, bot_role: str) -> "ToolRegistry":
+    def _create_bot_tool_registry(self, bot_role: str, allow_sidekicks: bool = True) -> "ToolRegistry":
         """Create a tool registry for a bot based on permissions.
 
         Args:
@@ -437,14 +456,32 @@ Focus only on your domain expertise and provide a helpful response.
             ToolRegistry configured for this bot
         """
         from nanofolks.agent.tools.factory import create_bot_registry
+        from nanofolks.agent.tools.permissions import (
+            get_permissions_from_agents,
+            get_permissions_from_soul,
+            merge_permissions,
+        )
+        from nanofolks.agent.tools.sidekicks import SidekickTool
 
-        return create_bot_registry(
+        registry = create_bot_registry(
             workspace=self.workspace,
             bot_role=bot_role,
             brave_api_key=self.brave_api_key,
             exec_config=self.exec_config,
             restrict_to_workspace=self.restrict_to_workspace,
         )
+        if allow_sidekicks and self.sidekick_config.enabled:
+            try:
+                perms = merge_permissions(
+                    get_permissions_from_soul(bot_role, self.workspace),
+                    get_permissions_from_agents(bot_role, self.workspace),
+                )
+                if perms.is_allowed("sidekick"):
+                    registry.register(SidekickTool(invoker=self, parent_bot_role=bot_role))
+            except Exception:
+                registry.register(SidekickTool(invoker=self, parent_bot_role=bot_role))
+
+        return registry
 
     async def _call_bot_llm(
         self,
@@ -453,6 +490,8 @@ Focus only on your domain expertise and provide a helpful response.
         user_message: str,
         session_id: str,
         room_id: str | None = None,
+        max_tokens: int | None = None,
+        allow_sidekicks: bool = True,
     ) -> str:
         """Call LLM with bot's context and execute tools if needed.
 
@@ -465,12 +504,15 @@ Focus only on your domain expertise and provide a helpful response.
         """
 
         # Create tool registry for this bot
-        tool_registry = self._create_bot_tool_registry(bot_role)
+        tool_registry = self._create_bot_tool_registry(bot_role, allow_sidekicks=allow_sidekicks)
         tool_definitions = tool_registry.get_definitions()
         if room_id:
             room_task_tool = tool_registry.get("room_task")
             if room_task_tool and hasattr(room_task_tool, "set_context"):
                 room_task_tool.set_context(room_id)
+            sidekick_tool = tool_registry.get("sidekick")
+            if sidekick_tool and hasattr(sidekick_tool, "set_context"):
+                sidekick_tool.set_context(room_id)
 
         # Build initial messages
         messages = [
@@ -487,7 +529,7 @@ Focus only on your domain expertise and provide a helpful response.
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens=max_tokens or self.max_tokens,
                 tools=tool_definitions if tool_definitions else None,
             )
 
@@ -544,6 +586,221 @@ Focus only on your domain expertise and provide a helpful response.
         # Max iterations reached, return last content
         logger.warning(f"[{bot_role}] Max tool iterations ({max_iterations}) reached")
         return content
+
+    def _build_sidekick_context_packet(self, task: SidekickTaskEnvelope) -> str:
+        def _format_dict(label: str, data: dict[str, Any]) -> str:
+            if not data:
+                return f"{label}:\n- (none)"
+            lines = [f"{label}:"]
+            for key, value in data.items():
+                lines.append(f"- {key}: {value}")
+            return "\n".join(lines)
+
+        parts = [
+            f"Goal:\n{task.goal}",
+            _format_dict("Inputs", task.inputs),
+            _format_dict("Constraints", task.constraints),
+            f"Output format:\n{task.output_format}",
+        ]
+        packet = "\n\n".join(parts).strip()
+        limit = max(0, int(self.sidekick_config.max_context_chars))
+        if limit and len(packet) > limit:
+            packet = packet[: max(0, limit - 15)].rstrip() + "...(truncated)"
+        return packet
+
+    async def _build_sidekick_system_prompt(self, bot_role: str) -> str:
+        from nanofolks.soul import SoulManager
+
+        soul_manager = SoulManager(self.workspace)
+        soul_content = soul_manager.get_bot_soul(bot_role)
+
+        bot_info = self.get_bot_info(bot_role) or AVAILABLE_BOTS[bot_role]
+
+        if soul_content:
+            system_prompt = soul_content
+        else:
+            system_prompt = f"""You are @{bot_role} ({bot_info['bot_name']}), a specialist bot.
+
+Domain: {bot_info['domain']}
+Role: {bot_info['description']}
+
+You are a specialist focused on {bot_info['domain']} tasks.
+Provide helpful, expert responses in your domain."""
+
+        system_prompt += """
+
+You are acting as a sidekick. Focus only on the task goal and produce the requested output format.
+Be concise and practical. Do not mention sidekicks or internal IDs.
+"""
+
+        return system_prompt
+
+    async def run_sidekicks(
+        self,
+        parent_bot_role: str,
+        room_id: str,
+        tasks: list[SidekickTaskEnvelope],
+    ) -> list[SidekickResult]:
+        """Run sidekick tasks for a bot with shared limits and context packets."""
+        if not self.sidekick_config.enabled or not tasks:
+            return []
+
+        orchestrator = self._get_sidekick_orchestrator()
+
+        # Log spawn requests
+        self._log_sidekick_spawn(parent_bot_role, room_id, tasks)
+
+        async def _runner(task: SidekickTaskEnvelope) -> SidekickResult:
+            # Build sidekick system prompt + context packet
+            system_prompt = await self._build_sidekick_system_prompt(parent_bot_role)
+            user_message = self._build_sidekick_context_packet(task)
+
+            # Use a clean, per-sidekick session id
+            session_id = room_to_session_id(f"sidekick_{task.task_id}")
+
+            response = await self._call_bot_llm(
+                parent_bot_role,
+                system_prompt,
+                user_message,
+                session_id,
+                room_id=room_id,
+                max_tokens=self.sidekick_config.max_tokens,
+                allow_sidekicks=False,
+            )
+
+            return SidekickResult(
+                task_id=task.task_id,
+                status="success",
+                summary=response or "",
+                artifacts=[],
+                notes="",
+            )
+
+        try:
+            results = await orchestrator.run(tasks, _runner)
+            task_map = {task.task_id: task for task in tasks}
+            self._log_sidekick_results(parent_bot_role, room_id, results, task_map=task_map)
+            return results
+        except SidekickLimitError:
+            self._log_sidekick_limit(parent_bot_role, room_id, tasks)
+            return [
+                SidekickResult(
+                    task_id="limit",
+                    status="failed",
+                    summary="",
+                    notes="Sidekick limit exceeded",
+                    artifacts=[],
+                )
+            ]
+
+    def format_sidekick_results(self, results: list[SidekickResult]) -> str:
+        """Format sidekick results for a parent bot merge step."""
+        if not results:
+            return "Sidekick results: none."
+
+        success = sum(1 for r in results if r.status == "success")
+        failed = sum(1 for r in results if r.status in {"failed", "timeout"})
+
+        lines = [
+            "Sidekick results (merge into your response; do not mention sidekicks):",
+            f"Summary: {success} success, {failed} failed",
+        ]
+
+        for result in results:
+            summary = result.summary.strip().replace("\n", " ")
+            if summary:
+                summary = summary[:300] + ("..." if len(summary) > 300 else "")
+            else:
+                summary = "(no summary)"
+            note = f" [{result.notes}]" if result.notes else ""
+            lines.append(f"- {result.task_id} ({result.status}): {summary}{note}")
+
+        if failed:
+            lines.append("Missing coverage: one or more sidekicks did not return results.")
+
+        return "\n".join(lines)
+
+    def _log_sidekick_spawn(
+        self,
+        parent_bot_role: str,
+        room_id: str,
+        tasks: list[SidekickTaskEnvelope],
+    ) -> None:
+        if not self.work_log_manager:
+            return
+        for task in tasks:
+            self.work_log_manager.log(
+                level=LogLevel.INFO,
+                category="sidekick",
+                message=f"Spawned sidekick task {task.task_id}",
+                details={
+                    "task_id": task.task_id,
+                    "room_id": room_id,
+                    "parent_bot_id": task.parent_bot_id,
+                    "parent_bot_role": parent_bot_role,
+                    "goal": task.goal[:500],
+                    "output_format": task.output_format,
+                },
+                bot_name=parent_bot_role,
+                triggered_by=parent_bot_role,
+            )
+
+    def _log_sidekick_results(
+        self,
+        parent_bot_role: str,
+        room_id: str,
+        results: list[SidekickResult],
+        *,
+        task_map: dict[str, SidekickTaskEnvelope] | None = None,
+    ) -> None:
+        if not self.work_log_manager:
+            return
+        for result in results:
+            task = task_map.get(result.task_id) if task_map else None
+            self.work_log_manager.log(
+                level=LogLevel.INFO if result.status == "success" else LogLevel.WARNING,
+                category="sidekick",
+                message=f"Sidekick task {result.task_id} {result.status}",
+                details={
+                    "task_id": result.task_id,
+                    "room_id": room_id,
+                    "parent_bot_id": task.parent_bot_id if task else None,
+                    "status": result.status,
+                    "summary": result.summary[:500],
+                    "artifacts_count": len(result.artifacts or []),
+                    "notes": result.notes,
+                },
+                duration_ms=result.duration_ms,
+                bot_name=parent_bot_role,
+                triggered_by=parent_bot_role,
+            )
+
+    def _log_sidekick_limit(
+        self,
+        parent_bot_role: str,
+        room_id: str,
+        tasks: list[SidekickTaskEnvelope],
+    ) -> None:
+        if not self.work_log_manager:
+            return
+        parent_bot_id = tasks[0].parent_bot_id if tasks else None
+        task_ids = [task.task_id for task in tasks] if tasks else []
+        self.work_log_manager.log(
+            level=LogLevel.WARNING,
+            category="sidekick",
+            message="Sidekick limit exceeded",
+            details={
+                "room_id": room_id,
+                "parent_bot_role": parent_bot_role,
+                "parent_bot_id": parent_bot_id,
+                "task_ids": task_ids,
+                "requested": len(tasks),
+                "max_per_bot": self.sidekick_config.max_sidekicks_per_bot,
+                "max_per_room": self.sidekick_config.max_sidekicks_per_room,
+            },
+            bot_name=parent_bot_role,
+            triggered_by=parent_bot_role,
+        )
 
     def list_available_bots(self) -> dict:
         """List all bots that can be invoked."""

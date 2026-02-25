@@ -80,8 +80,9 @@ class AgentLoop:
         bot_name: str = "leader",
         mcp_servers: dict | None = None,
         bot_mcp_servers: dict | None = None,
+        sidekick_config: "SidekickConfig | None" = None,
     ):
-        from nanofolks.config.schema import ExecToolConfig
+        from nanofolks.config.schema import ExecToolConfig, SidekickConfig
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -157,6 +158,13 @@ class AgentLoop:
             Formatted tool hint string
         """
         def _fmt(tc):
+            if getattr(tc, "name", None) == "sidekick":
+                args = tc.arguments if isinstance(getattr(tc, "arguments", None), dict) else None
+                tasks = args.get("tasks") if args else None
+                count = len(tasks) if isinstance(tasks, list) else 0
+                if count:
+                    return f"🤝 sidekicks x{count}"
+                return "🤝 sidekicks"
             val = None
             if tc.arguments:
                 # Get first argument value
@@ -379,6 +387,7 @@ class AgentLoop:
             evolutionary=evolutionary,
             allowed_paths=allowed_paths,
             protected_paths=protected_paths,
+            sidekick_config=sidekick_config or SidekickConfig(),
         )
 
         # Initialize hybrid flow router for Phase 2 intent detection
@@ -443,7 +452,7 @@ class AgentLoop:
         user_file = self.workspace / "USER.md"
         if user_file.exists():
             content = user_file.read_text()
-            placeholders = ["(your name)", "(your timezone)", "(your role)"]
+            placeholders = ["(your name)", "(your location)", "(what you're working on)"]
             if not any(p in content for p in placeholders):
                 return False
 
@@ -1604,7 +1613,15 @@ class AgentLoop:
                     
                     # Show tool start progress
                     if self._stream_callback:
-                        await self._stream_callback(f"↳ 🔧 {tool_call.name}...")
+                        label = tool_call.name
+                        if tool_call.name == "sidekick":
+                            args = tool_call.arguments if isinstance(tool_call.arguments, dict) else None
+                            tasks = args.get("tasks") if args else None
+                            count = len(tasks) if isinstance(tasks, list) else 0
+                            label = f"🤝 sidekicks x{count}" if count else "🤝 sidekicks"
+                            await self._stream_callback(f"↳ {label}...")
+                        else:
+                            await self._stream_callback(f"↳ 🔧 {label}...")
 
                     # Log tool execution start
                     import time
@@ -1616,7 +1633,14 @@ class AgentLoop:
                         
                         # Show tool completion progress
                         if self._stream_callback:
-                            await self._stream_callback(f"✓ {tool_call.name}")
+                            if tool_call.name == "sidekick":
+                                args = tool_call.arguments if isinstance(tool_call.arguments, dict) else None
+                                tasks = args.get("tasks") if args else None
+                                count = len(tasks) if isinstance(tasks, list) else 0
+                                label = f"sidekicks x{count}" if count else "sidekicks"
+                                await self._stream_callback(f"✓ {label}")
+                            else:
+                                await self._stream_callback(f"✓ {tool_call.name}")
 
                         # Log successful tool execution
                         self.work_log_manager.log_tool(
