@@ -554,22 +554,47 @@ Then restart nanofolks for secure access.
 
     def _select_team(self) -> None:
         """Interactive team selection."""
-        console.print("[bold bright_magenta]Step 4: Choose Your Team Team[/bold bright_magenta]\n")
+        console.print("[bold bright_magenta]Step 4: Choose Your Team[/bold bright_magenta]\n")
 
         teams = list_teams()
         [t["name"] for t in teams]
 
-        # First show just the team team options
+        # First show just the team options
         console.print("Choose your team's personality:\n")
+        team_table = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
+        team_table.add_column(justify="left", ratio=1)
+        team_table.add_column(justify="left", ratio=1)
+        team_table.add_column(justify="left", ratio=1)
+
+        def _clean_description(text: str) -> str:
+            if not text:
+                return ""
+            cleaned = text.replace("—", "-").replace("–", "-")
+            for end_char in (".", "!", "?"):
+                if end_char in cleaned:
+                    cleaned = cleaned.split(end_char, 1)[0].strip()
+                    break
+            return cleaned
+
+        cells = []
         for i, team in enumerate(teams, 1):
-            console.print(f"  [{i}] {team['display_name']} - {team['description']}")
-        console.print("  [b] Back to previous step")
+            desc = _clean_description(team.get("description", ""))
+            cells.append(f"[{i}] {team['display_name']}\n{desc}")
+
+        for row_start in range(0, len(cells), 3):
+            row = cells[row_start:row_start + 3]
+            while len(row) < 3:
+                row.append("")
+            team_table.add_row(*row)
+
+        console.print(team_table)
+        console.print("\n[b] Back to previous step")
 
         console.print()
 
         # Let user select
         choice = self._prompt(
-            "Select team team",
+            "Select team",
             choices=[str(i) for i in range(1, len(teams) + 1)] + ["b"],
             default="1",
         )

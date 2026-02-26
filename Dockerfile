@@ -17,15 +17,21 @@ RUN apt-get update && \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy source code
+# Copy project metadata only (for dependency cache)
 COPY pyproject.toml README.md LICENSE ./
+
+# Build dependency wheels from pyproject (cacheable)
+RUN python -c "import tomllib; from pathlib import Path; data = tomllib.loads(Path('pyproject.toml').read_text()); deps = data.get('project', {}).get('dependencies', []); Path('requirements.txt').write_text('\\n'.join(deps) + '\\n')" \
+    && pip wheel -r requirements.txt --wheel-dir /wheels
+
+# Copy source code
 COPY nanofolks/ nanofolks/
 
 # Create empty bridge directory (referenced in pyproject.toml but built separately)
 RUN mkdir -p bridge && touch bridge/.gitkeep
 
-# Build wheels for the package and all dependencies
-RUN pip wheel . --wheel-dir /wheels
+# Build wheel for the package only (no deps)
+RUN pip wheel . --no-deps --wheel-dir /wheels
 
 # =============================================================================
 # Stage 2: WhatsApp Bridge Builder
@@ -88,4 +94,3 @@ EXPOSE 18790
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["status"]
-

@@ -201,6 +201,8 @@ def init_gnome_keyring(password: str) -> bool:
         init_gnome_keyring("my-secret-password")
     """
     import subprocess
+    import os
+    import re
 
     if not password:
         logger.warning("Password is required to initialize GNOME keyring")
@@ -213,35 +215,45 @@ def init_gnome_keyring(password: str) -> bool:
             logger.warning("gnome-keyring-daemon not installed")
             return False
 
-        # Check if dbus-run-session is available
-        result = subprocess.run(["which", "dbus-run-session"], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.warning("dbus-run-session not installed")
-            return False
+        # Ensure a DBus session exists (required for SecretService)
+        if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+            result = subprocess.run(["which", "dbus-launch"], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.warning("dbus-launch not installed")
+                return False
 
-        # Initialize the keyring - run as background process that persists
-        cmd = ["dbus-run-session", "--", "gnome-keyring-daemon", "--unlock", "--components=secrets"]
+            dbus = subprocess.run(
+                ["dbus-launch", "--sh-syntax"],
+                capture_output=True,
+                text=True,
+            )
+            if dbus.returncode != 0:
+                logger.warning(f"Failed to start dbus session: {dbus.stderr.strip()}")
+                return False
 
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            for match in re.finditer(r"(\w+)=([^;\n]+);", dbus.stdout):
+                os.environ[match.group(1)] = match.group(2)
+
+        # Initialize the keyring in the current DBus session (non-interactive)
+        proc = subprocess.run(
+            ["gnome-keyring-daemon", "--unlock", "--components=secrets", "--daemonize"],
+            input=password + "\n",
+            capture_output=True,
             text=True,
-            start_new_session=True,  # Run in own session so it persists
         )
 
-        # Give the daemon time to start
-        import time
+        if proc.returncode != 0:
+            logger.warning(f"gnome-keyring-daemon failed: {proc.stderr.strip()}")
+            return False
 
-        time.sleep(1)
-
-        # Try to communicate without waiting for exit (daemon should keep running)
-        try:
-            stdout, stderr = proc.communicate(input=password + "\n", timeout=5)
-        except subprocess.TimeoutExpired:
-            # Timeout is expected for a daemon - that's fine
-            pass
+        # Parse exported environment variables from daemon output
+        output = proc.stdout or ""
+        control_match = re.search(r"GNOME_KEYRING_CONTROL=([^;\n]+)", output)
+        pid_match = re.search(r"GNOME_KEYRING_PID=([^;\n]+)", output)
+        if control_match:
+            os.environ["GNOME_KEYRING_CONTROL"] = control_match.group(1)
+        if pid_match:
+            os.environ["GNOME_KEYRING_PID"] = pid_match.group(1)
 
         # Check if daemon is running by testing the keyring
         try:
