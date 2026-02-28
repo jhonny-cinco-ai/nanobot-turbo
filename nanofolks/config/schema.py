@@ -685,6 +685,11 @@ class SecurityConfig(Base):
     )
     allow_network_installs: bool = False  # Allow curl/wget during skill install
     sandbox_skills: bool = False  # Run skills in sandbox (future feature)
+    
+    # External content security (web fetch/prompt injection)
+    web_content_isolation: bool = True  # Store web content separately, not inline
+    require_confirmation: bool = True  # Ask before acting on web content suggestions
+    auto_block_high_confidence: bool = True  # Auto-block high-confidence injections
 
 
 class MemoryConfig(Base):

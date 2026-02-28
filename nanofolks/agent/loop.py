@@ -138,6 +138,14 @@ class AgentLoop:
         # Initialize secret sanitizer for security
         self.sanitizer = SecretSanitizer()
         
+        # Initialize content store for external content isolation
+        from nanofolks.agent.content_store import get_content_store
+        self.content_store = get_content_store()
+        
+        # Initialize confirmation detector for external content actions
+        from nanofolks.agent.confirmation import ConfirmationDetector
+        self.confirmation_detector = ConfirmationDetector()
+        
         # Stream callback for real-time progress
         self._stream_callback: callable | None = None
     
@@ -923,7 +931,12 @@ class AgentLoop:
             scrapling_enabled=self.web_config.scrapling_enabled,
             scrapling_min_chars=self.web_config.scrapling_min_chars,
             scrapling_mode=self.web_config.scrapling_mode,
+            content_store=self.content_store,
         ))
+        
+        # Content access tool (for isolated external content)
+        from nanofolks.agent.tools.content import ReadFetchedContentTool
+        self.tools.register(ReadFetchedContentTool(content_store=self.content_store))
 
         # Agent-browser tool (opt-in)
         if self.browser_config.enabled:
@@ -1825,6 +1838,24 @@ class AgentLoop:
 
         # Log response preview (sanitize to prevent echoing secrets)
         logger.info(f"Response to {msg.channel}:{msg.sender_id}: {sanitized_response_preview}")
+
+        # Check if confirmation is needed for actions suggested by web content
+        confirmation_needed = None
+        try:
+            session_history = session.get_history(max_messages=10) if session else []
+            confirmation_needed = self.confirmation_detector.needs_confirmation(
+                response=final_content,
+                message_history=session_history,
+            )
+        except Exception as e:
+            logger.debug(f"Confirmation check failed: {e}")
+
+        # If confirmation needed, add confirmation prompt to response
+        if confirmation_needed:
+            from nanofolks.agent.confirmation import create_confirmation_prompt
+            confirmation_prompt = create_confirmation_prompt(confirmation_needed)
+            final_content = f"{final_content}\n\n---\n\n{confirmation_prompt}"
+            logger.info(f"Confirmation requested for action: {confirmation_needed.action_type}")
 
         # Save to session (sanitize to prevent secrets in session history)
         sanitized_user_content = self.sanitizer.sanitize(msg.content)

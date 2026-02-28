@@ -122,11 +122,13 @@ class WebFetchTool(Tool):
         scrapling_enabled: bool = False,
         scrapling_min_chars: int = 800,
         scrapling_mode: str = "auto",
+        content_store=None,
     ):
         self.max_chars = max_chars
         self.scrapling_enabled = scrapling_enabled
         self.scrapling_min_chars = scrapling_min_chars
         self.scrapling_mode = scrapling_mode
+        self.content_store = content_store
 
     async def execute(self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any) -> str:
         from readability import Document
@@ -156,6 +158,34 @@ class WebFetchTool(Tool):
             http_result["truncated"] = truncated
             http_result["length"] = len(text)
             http_result["text"] = text
+
+            # Process through content store if available
+            if self.content_store:
+                from nanofolks.agent.content_store import get_content_store
+                store = self.content_store or get_content_store()
+                
+                # Extract title from text
+                title = None
+                if text.startswith("# "):
+                    lines = text.split("\n")
+                    if lines:
+                        title = lines[0].lstrip("# ").strip()
+                
+                # Store content and get reference
+                content_id, scan_result = await store.store(
+                    url=url,
+                    content=text,
+                    title=title,
+                    scan=True,
+                )
+                
+                # If blocked, return blocked message
+                if scan_result.is_blocked:
+                    return store.get_blocked_message(url, scan_result)
+                
+                # Return reference instead of full content
+                return store.get_reference(content_id, url, scan_result)
+
             return json.dumps(http_result)
         except Exception as e:
             return json.dumps({"error": str(e), "url": url})
