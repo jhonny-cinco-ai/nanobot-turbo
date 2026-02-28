@@ -682,6 +682,7 @@ nanofolks implements a unified security architecture that protects credentials a
 | **4. Runtime Resolution** | Keys at execution | KeyVault resolves refs only when tools actually run |
 | **5. Safe Logging** | Keys in logs | Audit logs contain only references, never actual keys |
 | **6. Defense in Depth** | Keys in edge cases | Secret Sanitizer (regex masking) as final fallback |
+| **7. Prompt Injection** | LLM from web attacks | Content isolation + injection scanning + user confirmation |
 
 #### Layer 6: Secret Sanitizer (Defense in Depth)
 
@@ -781,6 +782,36 @@ nanofolks skills scan /path/to/skill
 
 > [!TIP]
 > Always review skill code before approving, especially those with **High** or **Critical** risk ratings.
+
+### Prompt Injection Protection
+
+When nanofolks fetches content from the web (tutorials, documentation), malicious actors can embed prompt injection attacks. nanofolks implements defense-in-depth protection:
+
+#### Protection Layers
+
+| Layer | What It Does | Action |
+|-------|--------------|--------|
+| **1. Content Isolation** | Web content stored separately, not inline | Content ID returned instead |
+| **2. Injection Scanner** | Scans fetched content for injection patterns | Block / Warn / Allow |
+| **3. LLM Access** | Content accessed via tool with warnings | Always warns "external untrusted" |
+| **4. Confirmation** | Prompts user before acting on web suggestions | User must confirm |
+
+#### Injection Detection
+
+| Confidence | Patterns | Action |
+|------------|----------|--------|
+| **High** | "ignore previous instructions", "act as", "system:" | Block |
+| **Medium** | "you should respond with", "instead respond" | Warn |
+| **Low** | Subtle patterns | Log only |
+
+#### Configuration
+
+```yaml
+security:
+  web_content_isolation: true    # Store content separately
+  require_confirmation: true     # Ask before acting on web suggestions  
+  auto_block_high_confidence: true
+```
 
 ---
 
