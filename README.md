@@ -175,18 +175,26 @@ nanofolks configure
 
 ### Documents
 
-When you upload a PDF (Discord/Telegram), nanofolks **auto‑parses it locally** and keeps the room context clean:
+When you upload a document (Discord/Telegram), nanofolks **auto‑parses** it locally and keeps the room context clean:
 
+**Local PDF Processing:**
 - Extracted text is stored under `~/.nanofolks/documents/<room_id>/`.
 - A short **document digest** (summary + stats + path) is injected into the room context.
 - The full text stays out of the main chat to avoid flooding.
 
-Defaults (configurable in `nanofolks configure`):
+**Extended Format Support (via Cloudflare markdown.new):**
+- For unsupported formats, nanofolks uses the free [markdown.new](https://markdown.new) API.
+- **Supported formats:** PDF, DOCX, XLSX, ODT, ODS, Images (JPG, PNG, WebP, SVG), CSV, JSON, XML, HTML, TXT
+- **PDF complexity detection:** Automatically detects complex PDFs (>30 pages, >10 images, scanned) and uses cloud extraction for better results.
+
+**Configuration (via `nanofolks configure`):**
 - `tools.documents.auto_parse_pdf` (default: true)
 - `tools.documents.max_pages` (default: 30)
 - `tools.documents.max_chars` (default: 200000)
 - `tools.documents.summary_chars` (default: 1200)
 - `tools.documents.max_digests_in_prompt` (default: 5)
+- `tools.documents.complexity_detection` (default: true) - detect complex PDFs
+- `tools.documents.use_markdown_new` (default: true) - use cloud conversion
 
 ### Your Team
 
