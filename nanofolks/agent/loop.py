@@ -934,6 +934,10 @@ class AgentLoop:
             content_store=self.content_store,
         ))
         
+        # Markdown conversion tool (for DOCX, XLSX, images, etc.)
+        from nanofolks.agent.tools.markdown_convert import MarkdownNewTool
+        self.tools.register(MarkdownNewTool())
+        
         # Content access tool (for isolated external content)
         from nanofolks.agent.tools.content import ReadFetchedContentTool
         self.tools.register(ReadFetchedContentTool(content_store=self.content_store))
