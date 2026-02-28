@@ -8,7 +8,7 @@ from typing import Any
 
 from loguru import logger
 
-from nanofolks.utils.helpers import ensure_dir, safe_filename
+from nanofolks.utils.helpers import ensure_dir, safe_filename, strip_base64_images
 
 
 @dataclass
@@ -27,16 +27,15 @@ class Session:
 
     def add_message(self, role: str, content: str, **kwargs: Any) -> None:
         """Add a message to the session."""
-        msg = {
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
-            **kwargs
-        }
+        if role == "user":
+            content = strip_base64_images(content)
+        msg = {"role": role, "content": content, "timestamp": datetime.now().isoformat(), **kwargs}
         self.messages.append(msg)
         self.updated_at = datetime.now()
 
-    def get_history(self, max_messages: int = 50, preserve_tool_chains: bool = True) -> list[dict[str, Any]]:
+    def get_history(
+        self, max_messages: int = 50, preserve_tool_chains: bool = True
+    ) -> list[dict[str, Any]]:
         """
         Get message history for LLM context.
 
@@ -52,7 +51,9 @@ class Session:
             List of messages in LLM format.
         """
         # Get recent messages
-        recent = self.messages[-max_messages:] if len(self.messages) > max_messages else self.messages
+        recent = (
+            self.messages[-max_messages:] if len(self.messages) > max_messages else self.messages
+        )
 
         # If preserving tool chains, ensure we don't break pairs
         if preserve_tool_chains and recent:
@@ -101,7 +102,9 @@ class Session:
                             # Search backwards from the start of messages
                             missing_tool_use = self._find_tool_use_message(tool_use_id)
                             if missing_tool_use:
-                                logger.debug(f"Adding missing tool_use {tool_use_id} to preserve chain")
+                                logger.debug(
+                                    f"Adding missing tool_use {tool_use_id} to preserve chain"
+                                )
                                 messages.insert(0, missing_tool_use)
 
         return messages
@@ -177,7 +180,10 @@ class Session:
                             later_content = later_msg.get("content", [])
                             if isinstance(later_content, list):
                                 for block in later_content:
-                                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                                    if (
+                                        isinstance(block, dict)
+                                        and block.get("type") == "tool_result"
+                                    ):
                                         if block.get("tool_use_id") == tool_id:
                                             result_found = True
                                             break
@@ -263,7 +269,11 @@ class SessionManager:
 
                     if data.get("_type") == "metadata":
                         metadata = data.get("metadata", {})
-                        created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
+                        created_at = (
+                            datetime.fromisoformat(data["created_at"])
+                            if data.get("created_at")
+                            else None
+                        )
                     else:
                         messages.append(data)
 
@@ -271,7 +281,7 @@ class SessionManager:
                 key=key,
                 messages=messages,
                 created_at=created_at or datetime.now(),
-                metadata=metadata
+                metadata=metadata,
             )
         except Exception as e:
             logger.warning(f"Failed to load session {key}: {e}")
@@ -287,7 +297,7 @@ class SessionManager:
                 "_type": "metadata",
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
-                "metadata": session.metadata
+                "metadata": session.metadata,
             }
             f.write(json.dumps(metadata_line) + "\n")
 
@@ -334,12 +344,14 @@ class SessionManager:
                     if first_line:
                         data = json.loads(first_line)
                         if data.get("_type") == "metadata":
-                            sessions.append({
-                                "key": path.stem.replace("_", ":"),
-                                "created_at": data.get("created_at"),
-                                "updated_at": data.get("updated_at"),
-                                "path": str(path)
-                            })
+                            sessions.append(
+                                {
+                                    "key": path.stem.replace("_", ":"),
+                                    "created_at": data.get("created_at"),
+                                    "updated_at": data.get("updated_at"),
+                                    "path": str(path),
+                                }
+                            )
             except Exception:
                 continue
 
