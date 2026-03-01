@@ -340,11 +340,11 @@ def _configure_single_provider(name: str, schema: dict):
 
         console.print("[green]✓[/green] API key saved securely to OS keyring")
 
-        # Save marker to config (empty - key loaded from keyring)
+        # Save keyring marker to config (key loaded from keyring)
         with console.status("[bright_magenta]Updating configuration...[/bright_magenta]", spinner="dots"):
             result = asyncio.run(tool.execute(
                 path=f"providers.{name}.apiKey",
-                value=""  # Empty - key loaded from keyring
+                value="__KEYRING__"
             ))
 
         console.print("[dim]API key stored in OS Keychain/Keyring (not in config file)[/dim]")

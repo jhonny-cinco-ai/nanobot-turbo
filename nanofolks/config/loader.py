@@ -14,9 +14,19 @@ KEYRING_MARKER = "__KEYRING__"
 
 # Providers that support keyring storage
 PROVIDERS_WITH_KEYS = [
-    "anthropic", "openai", "openrouter", "deepseek", "groq",
-    "zhipu", "dashscope", "gemini", "moonshot", "minimax",
-    "aihubmix", "brave", "vllm"
+    "anthropic",
+    "openai",
+    "openrouter",
+    "deepseek",
+    "groq",
+    "zhipu",
+    "dashscope",
+    "gemini",
+    "moonshot",
+    "minimax",
+    "aihubmix",
+    "brave",
+    "vllm",
 ]
 
 
@@ -26,27 +36,28 @@ def get_config_path() -> Path:
 
 
 def get_data_dir() -> Path:
-     """Get the nanofolks data directory."""
-     from nanofolks.utils.helpers import get_data_path
-     return get_data_path()
+    """Get the nanofolks data directory."""
+    from nanofolks.utils.helpers import get_data_path
+
+    return get_data_path()
 
 
 def _ensure_room_initialized(config: Config) -> None:
-     """Ensure the default #general room is created on first run.
+    """Ensure the default #general room is created on first run.
 
-     Args:
-         config: Configuration object with room path
-     """
-     try:
-         from nanofolks.bots.room_manager import RoomManager
+    Args:
+        config: Configuration object with room path
+    """
+    try:
+        from nanofolks.bots.room_manager import RoomManager
 
-         # This will create the default #general room if it doesn't exist
-         # RoomManager uses get_data_dir() internally, which respects config
-         RoomManager()
-         logger.info("Initialized default #general room with Leader")
-     except Exception as e:
-         # Don't fail if room creation fails - it will be retried on agent start
-         print(f"Note: Could not initialize room: {e}")
+        # This will create the default #general room if it doesn't exist
+        # RoomManager uses get_data_dir() internally, which respects config
+        RoomManager()
+        logger.info("Initialized default #general room with Leader")
+    except Exception as e:
+        # Don't fail if room creation fails - it will be retried on agent start
+        print(f"Note: Could not initialize room: {e}")
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -165,7 +176,9 @@ def _resolve_keyring_keys(config: Config) -> Config:
                     provider.api_key = actual_key
                     logger.debug(f"Resolved {provider_name} key from keyring")
                 else:
-                    logger.warning(f"Keyring marker found for {provider_name} but no key in keyring")
+                    logger.warning(
+                        f"Keyring marker found for {provider_name} but no key in keyring"
+                    )
 
         # Resolve brave search API key
         if config.tools and config.tools.web and config.tools.web.search:
@@ -220,7 +233,10 @@ def _migrate_to_keyring(config: Config, dry_run: bool = False) -> Config:
 
         # Migrate brave search key
         if config.tools and config.tools.web and config.tools.web.search:
-            if config.tools.web.search.api_key and config.tools.web.search.api_key != KEYRING_MARKER:
+            if (
+                config.tools.web.search.api_key
+                and config.tools.web.search.api_key != KEYRING_MARKER
+            ):
                 if not dry_run:
                     manager.store_key("brave", config.tools.web.search.api_key)
                 config.tools.web.search.api_key = KEYRING_MARKER
@@ -248,6 +264,6 @@ def camel_to_snake(name: str) -> str:
 
 
 def snake_to_camel(name: str) -> str:
-     """Convert snake_case to camelCase."""
-     components = name.split("_")
-     return components[0] + "".join(x.title() for x in components[1:])
+    """Convert snake_case to camelCase."""
+    components = name.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])

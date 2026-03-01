@@ -120,7 +120,9 @@ class LiteLLMProvider(LLMProvider):
                     continue
                 break
 
-        raise RuntimeError(f"{op_name} failed after {self.retry_attempts + 1} attempts: {last_error}")
+        raise RuntimeError(
+            f"{op_name} failed after {self.retry_attempts + 1} attempts: {last_error}"
+        )
 
     def _get_api_key(self) -> str | None:
         """Get API key from secure storage."""
@@ -136,7 +138,7 @@ class LiteLLMProvider(LLMProvider):
 
     def __del__(self):
         """Clean up secure key on object destruction."""
-        if hasattr(self, '_secure_key') and self._secure_key:
+        if hasattr(self, "_secure_key") and self._secure_key:
             try:
                 self._secure_key.wipe()
             except Exception:
@@ -200,7 +202,9 @@ class LiteLLMProvider(LLMProvider):
             if msg.get("role") == "system":
                 content = msg["content"]
                 if isinstance(content, str):
-                    new_content = [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
+                    new_content = [
+                        {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}
+                    ]
                 else:
                     new_content = list(content)
                     new_content[-1] = {**new_content[-1], "cache_control": {"type": "ephemeral"}}
@@ -353,7 +357,6 @@ class LiteLLMProvider(LLMProvider):
                     timeout=self.request_timeout_s,
                 )
 
-                accumulated_content = ""
                 accumulated_reasoning = ""
                 tool_calls_buffer = []
 
@@ -370,10 +373,6 @@ class LiteLLMProvider(LLMProvider):
                     received_any = True
                     choice = chunk.choices[0]
                     delta = choice.delta
-
-                    # Accumulate content
-                    if delta.content:
-                        accumulated_content += delta.content
 
                     # Accumulate reasoning (for models like DeepSeek-R1)
                     if hasattr(delta, "reasoning_content") and delta.reasoning_content:
@@ -394,18 +393,20 @@ class LiteLLMProvider(LLMProvider):
                                 else:
                                     args = tc.function.arguments or {}
 
-                            current_tool_calls.append(ToolCallRequest(
-                                id=tc.id or f"call_{len(tool_calls_buffer)}",
-                                name=tc.function.name or "",
-                                arguments=args,
-                            ))
+                            current_tool_calls.append(
+                                ToolCallRequest(
+                                    id=tc.id or f"call_{len(tool_calls_buffer)}",
+                                    name=tc.function.name or "",
+                                    arguments=args,
+                                )
+                            )
                         tool_calls_buffer.extend(current_tool_calls)
 
                     finish_reason = choice.finish_reason
                     is_final = finish_reason is not None and finish_reason != "null"
 
                     yield StreamChunk(
-                        content=accumulated_content,
+                        content=delta.content,
                         reasoning_content=accumulated_reasoning if accumulated_reasoning else None,
                         tool_calls=current_tool_calls,
                         finish_reason=finish_reason,
@@ -430,7 +431,9 @@ class LiteLLMProvider(LLMProvider):
                     continue
                 break
 
-        raise RuntimeError(f"LLM stream failed after {self.retry_attempts + 1} attempts: {last_error}")
+        raise RuntimeError(
+            f"LLM stream failed after {self.retry_attempts + 1} attempts: {last_error}"
+        )
 
     def _parse_response(self, response: Any) -> LLMResponse:
         """Parse LiteLLM response into our standard format."""
@@ -445,11 +448,13 @@ class LiteLLMProvider(LLMProvider):
                 if isinstance(args, str):
                     args = json_repair.loads(args)
 
-                tool_calls.append(ToolCallRequest(
-                    id=tc.id,
-                    name=tc.function.name,
-                    arguments=args,
-                ))
+                tool_calls.append(
+                    ToolCallRequest(
+                        id=tc.id,
+                        name=tc.function.name,
+                        arguments=args,
+                    )
+                )
 
         usage = {}
         if hasattr(response, "usage") and response.usage:

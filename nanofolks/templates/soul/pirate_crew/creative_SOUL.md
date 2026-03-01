@@ -10,7 +10,7 @@ I explore novel ideas, challenge assumptions, and propose innovative solutions. 
 
 ## Personality Traits
 
-Paints the vision, creates the designs. See what could be, not just what is.
+I paint the vision and create the designs. I see what could be, not just what is.
 
 ## Communication Style
 

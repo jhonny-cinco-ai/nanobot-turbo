@@ -23,6 +23,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -93,6 +94,7 @@ def _init_prompt_session() -> None:
     # Save terminal state so we can restore it on exit
     try:
         import termios
+
         _SAVED_TERM_ATTRS = termios.tcgetattr(sys.stdin.fileno())
     except Exception:
         pass
@@ -103,7 +105,7 @@ def _init_prompt_session() -> None:
     _PROMPT_SESSION = PromptSession(
         history=FileHistory(str(history_file)),
         enable_open_in_editor=False,
-        multiline=False,   # Enter submits (single line mode)
+        multiline=False,  # Enter submits (single line mode)
     )
 
 
@@ -113,6 +115,7 @@ def _restore_terminal() -> None:
         return
     try:
         import termios
+
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, _SAVED_TERM_ATTRS)
     except Exception:
         pass
@@ -129,6 +132,7 @@ def _flush_pending_tty_input() -> None:
 
     try:
         import termios
+
         termios.tcflush(fd, termios.TCIFLUSH)
         return
     except Exception:
@@ -212,39 +216,77 @@ def _print_agent_response(
     render_markdown: bool,
     already_streamed: bool = False,
     room_id: str | None = None,
+    bot_name: str | None = None,
+    bot_title: str | None = None,
+    team_emoji: str | None = None,
 ) -> None:
-    """Render assistant response with clean, copy-friendly header.
-    
+    """Render assistant response with bot identification.
+
     Args:
         response: The response content
         render_markdown: Whether to render as markdown
         already_streamed: If True, skip printing duplicate content (was shown in real-time)
+        room_id: Room identifier
+        bot_name: Name of the bot (e.g., "Blackbeard")
+        bot_title: Title of the bot (e.g., "Captain")
+        team_emoji: Emoji for the team (e.g., "🏴‍☠️")
     """
     content = response or ""
-    
-    # If content was already streamed in real-time, just show the header
-    if already_streamed and content:
-        console.print()
-        header_room = f" · [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]" if room_id else ""
-        timestamp = datetime.now().strftime("%H:%M")
-        console.print(
-            f"{__logo__} [bold {ACCENT_COLOR}]nanofolks[/bold {ACCENT_COLOR}]"
-            f"{header_room} · [dim]{timestamp}[/dim]"
-        )
-        console.print()
-        return
-    
-    body = Markdown(content) if render_markdown else Text(content)
-    console.print()
-    # Use a simple header instead of a Panel box, making it easier to copy text
-    header_room = f" · [bold {ACCENT_COLOR}]#{room_id}[/bold {ACCENT_COLOR}]" if room_id else ""
     timestamp = datetime.now().strftime("%H:%M")
-    console.print(
-        f"{__logo__} [bold {ACCENT_COLOR}]nanofolks[/bold {ACCENT_COLOR}]"
-        f"{header_room} · [dim]{timestamp}[/dim]"
-    )
-    console.print(body)
+
+    # Build bot identifier line with team emoji
+    emoji_prefix = f"{team_emoji} " if team_emoji else ""
+    if bot_name and bot_title:
+        bot_identifier = (
+            f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}] - {bot_title}"
+        )
+    elif bot_name:
+        bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}]"
+    else:
+        bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]Assistant[/bold {ACCENT_COLOR}]"
+
+    # Build room info line
+    room_info = f"Room #{room_id} · {timestamp}" if room_id else f"{timestamp}"
+
     console.print()
+    # Main response line: Emoji Bot - Title: Content
+    if already_streamed and content:
+        # Content was already streamed, just show header
+        console.print(f"{bot_identifier}:")
+        console.print(f"[dim]{room_info}[/dim]")
+    else:
+        # Show full response
+        body = Markdown(content) if render_markdown else Text(content)
+        console.print(f"{bot_identifier}:")
+        console.print(body)
+        console.print(f"[dim]{room_info}[/dim]")
+
+    console.print()
+
+
+def _get_team_emoji(team_manager=None) -> str | None:
+    """Get the team emoji from the current team (leader bot's emoji).
+
+    Args:
+        team_manager: Optional TeamManager instance
+
+    Returns:
+        Team emoji string or None if not found
+    """
+    try:
+        from nanofolks.teams import TeamManager
+
+        if team_manager is None:
+            team_manager = TeamManager()
+
+        # Get leader bot profile to get team emoji
+        team_profile = team_manager.get_bot_team_profile("leader")
+        if team_profile and team_profile.emoji:
+            return team_profile.emoji
+    except Exception:
+        pass
+
+    return None
 
 
 def _print_compaction_notice(metadata: dict | None) -> None:
@@ -317,7 +359,9 @@ def _render_activity_line(text: str, final: bool = False) -> None:
         console.print(f"[dim]{text}[/dim]", end="\r", highlight=False)
 
 
-async def _show_thinking_logs(agent_loop, bot_name: Optional[str] = None) -> Optional["ThinkingDisplay"]:
+async def _show_thinking_logs(
+    agent_loop, bot_name: Optional[str] = None
+) -> Optional["ThinkingDisplay"]:
     """Fetch and display thinking logs after agent response.
 
     Args:
@@ -439,13 +483,14 @@ def _run_onboard_wizard():
     api_key = Prompt.ask(f"Enter your {provider_name.title()} API key", password=False)
 
     if not api_key:
-        console.print("[yellow]⚠ No API key provided. You can configure this later with: nanofolks configure[/yellow]")
+        console.print(
+            "[yellow]⚠ No API key provided. You can configure this later with: nanofolks configure[/yellow]"
+        )
     else:
         with console.status(f"[cyan]Saving {provider_name} API key...[/cyan]", spinner="dots"):
-            result = asyncio.run(tool.execute(
-                path=f"providers.{provider_name}.apiKey",
-                value=api_key
-            ))
+            result = asyncio.run(
+                tool.execute(path=f"providers.{provider_name}.apiKey", value=api_key)
+            )
         if "Error" not in result:
             console.print(f"[green]✓ {provider_name.title()} configured[/green]\n")
 
@@ -454,15 +499,19 @@ def _run_onboard_wizard():
     console.print("This is the default model your bot will use:\n")
 
     # Show available models for the provider
-    schema = tool.SCHEMA['providers']['providers']
+    schema = tool.SCHEMA["providers"]["providers"]
     provider_schema = schema.get(provider_name, {})
-    available_models = provider_schema.get('models', ['anthropic/claude-opus-4-5'])
+    available_models = provider_schema.get("models", ["anthropic/claude-opus-4-5"])
 
     for i, model in enumerate(available_models[:5], 1):
         console.print(f"  [{i}] {model}")
     console.print("  [c] Custom model")
 
-    model_choice = Prompt.ask("\nSelect model", choices=[str(i) for i in range(1, min(6, len(available_models)+1))] + ["c"], default="1")
+    model_choice = Prompt.ask(
+        "\nSelect model",
+        choices=[str(i) for i in range(1, min(6, len(available_models) + 1))] + ["c"],
+        default="1",
+    )
 
     if model_choice == "c":
         primary_model = Prompt.ask("Enter custom model name")
@@ -471,16 +520,14 @@ def _run_onboard_wizard():
 
     if primary_model:
         with console.status("[cyan]Setting primary model...[/cyan]", spinner="dots"):
-            result = asyncio.run(tool.execute(
-                path="agents.defaults.model",
-                value=primary_model
-            ))
+            result = asyncio.run(tool.execute(path="agents.defaults.model", value=primary_model))
         if "Error" not in result:
             console.print(f"[green]✓ Primary model set to {primary_model}[/green]\n")
 
     # Step 3: Smart Routing
     console.print("[bold]Step 3: Smart Routing[/bold]")
-    console.print("""
+    console.print(
+        """
 [dim]Smart routing automatically selects the best model based on query complexity:[/dim]
   • Simple queries → Cheaper models
   • Complex tasks → Stronger models
@@ -491,7 +538,8 @@ This saves costs while maintaining quality.
 
 [yellow]Note:[/yellow] Smart routing is experimental and continuously improving.
 If disabled, your bot will use [bold]{}[/bold] for all queries.
-    """.format(primary_model))
+    """.format(primary_model)
+    )
 
     enable_routing = Confirm.ask("Enable smart routing?", default=True)
 
@@ -506,54 +554,62 @@ If disabled, your bot will use [bold]{}[/bold] for all queries.
 
             # Define suggested models based on selected provider
             # For gateway providers like OpenRouter, use their model format
-            if provider_name == 'openrouter':
+            if provider_name == "openrouter":
                 # OpenRouter supports all models through their gateway
                 suggested_models = {
-                    'simple': 'openrouter/deepseek/deepseek-chat-v3-0324',
-                    'medium': 'openrouter/openai/gpt-4.1-mini',
-                    'complex': 'openrouter/anthropic/claude-3-5-sonnet',
-                    'reasoning': 'openrouter/openai/o3-mini',
-                    'coding': 'openrouter/moonshotai/kimi-k2.5',
+                    "simple": "openrouter/deepseek/deepseek-chat-v3-0324",
+                    "medium": "openrouter/openai/gpt-4.1-mini",
+                    "complex": "openrouter/anthropic/claude-3-5-sonnet",
+                    "reasoning": "openrouter/openai/o3-mini",
+                    "coding": "openrouter/moonshotai/kimi-k2.5",
                 }
-            elif provider_name == 'aihubmix':
+            elif provider_name == "aihubmix":
                 # AiHubMix uses OpenAI-compatible format
                 suggested_models = {
-                    'simple': 'deepseek/deepseek-chat-v3-0324',
-                    'medium': 'gpt-4.1-mini',
-                    'complex': 'claude-3-5-sonnet-20241022',
-                    'reasoning': 'o3-mini',
-                    'coding': 'kimi-k2.5',
+                    "simple": "deepseek/deepseek-chat-v3-0324",
+                    "medium": "gpt-4.1-mini",
+                    "complex": "claude-3-5-sonnet-20241022",
+                    "reasoning": "o3-mini",
+                    "coding": "kimi-k2.5",
                 }
             else:
                 # For direct providers, use models from their schema or defaults
-                default_simple = provider_schema.get('models', [f'{provider_name}/default'])[0] if provider_schema.get('models') else f'{provider_name}/default'
+                default_simple = (
+                    provider_schema.get("models", [f"{provider_name}/default"])[0]
+                    if provider_schema.get("models")
+                    else f"{provider_name}/default"
+                )
                 suggested_models = {
-                    'simple': default_simple,
-                    'medium': f'{provider_name}/medium-model',
-                    'complex': f'{provider_name}/complex-model',
-                    'reasoning': f'{provider_name}/reasoning-model',
-                    'coding': f'{provider_name}/coding-model',
+                    "simple": default_simple,
+                    "medium": f"{provider_name}/medium-model",
+                    "complex": f"{provider_name}/complex-model",
+                    "reasoning": f"{provider_name}/reasoning-model",
+                    "coding": f"{provider_name}/coding-model",
                 }
 
             # Validate each suggested model
             validation_warnings = []
             for tier, model in suggested_models.items():
                 validation = tool.validate_model_for_routing(model)
-                status = "✓" if validation['provider_configured'] else "○"
+                status = "✓" if validation["provider_configured"] else "○"
                 console.print(f"  {status} {tier.capitalize():9} {model}")
-                if validation['warning']:
+                if validation["warning"]:
                     validation_warnings.append(f"  • {validation['warning']}")
 
             if validation_warnings:
                 console.print("\n[yellow]⚠ Provider Configuration Needed:[/yellow]")
                 for warning in validation_warnings:
                     console.print(warning)
-                console.print("\n[dim]These models will only work once you add the required API keys.[/dim]")
+                console.print(
+                    "\n[dim]These models will only work once you add the required API keys.[/dim]"
+                )
                 console.print("[dim]Run 'nanofolks configure' to add more providers.[/dim]")
 
             console.print("\n[dim]You can customize these later in: nanofolks configure[/dim]\n")
     else:
-        console.print("[dim]Smart routing disabled. Your bot will use the primary model for all queries.[/dim]\n")
+        console.print(
+            "[dim]Smart routing disabled. Your bot will use the primary model for all queries.[/dim]\n"
+        )
 
     # Step 4: Evolutionary Mode
     console.print("[bold]Step 4: Evolutionary Mode[/bold]")
@@ -572,10 +628,11 @@ If disabled, your bot will use [bold]{}[/bold] for all queries.
         with console.status("[cyan]Enabling evolutionary mode...[/cyan]", spinner="dots"):
             result = asyncio.run(tool.execute(path="tools.evolutionary", value=True))
             # Set default allowed paths
-            asyncio.run(tool.execute(
-                path="tools.allowedPaths",
-                value=["/projects/nanofolks-turbo", "~/.nanofolks"]
-            ))
+            asyncio.run(
+                tool.execute(
+                    path="tools.allowedPaths", value=["/projects/nanofolks-turbo", "~/.nanofolks"]
+                )
+            )
         if "Error" not in result:
             console.print("[green]✓ Evolutionary mode enabled[/green]")
             console.print("[dim]Allowed paths: /projects/nanofolks-turbo, ~/.nanofolks[/dim]")
@@ -584,11 +641,12 @@ If disabled, your bot will use [bold]{}[/bold] for all queries.
         console.print("[dim]Evolutionary mode disabled. Bot restricted to workspace only.[/dim]\n")
 
     # Completion
-    console.print(Panel.fit(
-        "[bold green]🎉 Setup Complete![/bold green]\n\n"
-        "Your nanofolks is ready to use.",
-        border_style="green"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]🎉 Setup Complete![/bold green]\n\nYour nanofolks is ready to use.",
+            border_style="green",
+        )
+    )
 
     console.print("\n[bold]Get started:[/bold]")
     console.print("  [cyan]nanofolks chat[/cyan]     - Start interactive chat")
@@ -625,121 +683,12 @@ def configure():
         from nanofolks.cli.configure import configure_cli
     configure_cli()
 
-
-
-
-def _create_workspace_templates(workspace: Path):
-    """Create default workspace template files.
-
-    Note: AGENTS.md and SOUL.md are now per-bot, created in bots/{bot}/ directory.
-    Only shared files (USER.md, TOOLS.md) are created at workspace level.
-    """
-    templates = {
-        "USER.md": """# User
-
-        Information about the user goes here.
-
-        ## Preferences
-
-        - Communication style: casual
-        - Timezone: UTC
-        - Language: English
-
-        ## About You
-
-        Add your preferences, constraints, and communication style here. This helps the AI understand how to interact with you.
-        """,
-        "TOOLS.md": """# Available Tools
-
-This document describes the tools available to nanofolks.
-
-## File Operations
-
-### read_file
-Read the contents of a file.
-
-### write_file
-Write content to a file (creates parent directories if needed).
-
-### edit_file
-Edit a file by replacing specific text.
-
-### list_dir
-List contents of a directory.
-
-## Shell Execution
-
-### exec
-Execute a shell command and return output.
-
-**Safety Notes:**
-- Commands have a configurable timeout (default 60s)
-- Dangerous commands are blocked (rm -rf, format, dd, shutdown, etc.)
-- Output is truncated at 10,000 characters
-
-## Web Access
-
-### web_search
-Search the web using Brave Search API.
-
-### web_fetch
-Fetch and extract main content from a URL.
-
-## Communication
-
-### message
-Send a message to the user on chat channels.
-
-## Background Tasks
-
-### invoke
-Invoke a specialist bot to handle a task in the background.
-```
-invoke(bot_name: str, task: str, context: str = None)
-```
-
-Use for complex tasks that need specialist expertise. The bot will complete the task and report back.
-
-## Cron Reminders
-
-Use the `exec` tool to create scheduled reminders with `nanofolks routines add`.
-
----
-
-## Per-Bot Tool Permissions
-
-You can customize which tools each bot has access to by adding tool permissions to their SOUL.md or AGENTS.md files:
-
-```markdown
-## Allowed Tools
-- read_file
-- write_file
-- web_search
-
-## Denied Tools
-- exec
-- spawn
-
-## Custom Tools
-- shopify_api: Custom Shopify integration
-```
-
-If no permissions are specified, bots get access to all standard tools.
-""",
-    }
-
-    for filename, content in templates.items():
-        file_path = workspace / filename
-        if not file_path.exists():
-            file_path.write_text(content, encoding="utf-8")
-            console.print(f"  [dim]Created {filename}[/dim]")
-
-    # Create memory directory and MEMORY.md
     memory_dir = workspace / "memory"
     memory_dir.mkdir(exist_ok=True)
     memory_file = memory_dir / "MEMORY.md"
     if not memory_file.exists():
-        memory_file.write_text("""# Long-term Memory
+        memory_file.write_text(
+            """# Long-term Memory
 
 This file stores important information that should persist across sessions.
 
@@ -754,7 +703,9 @@ This file stores important information that should persist across sessions.
 ## Important Notes
 
 (Things to remember)
-""", encoding="utf-8")
+""",
+            encoding="utf-8",
+        )
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
     # Create skills directory for custom user skills
@@ -765,7 +716,40 @@ This file stores important information that should persist across sessions.
 def _make_provider(config):
     """Create LiteLLMProvider from config. Exits if no API key found."""
     from nanofolks.providers.litellm_provider import LiteLLMProvider
-    p = config.get_provider()
+    from nanofolks.config.loader import KEYRING_MARKER, load_config
+    from nanofolks.security.keyring_manager import init_gnome_keyring, is_keyring_available
+
+    def _try_unlock_keyring_if_needed(current_config):
+        provider = current_config.get_provider()
+        if not provider or current_config.agents.defaults.model.startswith("bedrock/"):
+            return current_config, provider
+
+        key_value = provider.api_key
+        needs_key = not key_value or key_value == KEYRING_MARKER
+        if not needs_key:
+            return current_config, provider
+
+        if is_keyring_available():
+            refreshed = load_config()
+            return refreshed, refreshed.get_provider()
+
+        console.print("[yellow]OS keyring is locked or unavailable.[/yellow]")
+        if not Confirm.ask("Unlock keyring now?", default=True):
+            return current_config, provider
+
+        password = Prompt.ask("Enter keyring password", password=True)
+        if not password:
+            return current_config, provider
+
+        if init_gnome_keyring(password):
+            refreshed = load_config()
+            return refreshed, refreshed.get_provider()
+
+        console.print("[red]Failed to unlock keyring.[/red]")
+        return current_config, provider
+
+    config, provider_obj = _try_unlock_keyring_if_needed(config)
+    p = provider_obj or config.get_provider()
     model = config.agents.defaults.model
     if not (p and p.api_key) and not model.startswith("bedrock/"):
         console.print("[red]Error: No API key configured.[/red]")
@@ -809,6 +793,7 @@ def gateway(
     from nanofolks.utils.ids import room_to_session_id
 
     from nanofolks.utils.logging import configure_logging
+
     if verbose:
         configure_logging(verbose=True)
 
@@ -819,13 +804,15 @@ def gateway(
 
     # Configure room manager for cross-channel broadcast
     from nanofolks.bots.room_manager import get_room_manager
+
     room_manager = get_room_manager()
     bus.set_room_manager(room_manager)
 
     provider = _make_provider(config)
-    
+
     # Use RoomSessionManager with CAS storage for conflict-free concurrent writes
     from nanofolks.session.dual_mode import create_session_manager
+
     session_manager = create_session_manager(config.workspace_path, config)
 
     # Create routines service first (callback set after agent creation)
@@ -836,6 +823,7 @@ def gateway(
 
     # Get user's timezone from USER.md (or default to UTC)
     from nanofolks.utils.user_profile import get_user_timezone
+
     system_timezone = get_user_timezone(config.workspace_path)
 
     # Seed default team routines (balanced energy)
@@ -877,6 +865,7 @@ def gateway(
 
     # Wire per-room FIFO broker (Phase 1: single AgentLoop, per-room queues)
     from nanofolks.broker.room_broker import RoomBrokerManager
+
     broker_manager = RoomBrokerManager(agent_loop_factory=lambda: agent)
     bus.set_broker(broker_manager)
     console.print("[green]✓[/green] Broker: per-room FIFO routing active")
@@ -893,6 +882,7 @@ def gateway(
             ResearcherBot,
             SocialBot,
         )
+
         appearance_config = get_appearance_config()
         team_manager = appearance_config.team_manager
 
@@ -902,42 +892,42 @@ def gateway(
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("researcher")
+            custom_name=appearance_config.get_custom_name("researcher"),
         )
         coder = CoderBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("coder")
+            custom_name=appearance_config.get_custom_name("coder"),
         )
         social = SocialBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("social")
+            custom_name=appearance_config.get_custom_name("social"),
         )
         auditor = AuditorBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("auditor")
+            custom_name=appearance_config.get_custom_name("auditor"),
         )
         creative = CreativeBot(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("creative")
+            custom_name=appearance_config.get_custom_name("creative"),
         )
         leader = BotLeader(
             bus=bus,
             workspace_id=str(config.workspace_path),
             workspace=config.workspace_path,
             team_manager=team_manager,
-            custom_name=appearance_config.get_custom_name("leader")
+            custom_name=appearance_config.get_custom_name("leader"),
         )
 
         # Initialize manager (internal)
@@ -1020,7 +1010,6 @@ def gateway(
 
         console.print("[green]✓[/green] Team routines registered (internal)")
 
-
     except Exception as e:
         logger.warning(f"Failed to initialize team routines engine: {e}")
         multi_manager = None
@@ -1042,11 +1031,7 @@ def gateway(
             port=9090,
             update_interval=5.0,  # Update every 5 seconds
         )
-        dashboard_server = DashboardHTTPServer(
-            dashboard_service,
-            host="localhost",
-            port=9090
-        )
+        dashboard_server = DashboardHTTPServer(dashboard_service, host="localhost", port=9090)
         console.print("[green]✓[/green] Dashboard initialized on http://localhost:9090")
     except Exception as e:
         logger.warning(f"Failed to initialize dashboard: {e}")
@@ -1062,9 +1047,7 @@ def gateway(
     if routine_status["jobs"] > 0:
         user_jobs = len(scheduler.list_jobs(include_disabled=True, scope="user"))
         system_jobs = len(scheduler.list_jobs(include_disabled=True, scope="system"))
-        console.print(
-            f"[green]✓[/green] Routines: {user_jobs} user, {system_jobs} team"
-        )
+        console.print(f"[green]✓[/green] Routines: {user_jobs} user, {system_jobs} team")
 
     console.print("[green]✓[/green] Routines active (user + team)")
 
@@ -1107,11 +1090,10 @@ def gateway(
     asyncio.run(run())
 
 
-
-
 # ============================================================================
 # Agent Commands
 # ============================================================================
+
 
 def _format_room_status(room) -> str:
     """Format room status for display."""
@@ -1159,7 +1141,9 @@ def _render_team_roster(current_participants: list, team_manager) -> str:
         # Check if in current room
         role_label = f"@{bot_role}"
         if bot_role in current_participants:
-            output += f"→ {emoji} [green]{bot_name:12}[/green] ({bot_title}) [dim]{role_label}[/dim]\n"
+            output += (
+                f"→ {emoji} [green]{bot_name:12}[/green] ({bot_title}) [dim]{role_label}[/dim]\n"
+            )
         else:
             output += f"  {emoji} {bot_name:12} ({bot_title}) [dim]{role_label}[/dim]\n"
 
@@ -1178,19 +1162,14 @@ def _render_room_list(room_manager, current_room_id: str) -> str:
     """
     rooms = room_manager.list_rooms()
 
-    room_icons = {
-        "open": "🌐",
-        "project": "📁",
-        "direct": "💬",
-        "coordination": "🤖"
-    }
+    room_icons = {"open": "🌐", "project": "📁", "direct": "💬", "coordination": "🤖"}
 
     output = f"\n[bold {ACCENT_COLOR}]ROOMS[/bold {ACCENT_COLOR}]\n"
 
     for room_info in rooms:
-        room_id = room_info['id']
-        room_type = room_info['type']
-        participant_count = room_info['participant_count']
+        room_id = room_info["id"]
+        room_type = room_info["type"]
+        participant_count = room_info["participant_count"]
 
         icon = room_icons.get(room_type, "📌")
 
@@ -1215,6 +1194,7 @@ def _render_status_bar(room_id: str, participants: list, team_manager) -> str:
     """
     if team_manager is None:
         from nanofolks.teams import TeamManager
+
         team_manager = TeamManager()
 
     # Get emojis for actual participants
@@ -1352,7 +1332,7 @@ async def _detect_room_creation_intent(user_message: str, config) -> Optional[di
         response = await provider.chat(
             messages=[
                 {"role": "system", "content": ROOM_CREATION_PROMPT},
-                {"role": "user", "content": user_message}
+                {"role": "user", "content": user_message},
             ],
         )
 
@@ -1360,12 +1340,12 @@ async def _detect_room_creation_intent(user_message: str, config) -> Optional[di
         import re
 
         # Extract JSON from response
-        content = response.content if hasattr(response, 'content') else str(response)
+        content = response.content if hasattr(response, "content") else str(response)
 
         # Find JSON in the response
         if not content:
             return None
-        json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*\}", content, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
             if data.get("should_create_room"):
@@ -1379,9 +1359,7 @@ async def _detect_room_creation_intent(user_message: str, config) -> Optional[di
 
 
 async def _handle_room_creation_intent(
-    intent: dict,
-    current_room_id: str,
-    config
+    intent: dict, current_room_id: str, config
 ) -> Optional[tuple]:
     """Handle room creation with bot recommendations.
 
@@ -1443,7 +1421,7 @@ async def _handle_room_creation_intent(
 
     confirmed = Confirm.ask(
         f"Create room [bold cyan]#{room_name}[/bold cyan] ({room_type}) and invite these bots?",
-        default=True
+        default=True,
     )
 
     if not confirmed:
@@ -1454,9 +1432,7 @@ async def _handle_room_creation_intent(
     try:
         with console.status(f"[cyan]Creating room #{room_name}...[/cyan]", spinner="dots"):
             new_room = room_manager.create_room(
-                name=room_name,
-                room_type=RoomType(room_type),
-                participants=["leader"]
+                name=room_name, room_type=RoomType(room_type), participants=["leader"]
             )
         console.print(f"\n✅ Created room [bold cyan]#{new_room.id}[/bold cyan] ({room_type})\n")
 
@@ -1476,12 +1452,14 @@ async def _handle_room_creation_intent(
                     invited.append(display_name)
                 else:
                     info = roster.get_bot_info(bot_role)
-                    emoji = info['emoji'] if info else "•"
+                    emoji = info["emoji"] if info else "•"
                     console.print(f"  {emoji} Invited @{bot_role}")
                     invited.append(bot_role)
 
         if invited:
-            console.print(f"\n[green]Team assembled: {', '.join(['@' + n for n in invited])}[/green]\n")
+            console.print(
+                f"\n[green]Team assembled: {', '.join(['@' + n for n in invited])}[/green]\n"
+            )
 
         # Display the room context (status bar + team roster) - Phase 2 improvement
         _display_room_context(new_room, room_manager)
@@ -1496,10 +1474,21 @@ async def _handle_room_creation_intent(
 @app.command()
 def chat(
     message: str = typer.Option(None, "--message", "-m", help="Message to send"),
-    session_id: str = typer.Option(None, "--session", "-s", help="Session ID (room-centric format: room:{room_id}). If not set, uses --room value"),
-    room: str = typer.Option("general", "--room", "-r", help="Room to join (general, project-alpha, etc.)"),
-    markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render assistant output as Markdown"),
-    logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanofolks runtime logs during chat"),
+    session_id: str = typer.Option(
+        None,
+        "--session",
+        "-s",
+        help="Session ID (room-centric format: room:{room_id}). If not set, uses --room value",
+    ),
+    room: str = typer.Option(
+        "general", "--room", "-r", help="Room to join (general, project-alpha, etc.)"
+    ),
+    markdown: bool = typer.Option(
+        True, "--markdown/--no-markdown", help="Render assistant output as Markdown"
+    ),
+    logs: bool = typer.Option(
+        False, "--logs/--no-logs", help="Show nanofolks runtime logs during chat"
+    ),
 ):
     """Start an interactive chat session."""
     from loguru import logger
@@ -1529,6 +1518,7 @@ def chat(
     provider = _make_provider(config)
 
     from nanofolks.utils.logging import configure_logging
+
     if logs:
         configure_logging(verbose=True)
     else:
@@ -1538,6 +1528,7 @@ def chat(
 
     # Get user's timezone from USER.md (or default to UTC)
     from nanofolks.utils.user_profile import get_user_timezone
+
     system_timezone = get_user_timezone(config.workspace_path)
 
     agent_loop = AgentLoop(
@@ -1574,6 +1565,7 @@ def chat(
     def _thinking_ctx():
         if logs:
             from contextlib import nullcontext
+
             return nullcontext()
         # Animated spinner is safe to use with prompt_toolkit input handling
         return console.status("[dim]nanofolks is thinking...[/dim]", spinner="dots")
@@ -1582,7 +1574,7 @@ def chat(
     streaming_content = ""
     tool_progress = []
     activity_line = ""
-    
+
     def _stream_chunk(chunk: str):
         nonlocal streaming_content, tool_progress, activity_line
         # Check if this is a tool progress message (starts with ↳)
@@ -1602,7 +1594,9 @@ def chat(
             # Show content directly (not just preview)
             console.print(f"[{ACCENT_COLOR}]{chunk}[/{ACCENT_COLOR}]", end="", highlight=False)
 
-    async def _await_cli_response(chat_id: str, room_id: str | None = None) -> MessageEnvelope | None:
+    async def _await_cli_response(
+        chat_id: str, room_id: str | None = None
+    ) -> MessageEnvelope | None:
         while True:
             outbound = await bus.consume_outbound()
             if outbound.channel != "cli" or outbound.chat_id != chat_id:
@@ -1639,6 +1633,8 @@ def chat(
                         render_markdown=markdown,
                         already_streamed=True,
                         room_id=response.room_id or room,
+                        bot_name=response.bot_name,
+                        team_emoji=_get_team_emoji(),
                     )
                     _print_compaction_notice(response.metadata if response else None)
                     _print_context_usage(
@@ -1650,7 +1646,9 @@ def chat(
                     _print_status_bar_line(
                         room,
                         current_room.participants if current_room else [],
-                        context_usage=(response.metadata or {}).get("context_usage") if response else None,
+                        context_usage=(response.metadata or {}).get("context_usage")
+                        if response
+                        else None,
                     )
                     _print_team_inline(current_room.participants if current_room else [])
 
@@ -1721,29 +1719,73 @@ def chat(
             """
             try:
                 # Regenerate all content
-                roster_display = TeamRoster().render(
-                    current_room.participants,
-                    compact=False
-                )
+                roster_display = TeamRoster().render(current_room.participants, compact=False)
 
                 # Update layout sections
                 status_bar = StatusBar()
                 bot_emojis = TeamRoster().render_compact_inline(current_room.participants)
-                header = status_bar.render(current_room.id, len(current_room.participants), bot_emojis)
+                header = status_bar.render(
+                    current_room.id, len(current_room.participants), bot_emojis
+                )
 
                 # Update sidebar
                 sidebar_manager.update_team_roster(roster_display)
 
                 # Redraw
-                layout_manager.update(
-                    header=header,
-                    sidebar=sidebar_manager.get_content()
-                )
+                layout_manager.update(header=header, sidebar=sidebar_manager.get_content())
             except Exception as e:
                 logger.debug(f"Layout redraw failed: {e}")
 
+        async def _send_initial_greeting_if_needed(agent_loop, room_id: str) -> None:
+            """Send initial greeting if user onboarding is needed."""
+            try:
+                # Get session to check if onboarding is needed
+                session_key = f"cli:cli"
+                from nanofolks.session.manager import SessionManager
+
+                session_manager = SessionManager(agent_loop.workspace)
+                session = session_manager.get_or_create(session_key)
+
+                # Check if onboarding is needed
+                if agent_loop._check_onboarding_needed(session):
+                    # Get the first question for initial greeting
+                    from nanofolks.agent.chat_onboarding import ChatOnboarding
+                    from nanofolks.teams import TeamManager
+
+                    team_manager = TeamManager()
+                    onboarding = ChatOnboarding(
+                        workspace_path=agent_loop.workspace, team_manager=team_manager
+                    )
+
+                    # Get first question
+                    first_q = onboarding.get_next_question()
+                    if first_q:
+                        greeting = f"Ahoy! {first_q['question']}"
+
+                        # Create welcome envelope
+                        welcome_msg = MessageEnvelope(
+                            channel="cli", chat_id="cli", content=greeting, room_id=room_id
+                        )
+
+                        # Display the greeting (leader bot with team emoji)
+                        _print_agent_response(
+                            greeting,
+                            render_markdown=True,
+                            already_streamed=False,
+                            room_id=room_id,
+                            bot_name="Blackbeard",
+                            bot_title="Captain",
+                            team_emoji="🏴‍☠️",
+                        )
+                        _print_status_bar_line(
+                            room_id, current_room.participants if current_room else []
+                        )
+                        _print_team_inline(current_room.participants if current_room else [])
+            except Exception as e:
+                logger.debug(f"Could not send initial greeting: {e}")
+
         async def run_interactive():
-            nonlocal current_room, room_manager_local  # Allow updating current_room and accessing room_manager
+            nonlocal current_room, room_manager_local, room  # Allow updating current_room, accessing room, and updating room
 
             # Phase 3: Initialize advanced layout
             layout_manager = None
@@ -1759,29 +1801,26 @@ def chat(
                     layout_manager.start()
 
                     # Initialize sidebar content
-                    roster_display = TeamRoster().render(
-                        current_room.participants,
-                        compact=False
-                    )
+                    roster_display = TeamRoster().render(current_room.participants, compact=False)
                     rooms_list = room_manager_local.list_rooms()
-                    room_list_display = RoomList().render(
-                        rooms_list,
-                        current_room.id
-                    )
+                    room_list_display = RoomList().render(rooms_list, current_room.id)
 
                     sidebar_manager.update_team_roster(roster_display)
                     sidebar_manager.update_room_list(room_list_display)
 
                     # Register resize callback
-                    advanced_layout.on_resize(lambda: _redraw_layout(
-                        layout_manager, current_room, sidebar_manager
-                    ))
+                    advanced_layout.on_resize(
+                        lambda: _redraw_layout(layout_manager, current_room, sidebar_manager)
+                    )
                 except Exception as e:
                     logger.debug(f"Could not initialize advanced layout: {e}")
                     layout_manager = None
                     sidebar_manager = None
 
             agent_task = asyncio.create_task(agent_loop.run())
+
+            # Send initial greeting if onboarding is needed
+            await _send_initial_greeting_if_needed(agent_loop, room)
 
             while True:
                 try:
@@ -1792,17 +1831,18 @@ def chat(
                         continue
 
                     if _is_exit_command(command):
-                         # Phase 3: Stop layout monitoring
-                         if layout_manager:
-                             layout_manager.stop()
+                        # Phase 3: Stop layout monitoring
+                        if layout_manager:
+                            layout_manager.stop()
 
-                         _restore_terminal()
-                         console.print("\nGoodbye!")
-                         break
+                        _restore_terminal()
+                        console.print("\nGoodbye!")
+                        break
 
                     # Handle work log commands in interactive mode
                     if command == "/explain":
                         from nanofolks.agent.work_log_manager import get_work_log_manager
+
                         manager = get_work_log_manager()
                         formatted = manager.get_formatted_log("detailed")
                         console.print("\n[cyan]Last Work Log:[/cyan]")
@@ -1812,6 +1852,7 @@ def chat(
 
                     if command == "/logs":
                         from nanofolks.agent.work_log_manager import get_work_log_manager
+
                         manager = get_work_log_manager()
                         formatted = manager.get_formatted_log("summary")
                         console.print("\n[cyan]Work Log Summary:[/cyan]")
@@ -1831,18 +1872,24 @@ def chat(
                             matches = []
 
                             for entry in log.entries:
-                                if (query_lower in entry.message.lower() or
-                                    query_lower in entry.category.lower() or
-                                    (entry.tool_name and query_lower in entry.tool_name.lower())):
+                                if (
+                                    query_lower in entry.message.lower()
+                                    or query_lower in entry.category.lower()
+                                    or (entry.tool_name and query_lower in entry.tool_name.lower())
+                                ):
                                     matches.append(entry)
 
                             if matches:
-                                console.print(f"\n[cyan]Found {len(matches)} entries matching '{search_query}':[/cyan]\n")
+                                console.print(
+                                    f"\n[cyan]Found {len(matches)} entries matching '{search_query}':[/cyan]\n"
+                                )
                                 for entry in matches[:5]:
                                     icon = _get_work_log_icon(entry.level)
                                     console.print(f"{icon} Step {entry.step}: {entry.message}")
                             else:
-                                console.print(f"\n[yellow]No entries found matching '{search_query}'[/yellow]\n")
+                                console.print(
+                                    f"\n[yellow]No entries found matching '{search_query}'[/yellow]\n"
+                                )
                         else:
                             console.print("\n[yellow]No work log found.[/yellow]\n")
                         continue
@@ -1854,7 +1901,9 @@ def chat(
                         console.print(f"   Participants ({len(current_room.participants)}):")
                         for bot in current_room.participants:
                             console.print(f"   • {bot}")
-                        console.print(f"\n[dim]Use 'nanofolks room invite {current_room.id} <bot>' to add bots[/dim]\n")
+                        console.print(
+                            f"\n[dim]Use 'nanofolks room invite {current_room.id} <bot>' to add bots[/dim]\n"
+                        )
                         continue
 
                     # Handle /create command
@@ -1874,14 +1923,18 @@ def chat(
                             room_manager = get_room_manager()
 
                             # Create room with spinner - Phase 2 improvement
-                            with console.status(f"[cyan]Creating room #{room_name}...[/cyan]", spinner="dots"):
+                            with console.status(
+                                f"[cyan]Creating room #{room_name}...[/cyan]", spinner="dots"
+                            ):
                                 new_room = room_manager_local.create_room(
                                     name=room_name,
                                     room_type=RoomType(room_type),
-                                    participants=["leader"]
+                                    participants=["leader"],
                                 )
 
-                            console.print(f"\n✅ Created room [bold cyan]#{new_room.id}[/bold cyan] ({room_type})\n")
+                            console.print(
+                                f"\n✅ Created room [bold cyan]#{new_room.id}[/bold cyan] ({room_type})\n"
+                            )
                             console.print("   💡 Use: /invite <bot> to add bots")
                             console.print(f"   💡 Use: /switch {new_room.id} to join\n")
 
@@ -1914,7 +1967,9 @@ def chat(
                         room_manager = get_room_manager()
 
                         # Invite bot with spinner - Phase 2 improvement
-                        with console.status(f"[cyan]Inviting @{bot_name}...[/cyan]", spinner="dots"):
+                        with console.status(
+                            f"[cyan]Inviting @{bot_name}...[/cyan]", spinner="dots"
+                        ):
                             invite_success = room_manager_local.invite_bot(room, bot_name)
 
                         if invite_success:
@@ -1927,7 +1982,9 @@ def chat(
 
                             # Phase 3: Update sidebar if layout is active
                             if layout_manager:
-                                roster_display = TeamRoster().render(current_room.participants, compact=False)
+                                roster_display = TeamRoster().render(
+                                    current_room.participants, compact=False
+                                )
                                 sidebar_manager.update_team_roster(roster_display)
                                 layout_manager.update(sidebar=sidebar_manager.get_content())
                                 TransitionEffect.highlight("✅ Team updated!")
@@ -1958,7 +2015,9 @@ def chat(
                         room_manager = get_room_manager()
 
                         # Show switching spinner - Phase 2 improvement
-                        with console.status(f"[cyan]Switching to #{new_room_id}...[/cyan]", spinner="dots"):
+                        with console.status(
+                            f"[cyan]Switching to #{new_room_id}...[/cyan]", spinner="dots"
+                        ):
                             new_room = room_manager_local.get_room(new_room_id)
 
                         if not new_room:
@@ -1978,7 +2037,9 @@ def chat(
 
                         # Phase 3: Update layout if active
                         if layout_manager:
-                            roster_display = TeamRoster().render(current_room.participants, compact=False)
+                            roster_display = TeamRoster().render(
+                                current_room.participants, compact=False
+                            )
                             rooms_list = room_manager_local.list_rooms()
                             room_list_display = RoomList().render(rooms_list, current_room.id)
 
@@ -1986,12 +2047,15 @@ def chat(
                             sidebar_manager.update_room_list(room_list_display)
 
                             status_bar = StatusBar()
-                            bot_emojis = TeamRoster().render_compact_inline(current_room.participants)
-                            header = status_bar.render(current_room.id, len(current_room.participants), bot_emojis)
+                            bot_emojis = TeamRoster().render_compact_inline(
+                                current_room.participants
+                            )
+                            header = status_bar.render(
+                                current_room.id, len(current_room.participants), bot_emojis
+                            )
 
                             layout_manager.update(
-                                header=header,
-                                sidebar=sidebar_manager.get_content()
+                                header=header, sidebar=sidebar_manager.get_content()
                             )
                             TransitionEffect.slide_in(f"✅ Switched to #{current_room.id}")
                         continue
@@ -2010,12 +2074,12 @@ def chat(
                         table.add_column("Status", style="yellow")
 
                         for room_info in rooms:
-                            status = "🟢 Active" if room_info['is_default'] else "🔵 Idle"
+                            status = "🟢 Active" if room_info["is_default"] else "🔵 Idle"
                             table.add_row(
                                 f"#{room_info['id']}",
-                                room_info['type'],
-                                str(room_info['participant_count']),
-                                status
+                                room_info["type"],
+                                str(room_info["participant_count"]),
+                                status,
                             )
 
                         console.print(f"\n{table}\n")
@@ -2032,11 +2096,15 @@ def chat(
                         console.print()
                         console.print("  [bold]/invite <bot> [reason][/bold]")
                         console.print("    Invite a bot to the current room")
-                        console.print("    Bots: researcher, coder, creative, social, auditor, leader")
+                        console.print(
+                            "    Bots: researcher, coder, creative, social, auditor, leader"
+                        )
                         console.print("    Example: [dim]/invite coder help with backend[/dim]")
                         console.print()
                         console.print("  [bold]/switch [room][/bold]")
-                        console.print("    Switch to a different room. Shows list if no room specified")
+                        console.print(
+                            "    Switch to a different room. Shows list if no room specified"
+                        )
                         console.print("    Example: [dim]/switch website-design[/dim]")
                         console.print()
                         console.print("  [bold]/list-rooms[/bold]")
@@ -2065,7 +2133,9 @@ def chat(
                         # Display status bar
                         status_bar = StatusBar()
                         bot_emojis = TeamRoster().render_compact_inline(current_room.participants)
-                        status_text = status_bar.render(room, len(current_room.participants), bot_emojis)
+                        status_text = status_bar.render(
+                            room, len(current_room.participants), bot_emojis
+                        )
                         console.print(f"\n{status_text}\n")
 
                         # Display room info
@@ -2073,7 +2143,9 @@ def chat(
                         console.print(f"  Name: #{current_room.id}")
                         console.print(f"  Type: {current_room.type.value}")
                         console.print(f"  Owner: {current_room.owner}")
-                        console.print(f"  Created: {current_room.created_at.strftime('%Y-%m-%d %H:%M')}")
+                        console.print(
+                            f"  Created: {current_room.created_at.strftime('%Y-%m-%d %H:%M')}"
+                        )
 
                         # Display team roster
                         console.print()
@@ -2106,8 +2178,12 @@ def chat(
                                 if switched:
                                     room = new_room.id
                                     current_room = new_room
-                                    session_id = room_to_session_id(new_room.id)  # migrate session key
-                                    console.print(f"\n🔀 Switched to [bold cyan]#{room}[/bold cyan]\n")
+                                    session_id = room_to_session_id(
+                                        new_room.id
+                                    )  # migrate session key
+                                    console.print(
+                                        f"\n🔀 Switched to [bold cyan]#{room}[/bold cyan]\n"
+                                    )
                             # After handling room creation (or cancellation),
                             # either continue to agent or ask user what to do next
                             # For now, we ask the user what they want to do
@@ -2124,6 +2200,8 @@ def chat(
                             render_markdown=markdown,
                             already_streamed=True,
                             room_id=response.room_id or room,
+                            bot_name=response.bot_name,
+                            team_emoji=_get_team_emoji(),
                         )
                         _print_compaction_notice(response.metadata if response else None)
                         _print_context_usage(
@@ -2135,7 +2213,9 @@ def chat(
                         _print_status_bar_line(
                             room,
                             current_room.participants if current_room else [],
-                            context_usage=(response.metadata or {}).get("context_usage") if response else None,
+                            context_usage=(response.metadata or {}).get("context_usage")
+                            if response
+                            else None,
                         )
                         _print_team_inline(current_room.participants if current_room else [])
 
@@ -2168,16 +2248,24 @@ def chat(
 # Work Log Commands (Transparency & Debugging)
 # ============================================================================
 
+
 @app.command("explain")
 def explain_last_decision(
-    mode: str = typer.Option("detailed", "--mode", "-m",
-                            help="Display mode: summary, detailed, debug, coordination, conversations"),
-    session: Optional[str] = typer.Option(None, "--session", "-s",
-                                         help="Specific session ID to explain"),
-    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
-                                           help="Workspace to explain (#general, #project-alpha)"),
-    bot: Optional[str] = typer.Option(None, "--bot", "-b",
-                                     help="Filter by bot (@researcher, @coder)"),
+    mode: str = typer.Option(
+        "detailed",
+        "--mode",
+        "-m",
+        help="Display mode: summary, detailed, debug, coordination, conversations",
+    ),
+    session: Optional[str] = typer.Option(
+        None, "--session", "-s", help="Specific session ID to explain"
+    ),
+    workspace: Optional[str] = typer.Option(
+        None, "--workspace", "-w", help="Workspace to explain (#general, #project-alpha)"
+    ),
+    bot: Optional[str] = typer.Option(
+        None, "--bot", "-b", help="Filter by bot (@researcher, @coder)"
+    ),
 ):
     """
     Show how nanofolks made its last decision.
@@ -2259,10 +2347,13 @@ def explain_last_decision(
 
 @app.command("how")
 def how_did_you_decide(
-    query: str = typer.Argument(..., help="What to search for (e.g., 'routing', 'memory', 'web_search')"),
+    query: str = typer.Argument(
+        ..., help="What to search for (e.g., 'routing', 'memory', 'web_search')"
+    ),
     limit: int = typer.Option(5, "--limit", "-n", help="Maximum number of results to show"),
-    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
-                                           help="Search in specific workspace"),
+    workspace: Optional[str] = typer.Option(
+        None, "--workspace", "-w", help="Search in specific workspace"
+    ),
 ):
     """
     Search work logs for specific decisions or events.
@@ -2307,10 +2398,12 @@ def how_did_you_decide(
     for log in logs:
         for entry in log.entries:
             # Search in message, category, tool name, and details
-            if (query_lower in entry.message.lower() or
-                query_lower in entry.category.lower() or
-                (entry.tool_name and query_lower in entry.tool_name.lower()) or
-                query_lower in str(entry.details).lower()):
+            if (
+                query_lower in entry.message.lower()
+                or query_lower in entry.category.lower()
+                or (entry.tool_name and query_lower in entry.tool_name.lower())
+                or query_lower in str(entry.details).lower()
+            ):
                 matches.append((log.workspace_id, entry))
 
     if not matches:
@@ -2336,26 +2429,37 @@ def how_did_you_decide(
             console.print(f"   {entry.message}")
 
         if entry.confidence is not None:
-            confidence_color = "green" if entry.confidence >= 0.8 else "yellow" if entry.confidence >= 0.5 else "red"
-            console.print(f"   [dim]Confidence: [{confidence_color}]{entry.confidence:.0%}[/{confidence_color}][/dim]")
+            confidence_color = (
+                "green"
+                if entry.confidence >= 0.8
+                else "yellow"
+                if entry.confidence >= 0.5
+                else "red"
+            )
+            console.print(
+                f"   [dim]Confidence: [{confidence_color}]{entry.confidence:.0%}[/{confidence_color}][/dim]"
+            )
 
         if entry.duration_ms:
             console.print(f"   [dim]Duration: {entry.duration_ms}ms[/dim]")
 
         if entry.tool_name:
             status_icon = "✓" if entry.tool_status == "success" else "✗"
-            console.print(f"   [dim]Tool: {entry.tool_name} [{status_icon} {entry.tool_status}][/dim]")
+            console.print(
+                f"   [dim]Tool: {entry.tool_name} [{status_icon} {entry.tool_status}][/dim]"
+            )
 
         console.print()
 
     if len(matches) > limit:
-        console.print(f"[dim]... and {len(matches) - limit} more entries (use --limit to show more)[/dim]")
+        console.print(
+            f"[dim]... and {len(matches) - limit} more entries (use --limit to show more)[/dim]"
+        )
 
 
 @app.command("workspace-logs")
 def list_workspace_logs(
-    workspace: Optional[str] = typer.Option(None, "--workspace", "-w",
-                                           help="Filter by workspace"),
+    workspace: Optional[str] = typer.Option(None, "--workspace", "-w", help="Filter by workspace"),
     limit: int = typer.Option(10, "--limit", "-n", help="Number of logs to show"),
 ):
     """
@@ -2385,7 +2489,9 @@ def list_workspace_logs(
     table.add_column("Status", style="blue")
 
     for log in logs:
-        duration = "In Progress" if not log.end_time else f"{(log.end_time - log.start_time).seconds}s"
+        duration = (
+            "In Progress" if not log.end_time else f"{(log.end_time - log.start_time).seconds}s"
+        )
         status = "🟢 Complete" if log.end_time else "🟡 Active"
 
         table.add_row(
@@ -2393,7 +2499,7 @@ def list_workspace_logs(
             log.workspace_type.value,
             ", ".join(log.participants[:3]),  # Show first 3 bots
             duration,
-            status
+            status,
         )
 
     console.print(table)
@@ -2411,7 +2517,7 @@ def _get_work_log_icon(level) -> str:
         LogLevel.UNCERTAINTY: "❓",
         LogLevel.WARNING: "⚠️",
         LogLevel.ERROR: "❌",
-        LogLevel.TOOL: "🔧"
+        LogLevel.TOOL: "🔧",
     }
     return icons.get(level, "•")
 
@@ -2434,7 +2540,7 @@ def _print_coordination_summary(log, entries):
         f"[cyan]Workspace:[/cyan] {log.workspace_id} ({log.workspace_type.value})",
         f"[cyan]Coordinator:[/cyan] {log.coordinator}",
         f"[cyan]Participants:[/cyan] {', '.join(log.participants)}",
-        f"[cyan]Total Coordinator Entries:[/cyan] {len(entries)}"
+        f"[cyan]Total Coordinator Entries:[/cyan] {len(entries)}",
     ]
     console.print(Panel("\n".join(info_lines), title="[bold]Context[/bold]", border_style="blue"))
     console.print()
@@ -2473,13 +2579,21 @@ def _print_coordination_summary(log, entries):
         decision_table.add_column("Confidence", style="green", width=12)
 
         for entry in decisions:
-            conf_color = "green" if entry.confidence and entry.confidence >= 0.8 else "yellow" if entry.confidence and entry.confidence >= 0.5 else "red"
-            confidence_str = f"[{conf_color}]{entry.confidence:.0%}[/{conf_color}]" if entry.confidence else "-"
+            conf_color = (
+                "green"
+                if entry.confidence and entry.confidence >= 0.8
+                else "yellow"
+                if entry.confidence and entry.confidence >= 0.5
+                else "red"
+            )
+            confidence_str = (
+                f"[{conf_color}]{entry.confidence:.0%}[/{conf_color}]" if entry.confidence else "-"
+            )
             decision_table.add_row(
                 str(entry.step),
                 entry.bot_name,
                 entry.message[:50] + "..." if len(entry.message) > 50 else entry.message,
-                confidence_str
+                confidence_str,
             )
 
         console.print(decision_table)
@@ -2491,11 +2605,13 @@ def _print_coordination_summary(log, entries):
         for esc in escalations:
             esc_panel_lines.append(f"[red]Step {esc.step}:[/red] {esc.message}")
 
-        console.print(Panel(
-            "\n".join(esc_panel_lines),
-            title="[bold red]⚠️  Escalations Requiring User Input[/bold red]",
-            border_style="red"
-        ))
+        console.print(
+            Panel(
+                "\n".join(esc_panel_lines),
+                title="[bold red]⚠️  Escalations Requiring User Input[/bold red]",
+                border_style="red",
+            )
+        )
         console.print()
 
     # Summary Stats
@@ -2503,7 +2619,9 @@ def _print_coordination_summary(log, entries):
     stats_text.append(f"Total Actions: {len(entries)}", style="dim")
     stats_text.append(f" | Delegations: {len(bot_delegations)}", style="yellow")
     stats_text.append(f" | Decisions: {len(decisions)}", style="cyan")
-    stats_text.append(f" | Escalations: {len(escalations)}", style="red" if escalations else "green")
+    stats_text.append(
+        f" | Escalations: {len(escalations)}", style="red" if escalations else "green"
+    )
     console.print(stats_text)
 
 
@@ -2543,8 +2661,14 @@ def _print_bot_conversations(log, entries):
         # Responses
         for response in threads[root_step]:
             indent = "      " if response.response_to == root_step else "    "
-            mentions_str = f" (→ {', '.join([m.lstrip('@') for m in response.mentions])})" if response.mentions else ""
-            console.print(f"{indent}↳ [{response.step}] [cyan]@{response.bot_name}[/cyan]: {response.message[:65]}{mentions_str}")
+            mentions_str = (
+                f" (→ {', '.join([m.lstrip('@') for m in response.mentions])})"
+                if response.mentions
+                else ""
+            )
+            console.print(
+                f"{indent}↳ [{response.step}] [cyan]@{response.bot_name}[/cyan]: {response.message[:65]}{mentions_str}"
+            )
 
         console.print()
         thread_num += 1
@@ -2553,8 +2677,12 @@ def _print_bot_conversations(log, entries):
     if standalone:
         console.print("[bold yellow]Standalone Messages:[/bold yellow]")
         for entry in standalone:
-            mentions_str = f" → {', '.join([m.lstrip('@') for m in entry.mentions])}" if entry.mentions else ""
-            console.print(f"  [{entry.step}] [cyan]@{entry.bot_name}[/cyan]: {entry.message[:70]}{mentions_str}")
+            mentions_str = (
+                f" → {', '.join([m.lstrip('@') for m in entry.mentions])}" if entry.mentions else ""
+            )
+            console.print(
+                f"  [{entry.step}] [cyan]@{entry.bot_name}[/cyan]: {entry.message[:70]}{mentions_str}"
+            )
         console.print()
 
 
@@ -2580,54 +2708,30 @@ def channels_status():
 
     # WhatsApp
     wa = config.channels.whatsapp
-    table.add_row(
-        "WhatsApp",
-        "✓" if wa.enabled else "✗",
-        wa.bridge_url
-    )
+    table.add_row("WhatsApp", "✓" if wa.enabled else "✗", wa.bridge_url)
 
     dc = config.channels.discord
-    table.add_row(
-        "Discord",
-        "✓" if dc.enabled else "✗",
-        dc.gateway_url
-    )
+    table.add_row("Discord", "✓" if dc.enabled else "✗", dc.gateway_url)
 
     # Feishu
     fs = config.channels.feishu
     fs_config = f"app_id: {fs.app_id[:10]}..." if fs.app_id else "[dim]not configured[/dim]"
-    table.add_row(
-        "Feishu",
-        "✓" if fs.enabled else "✗",
-        fs_config
-    )
+    table.add_row("Feishu", "✓" if fs.enabled else "✗", fs_config)
 
     # Mochat
     mc = config.channels.mochat
     mc_base = mc.base_url or "[dim]not configured[/dim]"
-    table.add_row(
-        "Mochat",
-        "✓" if mc.enabled else "✗",
-        mc_base
-    )
+    table.add_row("Mochat", "✓" if mc.enabled else "✗", mc_base)
 
     # Telegram
     tg = config.channels.telegram
     tg_config = f"token: {tg.token[:10]}..." if tg.token else "[dim]not configured[/dim]"
-    table.add_row(
-        "Telegram",
-        "✓" if tg.enabled else "✗",
-        tg_config
-    )
+    table.add_row("Telegram", "✓" if tg.enabled else "✗", tg_config)
 
     # Slack
     slack = config.channels.slack
     slack_config = "socket" if slack.app_token and slack.bot_token else "[dim]not configured[/dim]"
-    table.add_row(
-        "Slack",
-        "✓" if slack.enabled else "✗",
-        slack_config
-    )
+    table.add_row("Slack", "✓" if slack.enabled else "✗", slack_config)
 
     console.print(table)
 
@@ -2704,7 +2808,9 @@ def channels_login():
     env = {**os.environ}
     if not config.channels.whatsapp.bridge_token:
         console.print("[red]Bridge token is required for WhatsApp bridge auth.[/red]")
-        console.print("[dim]Run: nanofolks configure → Channels → WhatsApp → generate/set bridge token[/dim]")
+        console.print(
+            "[dim]Run: nanofolks configure → Channels → WhatsApp → generate/set bridge token[/dim]"
+        )
         raise typer.Exit(1)
     env["BRIDGE_TOKEN"] = config.channels.whatsapp.bridge_token
 
@@ -2748,12 +2854,17 @@ def routines_list(
     table.add_column("Next Run")
 
     import time
+
     for job in jobs:
         # Format schedule
         if job.schedule.kind == "every":
             sched = f"every {(job.schedule.every_ms or 0) // 1000}s"
         elif job.schedule.kind == "cron":
-            sched = f"{job.schedule.expr or ''} ({job.schedule.tz})" if job.schedule.tz else (job.schedule.expr or "")
+            sched = (
+                f"{job.schedule.expr or ''} ({job.schedule.tz})"
+                if job.schedule.tz
+                else (job.schedule.expr or "")
+            )
         else:
             sched = "one-time"
 
@@ -2762,12 +2873,15 @@ def routines_list(
         if job.state.next_run_at_ms:
             from datetime import datetime as _dt
             from zoneinfo import ZoneInfo
+
             try:
                 ts = job.state.next_run_at_ms / 1000
                 tz = ZoneInfo(job.schedule.tz) if job.schedule.tz else None
                 next_run = _dt.fromtimestamp(ts, tz).strftime("%Y-%m-%d %H:%M")
             except Exception:
-                next_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000))
+                next_run = time.strftime(
+                    "%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000)
+                )
 
         status = "[green]enabled[/green]" if job.enabled else "[dim]disabled[/dim]"
 
@@ -2781,12 +2895,20 @@ def routines_add(
     name: str = typer.Option(..., "--name", "-n", help="Job name"),
     message: str = typer.Option(..., "--message", "-m", help="Message for agent"),
     every: int = typer.Option(None, "--every", "-e", help="Run every N seconds"),
-    schedule_expr: str = typer.Option(None, "--schedule", "-s", help="Schedule expression (e.g. '0 9 * * *')"),
+    schedule_expr: str = typer.Option(
+        None, "--schedule", "-s", help="Schedule expression (e.g. '0 9 * * *')"
+    ),
     at: str = typer.Option(None, "--at", help="Run once at time (ISO format)"),
-    tz: str = typer.Option(None, "--tz", help="Timezone for schedule expressions (e.g. 'America/New_York', 'Asia/Tokyo'). Uses local timezone if not specified."),
+    tz: str = typer.Option(
+        None,
+        "--tz",
+        help="Timezone for schedule expressions (e.g. 'America/New_York', 'Asia/Tokyo'). Uses local timezone if not specified.",
+    ),
     deliver: bool = typer.Option(False, "--deliver", "-d", help="Deliver response to channel"),
     to: str = typer.Option(None, "--to", help="Recipient for delivery"),
-    channel: str = typer.Option(None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"),
+    channel: str = typer.Option(
+        None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"
+    ),
 ):
     """Add a scheduled job."""
     from nanofolks.routines.service import RoutineService
@@ -2799,6 +2921,7 @@ def routines_add(
         schedule = CronSchedule(kind="cron", expr=schedule_expr, tz=tz)
     elif at:
         import datetime
+
         dt = datetime.datetime.fromisoformat(at)
         schedule = CronSchedule(kind="at", at_ms=int(dt.timestamp() * 1000))
     else:
@@ -2922,7 +3045,17 @@ def routines_run(
     if asyncio.run(run()):
         console.print("[green]✓[/green] Job executed")
         if result_holder:
-            _print_agent_response(result_holder[0], render_markdown=True)
+            result = result_holder[0]
+            if isinstance(result, str):
+                _print_agent_response(result, render_markdown=True, team_emoji=_get_team_emoji())
+            else:
+                # Assume it's a MessageEnvelope or similar object
+                _print_agent_response(
+                    result.content if hasattr(result, "content") else str(result),
+                    render_markdown=True,
+                    bot_name=getattr(result, "bot_name", None),
+                    team_emoji=_get_team_emoji(),
+                )
     else:
         console.print(f"[red]Failed to run job {job_id}[/red]")
 
@@ -2965,9 +3098,7 @@ def routing_status():
 
         for tier_name, tier_config in info["tiers"].items():
             table.add_row(
-                tier_name.upper(),
-                tier_config["model"],
-                f"${tier_config['cost_per_mtok']:.2f}"
+                tier_name.upper(), tier_config["model"], f"${tier_config['cost_per_mtok']:.2f}"
             )
 
         console.print(table)
@@ -2976,7 +3107,9 @@ def routing_status():
         # Configuration
         console.print("[bold]Configuration:[/bold]")
         console.print(f"  Client confidence threshold: {info['client_confidence_threshold']}")
-        console.print(f"  LLM classifier: {info['llm_classifier']['model']} (timeout: {info['llm_classifier']['timeout_ms']}ms)")
+        console.print(
+            f"  LLM classifier: {info['llm_classifier']['model']} (timeout: {info['llm_classifier']['timeout_ms']}ms)"
+        )
         console.print(f"  Sticky context window: {info['sticky']['context_window']} messages")
         console.print(f"  Downgrade confidence: {info['sticky']['downgrade_confidence']}")
         console.print()
@@ -2986,9 +3119,11 @@ def routing_status():
             console.print("[bold]Calibration:[/bold]")
             console.print(f"  Enabled: {info['calibration']['enabled']}")
             console.print(f"  Interval: {info['calibration']['interval']}")
-            if info['calibration']['last_run']:
+            if info["calibration"]["last_run"]:
                 console.print(f"  Last run: {info['calibration']['last_run']}")
-            console.print(f"  Total classifications: {info['calibration']['total_classifications']}")
+            console.print(
+                f"  Total classifications: {info['calibration']['total_classifications']}"
+            )
 
     except Exception as e:
         console.print(f"[red]Error loading routing info: {e}[/red]")
@@ -2996,7 +3131,9 @@ def routing_status():
 
 @routing_app.command("calibrate")
 def routing_calibrate(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be done without making changes"
+    ),
 ):
     """Manually trigger routing calibration."""
     from nanofolks.agent.router.calibration import CalibrationManager
@@ -3035,7 +3172,9 @@ def routing_calibrate(
         else:
             if not calibration.should_calibrate():
                 console.print("[yellow]Not enough data for calibration yet[/yellow]")
-                console.print(f"Need {config.routing.auto_calibration.min_classifications} classifications")
+                console.print(
+                    f"Need {config.routing.auto_calibration.min_classifications} classifications"
+                )
                 console.print(f"Current: {len(calibration._classifications)}")
                 raise typer.Exit(1)
 
@@ -3055,7 +3194,9 @@ def routing_calibrate(
 @routing_app.command("patterns")
 def routing_patterns(
     limit: int = typer.Option(20, "--limit", "-n", help="Maximum patterns to show"),
-    tier: str = typer.Option(None, "--tier", "-t", help="Filter by tier (simple/medium/complex/reasoning)"),
+    tier: str = typer.Option(
+        None, "--tier", "-t", help="Filter by tier (simple/medium/complex/reasoning)"
+    ),
 ):
     """Show learned routing patterns."""
     import json
@@ -3205,18 +3346,25 @@ def routing_analytics():
         tier_config = tiers_dict.get(tier_name)
         if tier_config:
             pct = count / total
-            blended_cost += pct * tier_config.get('cost_per_mtok', 0)
+            blended_cost += pct * tier_config.get("cost_per_mtok", 0)
 
     most_expensive = max(
-        (tier.get('cost_per_mtok', 0) for tier in tiers_dict.values()),
-        default=75.0
+        (tier.get("cost_per_mtok", 0) for tier in tiers_dict.values()), default=75.0
     )
 
-    savings_pct = ((most_expensive - blended_cost) / most_expensive * 100) if most_expensive > 0 else 0
+    savings_pct = (
+        ((most_expensive - blended_cost) / most_expensive * 100) if most_expensive > 0 else 0
+    )
 
     cost_table.add_row("Total Classifications", str(total))
-    cost_table.add_row("Client-side Classifications", f"{layer_counts['client']} ({layer_counts['client']/total*100:.1f}%)")
-    cost_table.add_row("LLM-assisted Classifications", f"{layer_counts['llm']} ({layer_counts['llm']/total*100:.1f}%)")
+    cost_table.add_row(
+        "Client-side Classifications",
+        f"{layer_counts['client']} ({layer_counts['client'] / total * 100:.1f}%)",
+    )
+    cost_table.add_row(
+        "LLM-assisted Classifications",
+        f"{layer_counts['llm']} ({layer_counts['llm'] / total * 100:.1f}%)",
+    )
     cost_table.add_row("Blended Cost", f"${blended_cost:.2f}/M tokens")
     cost_table.add_row("Most Expensive Model", f"${most_expensive:.2f}/M tokens")
     cost_table.add_row("Estimated Savings", f"{savings_pct:.1f}%")
@@ -3233,11 +3381,7 @@ def routing_analytics():
     for tier_name in ["simple", "medium", "complex", "reasoning"]:
         count = tier_counts.get(tier_name, 0)
         pct = count / total * 100 if total > 0 else 0
-        tier_table.add_row(
-            tier_name.upper(),
-            str(count),
-            f"{pct:.1f}%"
-        )
+        tier_table.add_row(tier_name.upper(), str(count), f"{pct:.1f}%")
 
     console.print(tier_table)
 
@@ -3262,8 +3406,12 @@ def status():
 
     console.print(f"{__logo__} nanofolks Status\n")
 
-    console.print(f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}")
-    console.print(f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}")
+    console.print(
+        f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}"
+    )
+    console.print(
+        f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}"
+    )
 
     if config_path.exists():
         from nanofolks.providers.registry import PROVIDERS
@@ -3283,7 +3431,9 @@ def status():
                     console.print(f"{spec.label}: [dim]not set[/dim]")
             else:
                 has_key = bool(p.api_key)
-                console.print(f"{spec.label}: {'[green]✓[/green]' if has_key else '[dim]not set[/dim]'}")
+                console.print(
+                    f"{spec.label}: {'[green]✓[/green]' if has_key else '[dim]not set[/dim]'}"
+                )
 
         # Smart routing status
         console.print()
@@ -3360,11 +3510,16 @@ if session_app is not None:
 
 skills_app = typer.Typer(name="skills", help="Skills management and security")
 
+
 @skills_app.command("scan")
 def scan_skill_command(
     skill_path: str = typer.Argument(..., help="Path to skill directory or file"),
-    strict: bool = typer.Option(False, "--strict", help="Enable strict mode (block on medium severity)"),
-    ignore_security: bool = typer.Option(False, "--ignore-security", help="Ignore security issues (not recommended)"),
+    strict: bool = typer.Option(
+        False, "--strict", help="Enable strict mode (block on medium severity)"
+    ),
+    ignore_security: bool = typer.Option(
+        False, "--ignore-security", help="Ignore security issues (not recommended)"
+    ),
 ):
     """
     Scan a skill for security vulnerabilities.
@@ -3396,7 +3551,9 @@ def scan_skill_command(
 
     # Exit with error if failed and not ignoring
     if not report.passed and not ignore_security:
-        console.print("\n[red]❌ Security scan failed. Use --ignore-security to force (not recommended).[/red]")
+        console.print(
+            "\n[red]❌ Security scan failed. Use --ignore-security to force (not recommended).[/red]"
+        )
         raise typer.Exit(1)
     elif ignore_security and not report.passed:
         console.print("\n[yellow]⚠️  Security issues ignored by user request.[/yellow]")
@@ -3418,11 +3575,27 @@ def skills_security_status():
     table.add_column("Status", style="yellow")
 
     table.add_row("Security Enabled", str(security.enabled), "✅" if security.enabled else "❌")
-    table.add_row("Strict Mode", str(security.strict_mode), "🟡 Active" if security.strict_mode else "🟢 Normal")
-    table.add_row("Scan on Install", str(security.scan_on_install), "✅" if security.scan_on_install else "❌")
-    table.add_row("Block Critical", str(security.block_on_critical), "🚫" if security.block_on_critical else "⚠️")
-    table.add_row("Block High", str(security.block_on_high), "🚫" if security.block_on_high else "⚠️")
-    table.add_row("Network Installs", str(security.allow_network_installs), "⚠️ Allowed" if security.allow_network_installs else "🚫 Blocked")
+    table.add_row(
+        "Strict Mode",
+        str(security.strict_mode),
+        "🟡 Active" if security.strict_mode else "🟢 Normal",
+    )
+    table.add_row(
+        "Scan on Install", str(security.scan_on_install), "✅" if security.scan_on_install else "❌"
+    )
+    table.add_row(
+        "Block Critical",
+        str(security.block_on_critical),
+        "🚫" if security.block_on_critical else "⚠️",
+    )
+    table.add_row(
+        "Block High", str(security.block_on_high), "🚫" if security.block_on_high else "⚠️"
+    )
+    table.add_row(
+        "Network Installs",
+        str(security.allow_network_installs),
+        "⚠️ Allowed" if security.allow_network_installs else "🚫 Blocked",
+    )
 
     console.print(table)
 
@@ -3593,11 +3766,7 @@ def team_list():
     table.add_column("Emoji", justify="center")
 
     for team in teams:
-        table.add_row(
-            team["display_name"],
-            team["description"],
-            team["emoji"]
-        )
+        table.add_row(team["display_name"], team["description"], team["emoji"])
 
     console.print(table)
     console.print("\n[dim]Use 'nanofolks team set <team_name>' to change your team's team[/dim]")
@@ -3605,7 +3774,10 @@ def team_list():
 
 @team_app.command("set")
 def team_set(
-    team_name: str = typer.Argument(..., help="Team name (pirate_team, rock_band, swat_team, feral_clowder, executive_suite, space_team)"),
+    team_name: str = typer.Argument(
+        ...,
+        help="Team name (pirate_team, rock_band, swat_team, feral_clowder, executive_suite, space_team)",
+    ),
 ):
     """Set the team team."""
     import json
@@ -3666,7 +3838,7 @@ def team_set(
                 profile.bot_name or role,
                 profile.bot_title or role,
                 personality[:40] + "..." if len(personality) > 40 else personality,
-                profile.emoji or "•"
+                profile.emoji or "•",
             )
 
     console.print(table)
@@ -3729,7 +3901,7 @@ def team_show():
                 f"{profile.emoji or '•'} {role}",
                 profile.bot_name or role,
                 profile.bot_title or role,
-                f"[dim]'{greeting}'[/dim]"
+                f"[dim]'{greeting}'[/dim]",
             )
 
     console.print(table)
@@ -3757,6 +3929,7 @@ def bot_list():
         custom_names = json.loads(bot_names_file.read_text())
 
     from nanofolks.models import get_bot_registry
+
     registry = get_bot_registry()
     bot_names = registry.get_bot_names()
 
@@ -3775,12 +3948,7 @@ def bot_list():
         domain = role_card.domain.value if role_card else "unknown"
         emoji = "🤖"
 
-        table.add_row(
-            f"{emoji} {bot_id}",
-            display,
-            domain,
-            status
-        )
+        table.add_row(f"{emoji} {bot_id}", display, domain, status)
 
     console.print(table)
     console.print("\n[dim]Use 'nanofolks bot rename <bot> <name>' to customize names[/dim]")
@@ -3788,7 +3956,9 @@ def bot_list():
 
 @bot_app.command("rename")
 def bot_rename(
-    bot_name: str = typer.Argument(..., help="Bot to rename (leader, researcher, coder, social, creative, auditor)"),
+    bot_name: str = typer.Argument(
+        ..., help="Bot to rename (leader, researcher, coder, social, creative, auditor)"
+    ),
     new_name: str = typer.Argument(..., help="New display name"),
 ):
     """Rename a team member."""
@@ -3886,12 +4056,7 @@ def room_list():
     for room in rooms:
         is_default = "★" if room["is_default"] else ""
         bots = ", ".join(room["participants"])
-        table.add_row(
-            room["id"],
-            room["type"],
-            bots,
-            is_default
-        )
+        table.add_row(room["id"], room["type"], bots, is_default)
 
     console.print(table)
     console.print("\n[dim]Use 'nanofolks room create <name>' to create new room[/dim]")
@@ -3900,7 +4065,9 @@ def room_list():
 @room_app.command("create")
 def room_create(
     name: str = typer.Argument(..., help="Room name"),
-    bots: Optional[str] = typer.Option(None, "--bots", "-b", help="Comma-separated bot names (default: leader only)"),
+    bots: Optional[str] = typer.Option(
+        None, "--bots", "-b", help="Comma-separated bot names (default: leader only)"
+    ),
 ):
     """Create a new room."""
     from nanofolks.bots.room_manager import get_room_manager
@@ -3916,9 +4083,7 @@ def room_create(
 
     try:
         room = manager.create_room(
-            name=name,
-            room_type=RoomType.PROJECT,
-            participants=participant_list
+            name=name, room_type=RoomType.PROJECT, participants=participant_list
         )
         console.print(f"\n✅ [green]Created room:[/green] {room.id}")
         console.print(f"   Participants: {', '.join(room.participants)}")
@@ -3931,7 +4096,9 @@ def room_create(
 @room_app.command("invite")
 def room_invite(
     room_id: str = typer.Argument(..., help="Room ID"),
-    bot_name: str = typer.Argument(..., help="Bot to invite (leader, researcher, coder, social, creative, auditor)"),
+    bot_name: str = typer.Argument(
+        ..., help="Bot to invite (leader, researcher, coder, social, creative, auditor)"
+    ),
 ):
     """Invite a bot to a room."""
     from nanofolks.bots.room_manager import get_room_manager
@@ -3968,7 +4135,9 @@ def room_remove(
     if success:
         console.print(f"\n✅ [green]Removed {bot_name} from {room_id}[/green]")
     else:
-        console.print(f"[yellow]⚠ Could not remove {bot_name} (not in room, or room not found)[/yellow]")
+        console.print(
+            f"[yellow]⚠ Could not remove {bot_name} (not in room, or room not found)[/yellow]"
+        )
 
 
 @room_app.command("show")
@@ -4013,7 +4182,9 @@ def task_list(
 
     tasks = room.list_tasks(status=status, owner=owner)
     if not tasks:
-        msg = f"No tasks in room '{room_id}'." if not status else f"No tasks with status '{status}'."
+        msg = (
+            f"No tasks in room '{room_id}'." if not status else f"No tasks with status '{status}'."
+        )
         if owner:
             msg = f"No tasks owned by '{owner}' in room '{room_id}'."
         console.print(f"[yellow]{msg}[/yellow]")
@@ -4045,7 +4216,9 @@ def task_add(
     title: str = typer.Argument(..., help="Task title"),
     room_id: str = typer.Option("general", "--room", "-r", help="Room ID"),
     owner: str = typer.Option("user", "--owner", "-o", help="Owner (bot name or user)"),
-    status: str = typer.Option("todo", "--status", "-s", help="Status (todo, in_progress, done, blocked)"),
+    status: str = typer.Option(
+        "todo", "--status", "-s", help="Status (todo, in_progress, done, blocked)"
+    ),
     priority: str = typer.Option("medium", "--priority", "-p", help="Priority (low, medium, high)"),
     due: Optional[str] = typer.Option(None, "--due", help="Due date (YYYY-MM-DD)"),
 ):
@@ -4210,10 +4383,11 @@ def task_history(
     console.print(table)
 
 
-
 @room_app.command("map")
 def room_map(
-    channel: str = typer.Argument(..., help="Channel type (telegram, discord, slack, whatsapp, email)"),
+    channel: str = typer.Argument(
+        ..., help="Channel type (telegram, discord, slack, whatsapp, email)"
+    ),
     chat_id: str = typer.Argument(..., help="Chat / channel identifier from the platform"),
     room_id: str = typer.Argument(..., help="Room ID to map this channel to"),
 ):
@@ -4241,7 +4415,9 @@ def room_map(
     success = manager.join_channel_to_room(channel, chat_id, room_id)
 
     if success:
-        console.print(f"\n✅ [green]Mapped[/green] {channel}:{chat_id} → room:[cyan]{room_id}[/cyan]")
+        console.print(
+            f"\n✅ [green]Mapped[/green] {channel}:{chat_id} → room:[cyan]{room_id}[/cyan]"
+        )
         console.print("[dim]Messages from this channel will now route to that room.[/dim]")
     else:
         console.print(f"[yellow]⚠ Mapping already exists or room not found[/yellow]")
@@ -4249,7 +4425,9 @@ def room_map(
 
 @room_app.command("unmap")
 def room_unmap(
-    channel: str = typer.Argument(..., help="Channel type (telegram, discord, slack, whatsapp, email)"),
+    channel: str = typer.Argument(
+        ..., help="Channel type (telegram, discord, slack, whatsapp, email)"
+    ),
     chat_id: str = typer.Argument(..., help="Chat / channel identifier from the platform"),
 ):
     """Remove a channel→room mapping.
@@ -4287,9 +4465,15 @@ def room_channels(
         mappings = [m for m in mappings if m["room_id"] == room_id]
 
     if not mappings:
-        msg = f"No channel mappings found for room '{room_id}'." if room_id else "No channel mappings found."
+        msg = (
+            f"No channel mappings found for room '{room_id}'."
+            if room_id
+            else "No channel mappings found."
+        )
         console.print(f"[yellow]{msg}[/yellow]")
-        console.print("[dim]Use 'nanofolks room map <channel> <chat_id> <room_id>' to add one.[/dim]")
+        console.print(
+            "[dim]Use 'nanofolks room map <channel> <chat_id> <room_id>' to add one.[/dim]"
+        )
         return
 
     table = Table(title="Channel → Room Mappings")
@@ -4331,22 +4515,26 @@ def project_status(
         console.print(f"[yellow]No active project in room '{room_id}'[/yellow]")
         return
 
-    console.print(Panel(
-        f"[bold cyan]Project Status[/bold cyan]\n\n"
-        f"Room: [cyan]{room_id}[/cyan]\n"
-        f"Phase: [bold]{state.phase.value.upper()}[/bold]\n"
-        f"Iteration: {state.iteration}",
-        title="Project"
-    ))
+    console.print(
+        Panel(
+            f"[bold cyan]Project Status[/bold cyan]\n\n"
+            f"Room: [cyan]{room_id}[/cyan]\n"
+            f"Phase: [bold]{state.phase.value.upper()}[/bold]\n"
+            f"Iteration: {state.iteration}",
+            title="Project",
+        )
+    )
 
     if state.user_goal:
         console.print(f"\n[bold]Goal:[/bold] {state.user_goal}")
 
     if state.phase == ProjectPhase.DISCOVERY:
         console.print("\n[bold]Discovery Progress:[/bold]")
-        questions = [e for e in state.discovery_log if e.get('is_question', True)]
+        questions = [e for e in state.discovery_log if e.get("is_question", True)]
         console.print(f"  Questions asked: {len(questions)}")
-        console.print(f"  Bot responses: {len([e for e in state.discovery_log if not e.get('is_question', True)])}")
+        console.print(
+            f"  Bot responses: {len([e for e in state.discovery_log if not e.get('is_question', True)])}"
+        )
 
     elif state.phase == ProjectPhase.APPROVAL:
         if state.synthesis:
@@ -4403,9 +4591,9 @@ def project_log(
     console.print(f"[bold]Discovery Log ({room_id}):[/bold]\n")
 
     for entry in log:
-        prefix = "❓" if entry.get('is_question', True) else "💬"
-        bot = entry.get('bot', 'unknown')
-        content = entry.get('content', '')[:100]
+        prefix = "❓" if entry.get("is_question", True) else "💬"
+        bot = entry.get("bot", "unknown")
+        content = entry.get("content", "")[:100]
         console.print(f"  {prefix} @{bot}: {content}...")
 
 
@@ -4430,20 +4618,21 @@ def project_brief(
         console.print("[yellow]No synthesis available yet (still in discovery).[/yellow]")
         return
 
-    console.print(Panel(
-        f"[bold cyan]Project Brief[/bold cyan]\n\n"
-        f"{state.synthesis.get('goal', 'N/A')}",
-        title=room_id
-    ))
+    console.print(
+        Panel(
+            f"[bold cyan]Project Brief[/bold cyan]\n\n{state.synthesis.get('goal', 'N/A')}",
+            title=room_id,
+        )
+    )
 
-    if state.synthesis.get('scope', {}).get('included'):
+    if state.synthesis.get("scope", {}).get("included"):
         console.print("\n[bold]In Scope:[/bold]")
-        for item in state.synthesis['scope']['included']:
+        for item in state.synthesis["scope"]["included"]:
             console.print(f"  • {item}")
 
-    if state.synthesis.get('constraints'):
+    if state.synthesis.get("constraints"):
         console.print("\n[bold]Constraints:[/bold]")
-        for k, v in state.synthesis['constraints'].items():
+        for k, v in state.synthesis["constraints"].items():
             console.print(f"  • {k}: {v}")
 
 
@@ -4483,7 +4672,9 @@ def peek(
         return
 
     # Display formatted conversation
-    console.print(f"\n[bold cyan]🔍 Bot-to-Bot Conversation:[/bold cyan] [yellow]{room.name}[/yellow]")
+    console.print(
+        f"\n[bold cyan]🔍 Bot-to-Bot Conversation:[/bold cyan] [yellow]{room.name}[/yellow]"
+    )
     console.print("=" * 70)
 
     # Bot emoji mapping
@@ -4493,7 +4684,7 @@ def peek(
         "coder": "🤖",
         "social": "📱",
         "creative": "🎨",
-        "auditor": "🔍"
+        "auditor": "🔍",
     }
 
     for msg in messages:
@@ -4569,17 +4760,13 @@ def list_dm_rooms():
             # Format timestamp
             try:
                 from datetime import datetime
+
                 dt = datetime.fromisoformat(last_activity)
                 last_activity = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
                 pass
 
-        table.add_row(
-            room["room_id"],
-            bots_display,
-            str(room["message_count"]),
-            last_activity
-        )
+        table.add_row(room["room_id"], bots_display, str(room["message_count"]), last_activity)
 
     console.print(table)
     console.print("\n[dim]Use 'nanofolks peek <room-id>' to view a conversation[/dim]")
@@ -4593,6 +4780,7 @@ app.add_typer(project_app, name="project")
 # Import and wire security commands
 try:
     from nanofolks.cli.security_commands import app as security_app
+
     app.add_typer(security_app, name="security")
 except ImportError as e:
     logger.warning(f"Could not import security commands: {e}")

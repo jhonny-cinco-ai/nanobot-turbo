@@ -15,8 +15,10 @@ if TYPE_CHECKING:
     from nanofolks.config.schema import ExecToolConfig, MemoryConfig, RoutingConfig
     from nanofolks.session.manager import SessionManager
     from nanofolks.agent.chat_onboarding import ChatOnboarding
-    from nanofolks.providers.base import LLMResponse
 
+from nanofolks.providers.base import LLMResponse
+
+from nanofolks.agent.bootstrap import bootstrap_workspace
 from nanofolks.agent.context import ContextBuilder
 from nanofolks.agent.stages import RoutingContext, RoutingStage
 from nanofolks.agent.tools.routines import RoutinesTool
@@ -92,6 +94,7 @@ class AgentLoop:
             SidekickConfig,
             WebToolsConfig,
         )
+
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -100,7 +103,9 @@ class AgentLoop:
 
         # Initialize reasoning configuration for this bot
         self.reasoning_config = get_reasoning_config(self.bot_name)
-        logger.debug(f"Loaded reasoning config for {self.bot_name}: {self.reasoning_config.cot_level.value}")
+        logger.debug(
+            f"Loaded reasoning config for {self.bot_name}: {self.reasoning_config.cot_level.value}"
+        )
 
         # Initialize current tier for CoT decisions (set by _select_model)
         self._current_tier = "medium"
@@ -125,7 +130,7 @@ class AgentLoop:
         self.evolutionary = evolutionary
         self.allowed_paths = allowed_paths or []
         self.protected_paths = protected_paths or []
-        
+
         # MCP servers - global and per-bot
         self._mcp_servers = mcp_servers or {}
         self._bot_mcp_servers = bot_mcp_servers or {}
@@ -137,18 +142,23 @@ class AgentLoop:
 
         # Initialize secret sanitizer for security
         self.sanitizer = SecretSanitizer()
-        
+
         # Initialize content store for external content isolation
         from nanofolks.agent.content_store import get_content_store
+
         self.content_store = get_content_store()
-        
+
         # Initialize confirmation detector for external content actions
         from nanofolks.agent.confirmation import ConfirmationDetector
+
         self.confirmation_detector = ConfirmationDetector()
-        
+
         # Stream callback for real-time progress
         self._stream_callback: callable | None = None
-    
+
+        # Bootstrap workspace before building context
+        bootstrap_workspace(self.workspace)
+
         self.context = ContextBuilder(workspace)
 
         # Initialize session manager (dual-mode with room-centric support)
@@ -158,15 +168,17 @@ class AgentLoop:
             # Load config for session manager settings
             try:
                 from nanofolks.config.loader import load_config
+
                 config = load_config()
             except Exception:
                 config = None
             self.sessions = create_session_manager(workspace, config)
 
         self.tools = ToolRegistry()
-        
+
         # Register on-demand MCP connection tool
         from nanofolks.agent.tools.mcp import MCPConnectTool
+
         self.tools.register(MCPConnectTool(self))
 
         # Initialize smart router if enabled
@@ -250,7 +262,9 @@ class AgentLoop:
             # Load any pending packages from previous sessions
             pending_count = self.learning_exchange.load_pending_packages()
             if pending_count > 0:
-                logger.info(f"Loaded {pending_count} pending learning packages from previous sessions")
+                logger.info(
+                    f"Loaded {pending_count} pending learning packages from previous sessions"
+                )
 
             # Initialize learning manager (Phase 6) with Learning Exchange
             from nanofolks.memory.learning import create_learning_manager
@@ -281,8 +295,7 @@ class AgentLoop:
                 return False
 
             self.learning_exchange.register_distribution_callback(
-                self.bot_name,
-                receive_distributed_learning
+                self.bot_name, receive_distributed_learning
             )
 
             # Initialize preferences aggregator
@@ -329,8 +342,7 @@ class AgentLoop:
                     return ""
 
             self.session_compactor = SessionCompactor(
-                memory_config.session_compaction,
-                summarizer=summarize_messages
+                memory_config.session_compaction, summarizer=summarize_messages
             )
 
             logger.info(
@@ -343,6 +355,7 @@ class AgentLoop:
 
         # Initialize bot invoker for delegating to specialist bots
         from nanofolks.agent.bot_invoker import BotInvoker
+
         self.bot_invoker = BotInvoker(
             provider=provider,
             workspace=workspace,
@@ -373,33 +386,35 @@ class AgentLoop:
 
     def _strip_think(self, text: str | None) -> str | None:
         """Strip thinking blocks from model content.
-        
+
         Removes blocks like:
         - [:]Yes, I think...[/]
         - [:]Let me analyze...[/]
-        
+
         Args:
             text: The model response content
-            
+
         Returns:
             Content with thinking blocks removed, or None
         """
         if not text:
             return None
         import re
+
         return re.sub(r"\[:\s*Yes,.*?\]", "", text, flags=re.DOTALL).strip() or None
 
     def _tool_hint(self, tool_calls: list) -> str:
         """Format tool calls as concise hint.
-        
+
         Example: 'web_search("query")' or 'read_file("src/main.py")'
-        
+
         Args:
             tool_calls: List of tool call objects
-            
+
         Returns:
             Formatted tool hint string
         """
+
         def _fmt(tc):
             if getattr(tc, "name", None) == "sidekick":
                 args = tc.arguments if isinstance(getattr(tc, "arguments", None), dict) else None
@@ -419,7 +434,7 @@ class AgentLoop:
             if len(val) > 40:
                 return f'{tc.name}("{val[:40]}…")'
             return f'{tc.name}("{val}")'
-        
+
         return ", ".join(_fmt(tc) for tc in tool_calls)
 
     def _process_document_media(self, msg: MessageEnvelope, session: Session) -> None:
@@ -474,16 +489,13 @@ class AgentLoop:
         if onboarding_data:
             # Restore from session
             self._chat_onboarding = ChatOnboarding.from_dict(
-                onboarding_data,
-                self.workspace,
-                self._team_manager
+                onboarding_data, self.workspace, self._team_manager
             )
         elif self._chat_onboarding is None:
             # Create new instance
             self._team_manager = TeamManager()
             self._chat_onboarding = ChatOnboarding(
-                workspace_path=self.workspace,
-                team_manager=self._team_manager
+                workspace_path=self.workspace, team_manager=self._team_manager
             )
 
         return self._chat_onboarding
@@ -499,6 +511,7 @@ class AgentLoop:
         onboarding_data = session.metadata.get("_chat_onboarding")
         if onboarding_data:
             from nanofolks.agent.chat_onboarding import OnboardingState
+
             state = onboarding_data.get("state")
             if state in [OnboardingState.COMPLETED.value, OnboardingState.TEAM_INTRO.value]:
                 return False
@@ -528,8 +541,7 @@ class AgentLoop:
         if not hasattr(self, "_chat_onboarding") or self._chat_onboarding is None:
             self._team_manager = TeamManager()
             self._chat_onboarding = ChatOnboarding(
-                workspace_path=self.workspace,
-                team_manager=self._team_manager
+                workspace_path=self.workspace, team_manager=self._team_manager
             )
 
         onboarding = self._chat_onboarding
@@ -544,7 +556,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content="🐚 I'm getting to know you first! Answer a few questions "
-                       "and I'll introduce you to the team. 😊",
+                "and I'll introduce you to the team. 😊",
                 room_id=msg.room_id or self._current_room_id,
             )
 
@@ -553,12 +565,23 @@ class AgentLoop:
             bot_name = user_message.lower().replace("tell me about ", "").strip()
             # Map common names to bot roles
             bot_map = {
-                "leader": "leader", "captain": "leader", "blackbeard": "leader",
-                "researcher": "researcher", "navigator": "researcher",
-                "coder": "coder", "builder": "coder", "quartermaster": "coder",
-                "creative": "creative", "artist": "creative", "carpenter": "creative",
-                "social": "social", "teamman": "social", "boatswain": "social",
-                "auditor": "auditor", "logkeeper": "auditor", "scop": "auditor",
+                "leader": "leader",
+                "captain": "leader",
+                "blackbeard": "leader",
+                "researcher": "researcher",
+                "navigator": "researcher",
+                "coder": "coder",
+                "builder": "coder",
+                "quartermaster": "coder",
+                "creative": "creative",
+                "artist": "creative",
+                "carpenter": "creative",
+                "social": "social",
+                "teamman": "social",
+                "boatswain": "social",
+                "auditor": "auditor",
+                "logkeeper": "auditor",
+                "scop": "auditor",
             }
             actual_bot = bot_map.get(bot_name, bot_name)
             if actual_bot in ["leader", "researcher", "coder", "creative", "social", "auditor"]:
@@ -629,12 +652,22 @@ class AgentLoop:
             if user_message.lower().startswith("tell me about "):
                 bot_name = user_message.lower().replace("tell me about ", "").strip()
                 bot_map = {
-                    "leader": "leader", "captain": "leader",
-                    "researcher": "researcher", "navigator": "researcher",
-                    "coder": "coder", "builder": "coder", "quartermaster": "coder",
-                    "creative": "creative", "artist": "creative", "carpenter": "creative",
-                    "social": "social", "teamman": "social", "boatswain": "social",
-                    "auditor": "auditor", "logkeeper": "auditor", "scop": "auditor",
+                    "leader": "leader",
+                    "captain": "leader",
+                    "researcher": "researcher",
+                    "navigator": "researcher",
+                    "coder": "coder",
+                    "builder": "coder",
+                    "quartermaster": "coder",
+                    "creative": "creative",
+                    "artist": "creative",
+                    "carpenter": "creative",
+                    "social": "social",
+                    "teamman": "social",
+                    "boatswain": "social",
+                    "auditor": "auditor",
+                    "logkeeper": "auditor",
+                    "scop": "auditor",
                 }
                 actual_bot = bot_map.get(bot_name, bot_name)
                 if actual_bot in ["leader", "researcher", "coder", "creative", "social", "auditor"]:
@@ -696,11 +729,11 @@ class AgentLoop:
                     unique_bots.append(bot)
 
             return {
-                'is_multi_bot': True,
-                'mode': result.target,
-                'bots': unique_bots,
-                'primary_bot': result.primary_bot,
-                'reason': result.reason,
+                "is_multi_bot": True,
+                "mode": result.target,
+                "bots": unique_bots,
+                "primary_bot": result.primary_bot,
+                "reason": result.reason,
             }
 
         return None
@@ -723,8 +756,8 @@ class AgentLoop:
         """
         from nanofolks.agent.multi_bot_generator import MultiBotResponseGenerator
 
-        bots = dispatch_result['bots']
-        mode = dispatch_result['mode']
+        bots = dispatch_result["bots"]
+        mode = dispatch_result["mode"]
 
         logger.info(f"Multi-bot mode triggered: {mode.value} with bots: {', '.join(bots)}")
 
@@ -734,16 +767,17 @@ class AgentLoop:
             category="multi_bot",
             message=f"Multi-bot response: {mode.value} with {len(bots)} bots",
             details={
-                'bots': bots,
-                'mode': mode.value,
-                'reason': dispatch_result['reason'],
-            }
+                "bots": bots,
+                "mode": mode.value,
+                "reason": dispatch_result["reason"],
+            },
         )
 
         # Get room team for affinity customization
         room_team = "default"
         try:
             from nanofolks.teams import TeamManager
+
             team_manager = TeamManager()
             current_team = team_manager.get_current_team()
             if current_team:
@@ -770,7 +804,7 @@ class AgentLoop:
             logger.warning(f"Could not assemble memory context for multi-bot: {e}")
 
         # Determine room context name for display
-        room_context_dict = {'name': msg.room_id or self._current_room_id or 'general'}
+        room_context_dict = {"name": msg.room_id or self._current_room_id or "general"}
 
         # Generate responses in parallel
         generator = MultiBotResponseGenerator(
@@ -802,10 +836,10 @@ class AgentLoop:
                     category="bot_response",
                     message=f"@{response.bot_name} responded",
                     details={
-                        'bot': response.bot_name,
-                        'confidence': response.confidence,
-                        'response_time_ms': response.response_time_ms,
-                    }
+                        "bot": response.bot_name,
+                        "confidence": response.confidence,
+                        "response_time_ms": response.response_time_ms,
+                    },
                 )
 
             # Persist this exchange to the session so subsequent messages have context
@@ -821,10 +855,10 @@ class AgentLoop:
                 content=combined_content,
                 room_id=msg.room_id or self._current_room_id,
                 metadata={
-                    'multi_bot': True,
-                    'responding_bots': [r.bot_name for r in responses],
-                    'mode': mode.value,
-                }
+                    "multi_bot": True,
+                    "responding_bots": [r.bot_name for r in responses],
+                    "mode": mode.value,
+                },
             )
 
         except Exception as e:
@@ -866,11 +900,7 @@ class AgentLoop:
 
             # Apply the team to all team members
             soul_manager = SoulManager(self.workspace)
-            results = soul_manager.apply_team_to_team(
-                team_name,
-                team,
-                force=False
-            )
+            results = soul_manager.apply_team_to_team(team_name, team, force=False)
 
             # Log results
             successful = sum(1 for v in results.values() if v)
@@ -899,56 +929,83 @@ class AgentLoop:
             # Evolutionary mode: use allowed_paths whitelist
             logger.info(f"Evolutionary mode enabled with allowed paths: {self.allowed_paths}")
             allowed_dirs = [Path(p).expanduser().resolve() for p in self.allowed_paths]
-            self.tools.register(ReadFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
-            self.tools.register(WriteFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
-            self.tools.register(EditFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
-            self.tools.register(ListDirTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs))
+            self.tools.register(
+                ReadFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                WriteFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                EditFileTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                ListDirTool(allowed_paths=allowed_dirs, protected_paths=protected_dirs)
+            )
 
             # Shell tool with allowed_paths
-            self.tools.register(ExecTool(
-                working_dir=str(self.workspace),
-                timeout=self.exec_config.timeout,
-                allowed_paths=self.allowed_paths,
-            ))
+            self.tools.register(
+                ExecTool(
+                    working_dir=str(self.workspace),
+                    timeout=self.exec_config.timeout,
+                    allowed_paths=self.allowed_paths,
+                )
+            )
         else:
             # Standard mode: use restrict_to_workspace behavior
             allowed_dir = self.workspace if self.restrict_to_workspace else None
-            self.tools.register(ReadFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
-            self.tools.register(WriteFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
-            self.tools.register(EditFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
-            self.tools.register(ListDirTool(allowed_dir=allowed_dir, protected_paths=protected_dirs))
+            self.tools.register(
+                ReadFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                WriteFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                EditFileTool(allowed_dir=allowed_dir, protected_paths=protected_dirs)
+            )
+            self.tools.register(
+                ListDirTool(allowed_dir=allowed_dir, protected_paths=protected_dirs)
+            )
 
             # Shell tool
-            self.tools.register(ExecTool(
-                working_dir=str(self.workspace),
-                timeout=self.exec_config.timeout,
-                restrict_to_workspace=self.restrict_to_workspace,
-            ))
+            self.tools.register(
+                ExecTool(
+                    working_dir=str(self.workspace),
+                    timeout=self.exec_config.timeout,
+                    restrict_to_workspace=self.restrict_to_workspace,
+                )
+            )
 
         # Web tools
         self.tools.register(WebSearchTool(api_key=self.brave_api_key))
-        self.tools.register(WebFetchTool(
-            scrapling_enabled=self.web_config.scrapling_enabled,
-            scrapling_min_chars=self.web_config.scrapling_min_chars,
-            scrapling_mode=self.web_config.scrapling_mode,
-            content_store=self.content_store,
-        ))
-        
+        self.tools.register(
+            WebFetchTool(
+                scrapling_enabled=self.web_config.scrapling_enabled,
+                scrapling_min_chars=self.web_config.scrapling_min_chars,
+                scrapling_mode=self.web_config.scrapling_mode,
+                content_store=self.content_store,
+            )
+        )
+
         # Markdown conversion tool (for DOCX, XLSX, images, etc.)
         from nanofolks.agent.tools.markdown_convert import MarkdownNewTool
+
         self.tools.register(MarkdownNewTool())
-        
+
         # Content access tool (for isolated external content)
         from nanofolks.agent.tools.content import ReadFetchedContentTool
+
         self.tools.register(ReadFetchedContentTool(content_store=self.content_store))
 
         # Agent-browser tool (opt-in)
         if self.browser_config.enabled:
             from nanofolks.agent.tools.browser import AgentBrowserTool
-            self.tools.register(AgentBrowserTool(
-                binary=self.browser_config.binary,
-                allowlist=self.browser_config.allowlist,
-            ))
+
+            self.tools.register(
+                AgentBrowserTool(
+                    binary=self.browser_config.binary,
+                    allowlist=self.browser_config.allowlist,
+                )
+            )
 
         # Message tool
         message_tool = MessageTool(send_callback=self.bus.publish_outbound)
@@ -956,18 +1013,22 @@ class AgentLoop:
 
         # Invoke tool (for delegating to specialist bots)
         from nanofolks.agent.tools.invoke import InvokeTool
+
         invoke_tool = InvokeTool(invoker=self.bot_invoker)
         self.tools.register(invoke_tool)
 
         # Room task tool
         from nanofolks.agent.tools.room_tasks import RoomTaskTool
+
         room_task_tool = RoomTaskTool()
         room_task_tool.set_canceller(self.cancel_room_tasks)
         self.tools.register(room_task_tool)
 
         # Cron tool (for scheduling)
         if self.cron_service:
-            self.tools.register(RoutinesTool(self.cron_service, default_timezone=self.system_timezone))
+            self.tools.register(
+                RoutinesTool(self.cron_service, default_timezone=self.system_timezone)
+            )
 
         # Config update tool
         self.tools.register(UpdateConfigTool())
@@ -975,6 +1036,7 @@ class AgentLoop:
         # Memory tools (if memory system is enabled)
         if self.memory_store and self.memory_retrieval:
             from nanofolks.agent.tools.memory import create_memory_tools
+
             memory_tools = create_memory_tools(self.memory_store, self.memory_retrieval)
             for tool in memory_tools:
                 self.tools.register(tool)
@@ -982,6 +1044,7 @@ class AgentLoop:
 
         # Security tools (always available)
         from nanofolks.agent.tools.security import create_security_tools
+
         security_tools = create_security_tools()
         for tool in security_tools:
             self.tools.register(tool)
@@ -1029,10 +1092,7 @@ class AgentLoop:
         while self._running:
             try:
                 # Wait for next message
-                msg = await asyncio.wait_for(
-                    self.bus.consume_inbound(),
-                    timeout=1.0
-                )
+                msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
 
                 # Process it
                 try:
@@ -1042,11 +1102,13 @@ class AgentLoop:
                 except Exception as e:
                     logger.error(f"Error processing message: {e}")
                     # Send error response
-                    await self.bus.publish_outbound(MessageEnvelope(
-                        channel=msg.channel,
-                        chat_id=msg.chat_id,
-                        content=f"Sorry, I encountered an error: {str(e)}"
-                    ))
+                    await self.bus.publish_outbound(
+                        MessageEnvelope(
+                            channel=msg.channel,
+                            chat_id=msg.chat_id,
+                            content=f"Sorry, I encountered an error: {str(e)}",
+                        )
+                    )
             except asyncio.TimeoutError:
                 continue
 
@@ -1066,11 +1128,13 @@ class AgentLoop:
                 await self.bus.publish_outbound(response)
         except Exception as e:
             logger.error(f"[broker] Error processing message in room {msg.room_id}: {e}")
-            await self.bus.publish_outbound(MessageEnvelope(
-                channel=msg.channel,
-                chat_id=msg.chat_id,
-                content=f"Sorry, I encountered an error: {str(e)}",
-            ))
+            await self.bus.publish_outbound(
+                MessageEnvelope(
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    content=f"Sorry, I encountered an error: {str(e)}",
+                )
+            )
 
     async def stop(self) -> None:
         """Stop the agent loop."""
@@ -1128,10 +1192,9 @@ class AgentLoop:
         """Set a stream callback for incremental output rendering."""
         self._stream_callback = callback
 
-
     async def _connect_mcp(self, bot_name: str = None, server_name: str = None) -> None:
         """Connect to configured MCP servers (lazy, incremental, discovery-aware).
-        
+
         Args:
             bot_name: Optional bot name to load bot-specific MCP servers.
                      Defaults to self.bot_name if not provided.
@@ -1144,23 +1207,23 @@ class AgentLoop:
             # Use instance bot_name if not explicitly provided
             if bot_name is None:
                 bot_name = self.bot_name
-            
+
             # Determine which servers to connect
             to_connect = {}
-            
+
             def _filter_servers(server_dict: dict):
                 filtered = {}
                 for name, cfg in server_dict.items():
                     # Skip if already connected
                     if name in self._mcp_connected_servers:
                         continue
-                        
+
                     # If specific server requested, connect only that
                     if server_name:
                         if name == server_name:
                             filtered[name] = cfg
                         continue
-                        
+
                     # Otherwise, connect if auto_connect is True
                     if getattr(cfg, "auto_connect", True):
                         filtered[name] = cfg
@@ -1168,7 +1231,7 @@ class AgentLoop:
 
             # 1. Global servers
             to_connect.update(_filter_servers(self._mcp_servers))
-                
+
             # 2. Bot-specific servers
             if bot_name and bot_name in self._bot_mcp_servers:
                 to_connect.update(_filter_servers(self._bot_mcp_servers[bot_name]))
@@ -1178,27 +1241,29 @@ class AgentLoop:
                 if not server_name:
                     self._mcp_connected_bots.add(bot_name or "__global__")
                 return
-                
+
             try:
                 from nanofolks.agent.tools.mcp import connect_mcp_servers
-                
+
                 # Initialize stack on first use
                 if self._mcp_stack is None:
                     self._mcp_stack = AsyncExitStack()
                     await self._mcp_stack.__aenter__()
-                
+
                 # Register new tools into the existing registry
                 await connect_mcp_servers(to_connect, self.tools, self._mcp_stack)
-                
+
                 # Update connected tracking
                 for name in to_connect.keys():
                     self._mcp_connected_servers.add(name)
-                
+
                 if not server_name:
                     self._mcp_connected_bots.add(bot_name or "__global__")
-                    
-                logger.info(f"MCP: connected {len(to_connect)} new server(s) for {bot_name or 'system'}")
-                
+
+                logger.info(
+                    f"MCP: connected {len(to_connect)} new server(s) for {bot_name or 'system'}"
+                )
+
             except Exception as e:
                 logger.error(f"MCP Error: failed to connect servers for {bot_name}: {e}")
 
@@ -1227,7 +1292,7 @@ class AgentLoop:
             self.work_log_manager.log(
                 level=LogLevel.INFO,
                 category="routing",
-                message="Smart routing disabled, using default model"
+                message="Smart routing disabled, using default model",
             )
             # Store tier for CoT decisions
             self._current_tier = "medium"
@@ -1244,6 +1309,7 @@ class AgentLoop:
 
             # Execute routing stage
             import time
+
             start_time = time.time()
             routing_ctx = await self.routing_stage.execute(routing_ctx)
             duration_ms = int((time.time() - start_time) * 1000)
@@ -1271,10 +1337,10 @@ class AgentLoop:
                         "tier": routing_ctx.decision.tier.value,
                         "model": routing_ctx.model,
                         "confidence": routing_ctx.decision.confidence,
-                        "layer": routing_ctx.decision.layer
+                        "layer": routing_ctx.decision.layer,
                     },
                     confidence=routing_ctx.decision.confidence,
-                    duration_ms=duration_ms
+                    duration_ms=duration_ms,
                 )
 
                 # Log if low confidence
@@ -1283,7 +1349,7 @@ class AgentLoop:
                         level=LogLevel.UNCERTAINTY,
                         category="routing",
                         message=f"Low confidence routing ({routing_ctx.decision.confidence:.0%})",
-                        confidence=routing_ctx.decision.confidence
+                        confidence=routing_ctx.decision.confidence,
                     )
 
             return routing_ctx.model
@@ -1293,7 +1359,7 @@ class AgentLoop:
             self.work_log_manager.log(
                 level=LogLevel.WARNING,
                 category="routing",
-                message=f"Smart routing failed: {str(e)}, using default model"
+                message=f"Smart routing failed: {str(e)}, using default model",
             )
             return self.model
 
@@ -1325,7 +1391,7 @@ class AgentLoop:
         self.work_log_manager.log(
             level=LogLevel.INFO,
             category="general",
-            message=f"Processing user message: {sanitized_preview}"
+            message=f"Processing user message: {sanitized_preview}",
         )
 
         # Sanitize message content for logging to prevent secret exposure
@@ -1389,11 +1455,14 @@ class AgentLoop:
 
         # Unified orchestrator pipeline (tag -> intent -> dispatch -> collect -> final)
         from nanofolks.agent.orchestrator import OrchestratorPipeline
+
         if not hasattr(self, "_orchestrator") or self._orchestrator is None:
             self._orchestrator = OrchestratorPipeline(self)
         orchestrated = await self._orchestrator.handle(msg, session)
         if orchestrated is not None:
             return orchestrated
+
+        logger.debug("Orchestrator returned None, continuing with normal flow...")
 
         # Update tool contexts
         message_tool = self.tools.get("message")
@@ -1430,8 +1499,11 @@ class AgentLoop:
         # NEW: Convert credentials to symbolic references before sending to LLM
         # This is the core security feature - credentials never reach the LLM
         from nanofolks.security.secret_manager import get_secret_manager
+
         manager = get_secret_manager()
-        conversion_result = manager.convert_to_symbolic(msg.content, session.session_key if session else None)
+        conversion_result = manager.convert_to_symbolic(
+            msg.content, session.key if session else None
+        )
 
         # Use converted content (credentials replaced with {{ref}}) for LLM
         # But keep original for logging
@@ -1439,7 +1511,9 @@ class AgentLoop:
 
         # Log warning if credentials were detected and converted
         if conversion_result.credentials:
-            logger.info(f"🔐 Converted {len(conversion_result.credentials)} credential(s) to symbolic references: {[c['key_ref'] for c in conversion_result.credentials]}")
+            logger.info(
+                f"🔐 Converted {len(conversion_result.credentials)} credential(s) to symbolic references: {[c['key_ref'] for c in conversion_result.credentials]}"
+            )
 
         # Also sanitize as backup defense-in-depth
         sanitized_content = self.sanitizer.sanitize(sanitized_content)
@@ -1466,7 +1540,9 @@ class AgentLoop:
             if self.learning_manager and session.messages:
                 try:
                     # Get last assistant message for context
-                    last_assistant_msgs = [m for m in session.messages if m.get("role") == "assistant"]
+                    last_assistant_msgs = [
+                        m for m in session.messages if m.get("role") == "assistant"
+                    ]
                     if last_assistant_msgs:
                         context = last_assistant_msgs[-1].get("content", "")
 
@@ -1496,10 +1572,11 @@ class AgentLoop:
                 self.work_log_manager.log(
                     level=LogLevel.THINKING,
                     category="memory",
-                    message="Retrieving relevant context from memory"
+                    message="Retrieving relevant context from memory",
                 )
 
                 import time
+
                 mem_start_time = time.time()
 
                 # Find relevant entities from recent conversation
@@ -1528,14 +1605,14 @@ class AgentLoop:
                         category="memory",
                         message=f"Retrieved {len(memory_context)} characters of memory context",
                         details={"entity_count": len(entity_ids)},
-                        duration_ms=mem_duration_ms
+                        duration_ms=mem_duration_ms,
                     )
                 else:
                     self.work_log_manager.log(
                         level=LogLevel.WARNING,
                         category="memory",
                         message="No relevant memory context found",
-                        duration_ms=mem_duration_ms
+                        duration_ms=mem_duration_ms,
                     )
 
                 logger.debug(f"Assembled memory context ({len(memory_context)} chars)")
@@ -1544,7 +1621,7 @@ class AgentLoop:
                 self.work_log_manager.log(
                     level=LogLevel.ERROR,
                     category="memory",
-                    message=f"Failed to retrieve memory context: {str(e)}"
+                    message=f"Failed to retrieve memory context: {str(e)}",
                 )
 
         # Phase 8: Check and trigger session compaction if needed
@@ -1555,7 +1632,11 @@ class AgentLoop:
                 from nanofolks.memory.token_counter import count_messages
 
                 # Get current context usage
-                max_tokens = self.memory_config.enhanced_context.max_context_tokens if self.memory_config else 8000
+                max_tokens = (
+                    self.memory_config.enhanced_context.max_context_tokens
+                    if self.memory_config
+                    else 8000
+                )
                 current_tokens = count_messages(session.messages)
 
                 # Check if compaction needed
@@ -1608,7 +1689,7 @@ class AgentLoop:
                         "tokens_after": result.tokens_after,
                         "mode": result.mode,
                         "strategy": strategy["strategy"],
-                        "validation_passed": validation["is_valid"]
+                        "validation_passed": validation["is_valid"],
                     }
                     compaction_notice = {
                         "original_count": result.original_count,
@@ -1656,10 +1737,10 @@ class AgentLoop:
 
             # Check if streaming is enabled and we have a callback
             use_streaming = (
-                hasattr(self, '_stream_callback') and
-                self._stream_callback and
-                self.routing_config and
-                self.routing_config.streaming_enabled
+                hasattr(self, "_stream_callback")
+                and self._stream_callback
+                and self.routing_config
+                and self.routing_config.streaming_enabled
             )
 
             # Call LLM with selected model (streaming or regular)
@@ -1693,11 +1774,17 @@ class AgentLoop:
                     )
                     if self.routing_stage:
                         await self.routing_stage.execute(routing_ctx)
-                        tier_config = getattr(self.routing_config.tiers, routing_ctx.metadata.get("routing_tier", "medium"), None)
+                        tier_config = getattr(
+                            self.routing_config.tiers,
+                            routing_ctx.metadata.get("routing_tier", "medium"),
+                            None,
+                        )
                         secondary_model = tier_config.secondary_model if tier_config else None
 
                 if secondary_model and selected_model != secondary_model:
-                    logger.warning(f"Primary model {selected_model} failed: {e}. Trying secondary model {secondary_model}")
+                    logger.warning(
+                        f"Primary model {selected_model} failed: {e}. Trying secondary model {secondary_model}"
+                    )
                     selected_model = secondary_model
                     iteration -= 1  # Retry with secondary model
                     continue
@@ -1714,7 +1801,7 @@ class AgentLoop:
                     details={
                         "thinking": response.reasoning_content[:500],
                         "tier": tier,
-                    }
+                    },
                 )
 
             # Handle tool calls
@@ -1726,7 +1813,7 @@ class AgentLoop:
                     if clean:
                         await self._stream_callback(clean)
                     await self._stream_callback(f"↳ {hint}")
-                
+
                 # Add assistant message with tool calls
                 tool_call_dicts = [
                     {
@@ -1734,13 +1821,15 @@ class AgentLoop:
                         "type": "function",
                         "function": {
                             "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)  # Must be JSON string
-                        }
+                            "arguments": json.dumps(tc.arguments),  # Must be JSON string
+                        },
                     }
                     for tc in response.tool_calls
                 ]
                 messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts,
+                    messages,
+                    response.content,
+                    tool_call_dicts,
                     reasoning_content=response.reasoning_content,
                 )
 
@@ -1750,12 +1839,16 @@ class AgentLoop:
                     # Sanitize tool arguments to prevent secrets in logs
                     sanitized_args = self.sanitizer.sanitize(args_str[:200])
                     logger.info(f"Tool call: {tool_call.name}({sanitized_args})")
-                    
+
                     # Show tool start progress
                     if self._stream_callback:
                         label = tool_call.name
                         if tool_call.name == "sidekick":
-                            args = tool_call.arguments if isinstance(tool_call.arguments, dict) else None
+                            args = (
+                                tool_call.arguments
+                                if isinstance(tool_call.arguments, dict)
+                                else None
+                            )
                             tasks = args.get("tasks") if args else None
                             count = len(tasks) if isinstance(tasks, list) else 0
                             label = f"🤝 sidekicks x{count}" if count else "🤝 sidekicks"
@@ -1765,16 +1858,21 @@ class AgentLoop:
 
                     # Log tool execution start
                     import time
+
                     tool_start_time = time.time()
 
                     try:
                         result = await self.tools.execute(tool_call.name, tool_call.arguments)
                         tool_duration_ms = int((time.time() - tool_start_time) * 1000)
-                        
+
                         # Show tool completion progress
                         if self._stream_callback:
                             if tool_call.name == "sidekick":
-                                args = tool_call.arguments if isinstance(tool_call.arguments, dict) else None
+                                args = (
+                                    tool_call.arguments
+                                    if isinstance(tool_call.arguments, dict)
+                                    else None
+                                )
                                 tasks = args.get("tasks") if args else None
                                 count = len(tasks) if isinstance(tasks, list) else 0
                                 label = f"sidekicks x{count}" if count else "sidekicks"
@@ -1788,7 +1886,7 @@ class AgentLoop:
                             tool_input=tool_call.arguments,
                             tool_output=result,
                             tool_status="success",
-                            duration_ms=tool_duration_ms
+                            duration_ms=tool_duration_ms,
                         )
                     except Exception as tool_error:
                         tool_duration_ms = int((time.time() - tool_start_time) * 1000)
@@ -1799,7 +1897,7 @@ class AgentLoop:
                             category="tool_execution",
                             message=f"Tool {tool_call.name} failed: {str(tool_error)}",
                             details={"tool": tool_call.name, "error": str(tool_error)},
-                            duration_ms=tool_duration_ms
+                            duration_ms=tool_duration_ms,
                         )
                         raise
 
@@ -1810,10 +1908,7 @@ class AgentLoop:
                     # Check if we should add CoT reflection (bot-level reasoning config)
                     if self._should_use_cot(tool_call.name):
                         reflection_prompt = self.reasoning_config.get_reflection_prompt()
-                        messages.append({
-                            "role": "user",
-                            "content": reflection_prompt
-                        })
+                        messages.append({"role": "user", "content": reflection_prompt})
                         logger.debug(f"Added CoT reflection after {tool_call.name}")
             else:
                 # No tool calls, we're done
@@ -1836,8 +1931,8 @@ class AgentLoop:
             details={
                 "response_preview": sanitized_response_preview,
                 "response_length": len(final_content),
-                "iterations": iteration
-            }
+                "iterations": iteration,
+            },
         )
 
         # Log response preview (sanitize to prevent echoing secrets)
@@ -1857,6 +1952,7 @@ class AgentLoop:
         # If confirmation needed, add confirmation prompt to response
         if confirmation_needed:
             from nanofolks.agent.confirmation import create_confirmation_prompt
+
             confirmation_prompt = create_confirmation_prompt(confirmation_needed)
             final_content = f"{final_content}\n\n---\n\n{confirmation_prompt}"
             logger.info(f"Confirmation requested for action: {confirmation_needed.action_type}")
@@ -1891,6 +1987,7 @@ class AgentLoop:
         if self.memory_config and self.memory_config.enhanced_context.show_context_percentage:
             try:
                 from nanofolks.memory.token_counter import count_messages
+
                 max_tokens = self.memory_config.enhanced_context.max_context_tokens
                 current_tokens = count_messages(session.messages)
                 percentage = current_tokens / max_tokens if max_tokens > 0 else 0
@@ -1902,9 +1999,7 @@ class AgentLoop:
 
                 # Log warning if approaching limit
                 if percentage > self.memory_config.enhanced_context.warning_threshold:
-                    logger.warning(
-                        f"Context at {percentage:.0%} - consider using /compact command"
-                    )
+                    logger.warning(f"Context at {percentage:.0%} - consider using /compact command")
             except Exception as e:
                 logger.debug(f"Failed to calculate context usage: {e}")
         if compaction_notice:
@@ -2021,15 +2116,14 @@ class AgentLoop:
                     {
                         "id": tc.id,
                         "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)
-                        }
+                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
                     }
                     for tc in response.tool_calls
                 ]
                 messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts,
+                    messages,
+                    response.content,
+                    tool_call_dicts,
                     reasoning_content=response.reasoning_content,
                 )
 
@@ -2103,16 +2197,12 @@ class AgentLoop:
             content,
             workspace_id=room_id,
             workspace_type=RoomType(room_type) if room_type else RoomType.OPEN,
-            participants=participants or ["leader"]
+            participants=participants or ["leader"],
         )
 
         try:
             msg = MessageEnvelope(
-                channel=channel,
-                sender_id="user",
-                chat_id=chat_id,
-                content=content,
-                room_id=room_id
+                channel=channel, sender_id="user", chat_id=chat_id, content=content, room_id=room_id
             )
             msg.apply_defaults("user")
 
@@ -2134,7 +2224,7 @@ class AgentLoop:
             self.work_log_manager.log(
                 level=LogLevel.ERROR,
                 category="general",
-                message=f"Error processing message: {str(e)}"
+                message=f"Error processing message: {str(e)}",
             )
             self.work_log_manager.end_session(f"Error: {str(e)}")
             raise
@@ -2143,9 +2233,10 @@ class AgentLoop:
         """Check if required configuration is present."""
         # Check if at least one provider has an API key
         from nanofolks.config.loader import load_config
+
         config = load_config()
 
-        providers = ['openrouter', 'anthropic', 'openai', 'groq', 'deepseek', 'moonshot']
+        providers = ["openrouter", "anthropic", "openai", "groq", "deepseek", "moonshot"]
         for provider_name in providers:
             provider = getattr(config.providers, provider_name, None)
             if provider and provider.api_key:
@@ -2178,14 +2269,16 @@ class AgentLoop:
                     if message.get("role") == "user":
                         content = message.get("content", "")
                         if self.learning_manager.feedback_detector.detect_feedback(content):
-                            learnings = self.learning_manager.feedback_detector.extract_learning(content)
+                            learnings = self.learning_manager.feedback_detector.extract_learning(
+                                content
+                            )
                             for learning_data in learnings:
                                 await self.learning_manager.create_learning(
                                     content=learning_data["content"],
                                     category=learning_data.get("category", "general"),
                                     confidence=learning_data.get("confidence", 0.7),
                                     source_event_id=message.get("event_id", ""),
-                                    tool_name=learning_data.get("tool_name")
+                                    tool_name=learning_data.get("tool_name"),
                                 )
 
             # Refresh preferences summary if needed
@@ -2198,7 +2291,7 @@ class AgentLoop:
             # Acquire the background processor's lock so we don't race with
             # _extract_pending_events() / _refresh_summaries() writing to the
             # same SQLite rows at the same time.
-            if self.background_processor and hasattr(self.background_processor, 'processing_lock'):
+            if self.background_processor and hasattr(self.background_processor, "processing_lock"):
                 async with self.background_processor.processing_lock:
                     await _do_flush()
             else:
@@ -2224,7 +2317,7 @@ class AgentLoop:
         tier = self._get_tier_for_logging()
 
         # Check if reasoning config is available
-        if not hasattr(self, 'reasoning_config') or not self.reasoning_config:
+        if not hasattr(self, "reasoning_config") or not self.reasoning_config:
             return False
 
         # Use reasoning config to decide
@@ -2239,7 +2332,7 @@ class AgentLoop:
         Returns:
             The current tier string (always returns a valid tier)
         """
-        tier = getattr(self, '_current_tier', None)
+        tier = getattr(self, "_current_tier", None)
 
         if tier is None:
             logger.warning(
@@ -2277,9 +2370,7 @@ class AgentLoop:
 
         # Log streaming start
         self.work_log_manager.log(
-            level=LogLevel.INFO,
-            category="streaming",
-            message="Started streaming LLM response"
+            level=LogLevel.INFO, category="streaming", message="Started streaming LLM response"
         )
 
         async for chunk in self.provider.stream_chat(
@@ -2313,8 +2404,10 @@ class AgentLoop:
                     message="Streamed LLM response complete",
                     details={
                         "total_chunks": len(accumulated_content),
-                        "reasoning_tokens": len("".join(accumulated_reasoning)) if accumulated_reasoning else 0
-                    }
+                        "reasoning_tokens": len("".join(accumulated_reasoning))
+                        if accumulated_reasoning
+                        else 0,
+                    },
                 )
 
         # Build final response
@@ -2360,5 +2453,5 @@ Once configured, we can start chatting! 🤖"""
             chat_id=msg.chat_id,
             content=content,
             room_id=msg.room_id or self._current_room_id,
-            metadata=msg.metadata or {}
+            metadata=msg.metadata or {},
         )

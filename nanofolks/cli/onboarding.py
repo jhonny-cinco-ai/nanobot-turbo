@@ -11,10 +11,11 @@ Uses typer and rich for interactive prompts and rich terminal output.
 """
 
 import asyncio
+import re
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from rich import box
 from rich.console import Console
@@ -32,6 +33,7 @@ from nanofolks.security.keyring_manager import (
 from nanofolks.soul import SoulManager
 from nanofolks.teams import TeamManager
 from nanofolks.templates import get_team, list_teams
+from nanofolks.agent.bootstrap import bootstrap_workspace
 
 console = Console()
 
@@ -64,6 +66,30 @@ class OnboardingWizard:
         self.soul_manager: Optional[SoulManager] = None
         self.config_result: Dict = {}
         self._non_interactive = non_interactive
+
+    def _get_workspace_path(self) -> Optional[Path]:
+        """Attempt to determine the workspace path from config or defaults."""
+        try:
+            # Try to load from config
+            from nanofolks.config.loader import load_config
+
+            cfg = load_config()
+            ws = Path(cfg.agents.defaults.workspace).expanduser()
+            if ws.exists():
+                return ws
+        except Exception:
+            pass
+
+        # Try default locations
+        default_candidates = [
+            Path.home() / ".nanofolks" / "workspace",
+            Path("~/.nanofolks/workspace").expanduser(),
+        ]
+        for cand in default_candidates:
+            if cand.exists():
+                return cand
+
+        return None
 
     def _is_non_interactive(self) -> bool:
         env_flag = os.getenv("NANOFOLKS_ONBOARD_NONINTERACTIVE")
@@ -103,19 +129,27 @@ class OnboardingWizard:
                 - workspace_path: workspace path used
                 - general_room: created Room object for #general
         """
+        existing_setup = self._detect_existing_setup()
+        if existing_setup.get("configured"):
+            if not self._confirm_rerun(existing_setup):
+                return {
+                    "skipped": True,
+                    "reason": "already_configured",
+                }
+
         self._show_welcome()
 
         steps = [
             self._check_keyring_status,
             self._configure_provider,
             self._select_team,
-            self._confirm_and_create
+            self._confirm_and_create,
         ]
-        
+
         step_idx = 0
         while step_idx < len(steps):
             result = steps[step_idx]()
-            
+
             if result == "back":
                 # Go back one step, but don't go below 0
                 step_idx = max(0, step_idx - 1)
@@ -128,11 +162,21 @@ class OnboardingWizard:
         # Create the #general room
         general_room = self.create_general_room()
 
+        # Ensure we have a workspace_path - try to infer if not provided
+        if not workspace_path:
+            workspace_path = self._get_workspace_path()
+
         # Apply team selection to workspace if path provided
         if workspace_path:
             self._apply_team_to_workspace(workspace_path)
             # Save the general room to disk
             self._save_room(general_room, workspace_path)
+            # Post-onboard verification: print per-bot file status
+            self._print_post_onboard_summary(workspace_path)
+        else:
+            console.print(
+                "[yellow]⚠ Could not determine workspace path - skipping team file creation[/yellow]"
+            )
 
         return {
             "provider": self.config_result.get("provider"),
@@ -141,6 +185,55 @@ class OnboardingWizard:
             "workspace_path": str(workspace_path) if workspace_path else None,
             "general_room": general_room,
         }
+
+    def _detect_existing_setup(self) -> dict:
+        """Detect whether onboarding was already completed."""
+        try:
+            from nanofolks.agent.tools.update_config import UpdateConfigTool
+            from nanofolks.config.loader import get_config_path, load_config
+
+            config_path = get_config_path()
+            config = load_config()
+            summary = UpdateConfigTool().get_config_summary()
+
+            workspace = config.agents.defaults.workspace
+            workspace_path = Path(workspace).expanduser()
+
+            configured = bool(summary.get("has_required_config")) and config_path.exists()
+            return {
+                "configured": configured,
+                "config_path": str(config_path),
+                "workspace_path": str(workspace_path),
+                "workspace_exists": workspace_path.exists(),
+                "providers": [
+                    name
+                    for name, info in summary.get("providers", {}).items()
+                    if info.get("has_key")
+                ],
+            }
+        except Exception:
+            return {"configured": False}
+
+    def _confirm_rerun(self, existing_setup: dict) -> bool:
+        """Ask for confirmation if onboarding appears already complete."""
+        providers = existing_setup.get("providers") or []
+        providers_display = ", ".join(providers) if providers else "configured"
+        workspace_path = existing_setup.get("workspace_path", "~/.nanofolks/workspace")
+        workspace_exists = existing_setup.get("workspace_exists", False)
+
+        console.print(
+            Panel.fit(
+                "[bold yellow]⚠ Existing setup detected[/bold yellow]\n\n"
+                f"Providers: [bold]{providers_display}[/bold]\n"
+                f"Workspace: [bold]{workspace_path}[/bold]"
+                + (" (exists)" if workspace_exists else " (missing)")
+                + "\n\n"
+                "Re-running onboarding can overwrite team files and #general room.",
+                border_style="yellow",
+            )
+        )
+        console.print()
+        return self._confirm("Continue onboarding anyway?", default=False)
 
     def _show_welcome(self) -> None:
         """Display welcome panel."""
@@ -187,6 +280,7 @@ class OnboardingWizard:
 
             # Rotate messages every 0.8 seconds
             import time
+
             start_time = time.time()
             msg_index = 0
             min_duration = 2.5  # Minimum time to show spinner
@@ -239,8 +333,10 @@ class OnboardingWizard:
                 if password:
                     console.print("[green]✓ Password captured[/green]")
                 if password:
-                    console.print("\n[bright_magenta]Initializing GNOME keyring...[/bright_magenta]")
-                    
+                    console.print(
+                        "\n[bright_magenta]Initializing GNOME keyring...[/bright_magenta]"
+                    )
+
                     with Progress(
                         SpinnerColumn(),
                         TextColumn("[progress.description]{task.description}"),
@@ -250,7 +346,7 @@ class OnboardingWizard:
                         task = progress.add_task("Initializing keyring...", total=None)
                         success = init_gnome_keyring(password)
                         progress.update(task, completed=True)
-                    
+
                     if success:
                         console.print("[green]✓ GNOME keyring initialized successfully![/green]\n")
                     else:
@@ -290,7 +386,9 @@ class OnboardingWizard:
             self.config_result["api_key"] = None
         else:
             # Save API key
-            console.print(f"\n[bright_magenta]Saving API key for {provider_name}...[/bright_magenta]")
+            console.print(
+                f"\n[bright_magenta]Saving API key for {provider_name}...[/bright_magenta]"
+            )
             self.config_result["provider"] = provider_name
             self.config_result["api_key"] = api_key
 
@@ -316,7 +414,7 @@ class OnboardingWizard:
 
         if model_choice == "b":
             return self._configure_provider()
-        
+
         if model_choice == "c":
             primary_model = self._prompt("Enter custom model name")
         else:
@@ -473,11 +571,12 @@ Then restart nanofolks for secure access.
                 store = get_secret_store()
                 store.set(provider, api_key)
 
-                # Save empty marker to config (key loaded from keyring)
+                # Save keyring marker to config (key loaded from keyring)
                 from nanofolks.agent.tools.update_config import UpdateConfigTool
+                from nanofolks.config.loader import KEYRING_MARKER
 
                 tool = UpdateConfigTool()
-                await tool.execute(path=f"providers.{provider}.apiKey", value="")
+                await tool.execute(path=f"providers.{provider}.apiKey", value=KEYRING_MARKER)
 
                 console.print(
                     "[dim]API key saved to OS Keychain/Keyring (not in config file)[/dim]"
@@ -559,10 +658,6 @@ Then restart nanofolks for secure access.
 
         # First show just the team options
         console.print("Choose your team's personality:\n")
-        team_table = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
-        team_table.add_column(justify="left", ratio=1)
-        team_table.add_column(justify="left", ratio=1)
-        team_table.add_column(justify="left", ratio=1)
 
         def _clean_description(text: str) -> str:
             if not text:
@@ -577,10 +672,21 @@ Then restart nanofolks for secure access.
         cells = []
         for i, team in enumerate(teams, 1):
             desc = _clean_description(team.get("description", ""))
-            cells.append(f"[{i}] {team['display_name']}\n{desc}")
+            cells.append(f"[{i}] [magenta]{team['display_name']}[/magenta]\n{desc}")
+
+        team_table = Table(
+            box=box.ROUNDED,
+            show_header=False,
+            show_lines=True,
+            border_style="white",
+            pad_edge=True,
+        )
+        team_table.add_column(justify="left", ratio=1)
+        team_table.add_column(justify="left", ratio=1)
+        team_table.add_column(justify="left", ratio=1)
 
         for row_start in range(0, len(cells), 3):
-            row = cells[row_start:row_start + 3]
+            row = cells[row_start : row_start + 3]
             while len(row) < 3:
                 row.append("")
             team_table.add_row(*row)
@@ -639,14 +745,33 @@ Then restart nanofolks for secure access.
         # Add each bot
         bot_roles = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
+        def _to_third_person(text: str) -> str:
+            if not text:
+                return text
+            replacements = [
+                (r"\bI am\b", "They are"),
+                (r"\bI'm\b", "They are"),
+                (r"\bI've\b", "They have"),
+                (r"\bI'd\b", "They would"),
+                (r"\bI\b", "They"),
+                (r"\bme\b", "them"),
+                (r"\bmy\b", "their"),
+                (r"\bmine\b", "theirs"),
+            ]
+            out = text
+            for pattern, repl in replacements:
+                out = re.sub(pattern, repl, out)
+            return out
+
         for bot_name in bot_roles:
             bot_profile = get_bot_team_profile(bot_name, team_name)
             if bot_profile:
+                personality = _to_third_person(bot_profile.personality)
                 team_table.add_row(
                     bot_profile.bot_name,
                     f"{bot_profile.emoji} {bot_profile.bot_title}",
                     f"@{bot_name}",
-                    bot_profile.personality,
+                    personality,
                 )
 
         console.print(team_table)
@@ -682,10 +807,16 @@ Then restart nanofolks for secure access.
             console.print("\n[green]✓ Setup complete![/green]\n")
             console.print("Your AI team is ready!")
             console.print("\n[bold]Get started:[/bold]")
-            console.print("  [bright_magenta]nanofolks chat[/bright_magenta]        - Start chatting")
+            console.print(
+                "  [bright_magenta]nanofolks chat[/bright_magenta]        - Start chatting"
+            )
             console.print("  [bright_magenta]#general[/bright_magenta]            - Team chat room")
-            console.print("  [bright_magenta]@researcher[/bright_magenta]        - DM a bot directly")
-            console.print("  [bright_magenta]nanofolks configure[/bright_magenta]  - Add more providers/models\n")
+            console.print(
+                "  [bright_magenta]@researcher[/bright_magenta]        - DM a bot directly"
+            )
+            console.print(
+                "  [bright_magenta]nanofolks configure[/bright_magenta]  - Add more providers/models\n"
+            )
         else:
             console.print("[yellow]Setup cancelled[/yellow]\n")
 
@@ -747,6 +878,59 @@ Then restart nanofolks for secure access.
         except Exception as e:
             console.print(f"[yellow]⚠ Could not save room: {e}[/yellow]")
 
+    def _print_post_onboard_summary(
+        self, workspace_path: Path, bots: Optional[list] = None
+    ) -> None:
+        """Print per-bot post-onboard verification summary.
+
+        Prints a table showing for each bot which of the core personality/config files exist:
+        - SOUL.md
+        - IDENTITY.md
+        - ROLE.md
+        - AGENTS.md
+        """
+        try:
+            from rich.table import Table
+            from rich import box
+
+            bots_to_check = bots or [
+                "leader",
+                "researcher",
+                "coder",
+                "social",
+                "creative",
+                "auditor",
+            ]
+            table = Table(title="Post-Onboard Verification", box=box.ROUNDED, show_header=True)
+            table.add_column("Bot", style="green")
+            table.add_column("SOUL.md", justify="center")
+            table.add_column("IDENTITY.md", justify="center")
+            table.add_column("ROLE.md", justify="center")
+            table.add_column("AGENTS.md", justify="center")
+
+            for bot in bots_to_check:
+                soul_file = workspace_path / "bots" / bot / "SOUL.md"
+                identity_file = workspace_path / "bots" / bot / "IDENTITY.md"
+                role_file = workspace_path / "bots" / bot / "ROLE.md"
+                agents_file = workspace_path / "bots" / bot / "AGENTS.md"
+                row = [
+                    bot,
+                    "[green]Created[/green]" if soul_file.exists() else "[yellow]Missing[/yellow]",
+                    "[green]Created[/green]"
+                    if identity_file.exists()
+                    else "[yellow]Missing[/yellow]",
+                    "[green]Created[/green]" if role_file.exists() else "[yellow]Missing[/yellow]",
+                    "[green]Created[/green]"
+                    if agents_file.exists()
+                    else "[yellow]Missing[/yellow]",
+                ]
+                table.add_row(*row)
+            console.print(table)
+            console.print()
+        except Exception as e:
+            console.print(f"[yellow]⚠ Post-onboard verification failed: {e}[/yellow]")
+            console.print()
+
     def _apply_team_to_workspace(self, workspace_path: Path) -> None:
         """Apply selected team to all team members in workspace.
 
@@ -756,19 +940,22 @@ Then restart nanofolks for secure access.
             workspace_path: Path to workspace
         """
         try:
+            # Ensure required shared files (TOOLS.md, USER.md) exist
+            bootstrap_workspace(workspace_path)
+
             # Initialize SoulManager for workspace
             soul_manager = SoulManager(workspace_path)
 
             if self.selected_team:
-                console.print("\n[bright_magenta]Initializing team personalities...[/bright_magenta]")
+                console.print(
+                    "\n[bright_magenta]Initializing team personalities...[/bright_magenta]"
+                )
 
                 # Apply team to entire team
                 team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
                 # Apply SOUL.md, IDENTITY.md, and ROLE.md team styles
-                soul_results = soul_manager.apply_team_to_team(
-                    self.selected_team, team, force=True
-                )
+                soul_results = soul_manager.apply_team_to_team(self.selected_team, team, force=True)
 
                 # Show results
                 soul_successful = sum(1 for v in soul_results.values() if v)
