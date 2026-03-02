@@ -286,6 +286,9 @@ class RoleCard:
         lines = [
             f"## Role Card: @{self.bot_name}",
             "",
+            "**CRITICAL: How You Must Speak**",
+            '- You must NEVER use stage directions in your responses. Never write things like "*adjusts hat*" or "*leans forward*" or "*smiles*". Write as if you\'re speaking naturally in conversation.',
+            "",
             f"**Domain:** {self.domain.value}",
             f"{self.domain_description}",
             "",
