@@ -873,7 +873,8 @@ Then restart nanofolks for secure access.
             with open(room_file, "w") as f:
                 json.dump(room_data, f, indent=2, default=str)
 
-            console.print(f"[green]✓ Saved room to {room_file}[/green]")
+            # Silenced to keep onboarding output clean
+            # console.print(f"[green]✓ Saved room to {room_file}[/green]")
 
         except Exception as e:
             console.print(f"[yellow]⚠ Could not save room: {e}[/yellow]")
@@ -888,11 +889,29 @@ Then restart nanofolks for secure access.
         - IDENTITY.md
         - ROLE.md
         - AGENTS.md
+
+        Also checks shared workspace files:
+        - USER.md
+        - TOOLS.md
         """
         try:
             from rich.table import Table
             from rich import box
 
+            # 1. Shared Workspace Files Check
+            shared_table = Table(title="Shared Workspace Files", box=box.ROUNDED, show_header=True)
+            shared_table.add_column("File", style="cyan")
+            shared_table.add_column("Status", justify="center")
+
+            shared_files = ["USER.md", "TOOLS.md"]
+            for filename in shared_files:
+                file_path = workspace_path / filename
+                status = "[green]Created[/green]" if file_path.exists() else "[yellow]Missing[/yellow]"
+                shared_table.add_row(filename, status)
+
+            console.print(shared_table)
+
+            # 2. Per-Bot Files Check
             bots_to_check = bots or [
                 "leader",
                 "researcher",
@@ -901,7 +920,7 @@ Then restart nanofolks for secure access.
                 "creative",
                 "auditor",
             ]
-            table = Table(title="Post-Onboard Verification", box=box.ROUNDED, show_header=True)
+            table = Table(title="Bot Personality Verification", box=box.ROUNDED, show_header=True)
             table.add_column("Bot", style="green")
             table.add_column("SOUL.md", justify="center")
             table.add_column("IDENTITY.md", justify="center")
@@ -947,29 +966,16 @@ Then restart nanofolks for secure access.
             soul_manager = SoulManager(workspace_path)
 
             if self.selected_team:
-                console.print(
-                    "\n[bright_magenta]Initializing team personalities...[/bright_magenta]"
-                )
-
                 # Apply team to entire team
                 team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
                 # Apply SOUL.md, IDENTITY.md, and ROLE.md team styles
-                soul_results = soul_manager.apply_team_to_team(self.selected_team, team, force=True)
-
-                # Show results
-                soul_successful = sum(1 for v in soul_results.values() if v)
-
-                if soul_successful > 0:
-                    console.print(
-                        f"[green]✓ Initialized {soul_successful}/{len(team)} bot personality files[/green]"
-                    )
-                    console.print("[dim]  (SOUL.md, IDENTITY.md, ROLE.md, AGENTS.md)[/dim]")
+                soul_manager.apply_team_to_team(self.selected_team, team, force=True)
 
                 # Show team personalities
                 from nanofolks.teams import get_bot_team_profile
 
-                console.print("\n[bold]Team personalities configured:[/bold]")
+                console.print("\n[bold]Team members configured:[/bold]")
                 for bot_name in team:
                     profile = get_bot_team_profile(
                         bot_name, self.selected_team, workspace_path=workspace_path
@@ -995,29 +1001,11 @@ Then restart nanofolks for secure access.
             soul_manager = SoulManager(workspace_path)
             team = ["leader", "researcher", "coder", "social", "creative", "auditor"]
 
-            console.print("\n[bright_magenta]Creating bot configuration files...[/bright_magenta]")
-
             # Create AGENTS.md for each bot
-            agents_results = soul_manager.apply_agents_to_team(team)
-            agents_count = sum(1 for v in agents_results.values() if v)
-
-            if agents_count > 0:
-                console.print(f"  [green]✓[/green] Created AGENTS.md for {agents_count} bots")
+            soul_manager.apply_agents_to_team(team)
 
             # Create IDENTITY.md for each bot from selected team
-            identity_results = soul_manager.apply_identity_to_team(
-                team, team_name=self.selected_team, force=True
-            )
-            identity_count = sum(1 for v in identity_results.values() if v)
-
-            if identity_count > 0:
-                console.print(f"  [green]✓[/green] Created IDENTITY.md for {identity_count} bots")
-
-            console.print("\n[green]✓ Bot configuration files ready![/green]")
-            console.print("[dim]  - AGENTS.md: Role-specific instructions for each bot[/dim]")
-            console.print(
-                "[dim]  - IDENTITY.md: Character definition and relationships (from team style)[/dim]"
-            )
+            soul_manager.apply_identity_to_team(team, team_name=self.selected_team, force=True)
 
         except Exception as e:
             console.print(f"[yellow]⚠ Could not create bot files: {e}[/yellow]")

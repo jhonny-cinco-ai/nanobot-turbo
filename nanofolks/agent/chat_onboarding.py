@@ -234,7 +234,7 @@ class ChatOnboarding:
                 responses.append("Got it, we'll keep the original name!")
 
         # Add next question
-        responses.append(f"\n{next_q['question']}")
+        responses.append(next_q["question"])
 
         return " ".join(responses)
 
@@ -452,3 +452,81 @@ They can: {capabilities}
         onboarding.answers = UserProfileAnswers(**filtered)
 
         return onboarding
+
+    def extract_info_from_message(self, message: str) -> None:
+        """Extract user information from their message using simple heuristics."""
+        message_lower = message.lower()
+
+        # Extract name - look for patterns like "I'm Rick", "My name is Rick", "Call me Rick"
+        if not self.answers.name:
+            import re
+
+            name_patterns = [
+                r"i['\']?m\s+(\w+)",
+                r"my name is\s+(\w+)",
+                r"call me\s+(\w+)",
+                r"name['\']?s?\s+(\w+)",
+            ]
+            for pattern in name_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    self.answers.name = match.group(1).capitalize()
+                    break
+
+        # Extract location - look for "from [place]" or "in [place]"
+        if not self.answers.location:
+            import re
+
+            location_patterns = [
+                r"from\s+([\w\s,]+?)(?:\.|,|$)",
+                r"in\s+([\w\s,]+?)(?:\.|,|$)",
+                r"located in\s+([\w\s,]+?)(?:\.|,|$)",
+            ]
+            for pattern in location_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    self.answers.location = match.group(1).strip().title()
+                    break
+
+        # Extract what they're working on
+        if not self.answers.work:
+            work_keywords = [
+                "working on",
+                "building",
+                "creating",
+                "project",
+                "startup",
+                "app",
+                "website",
+            ]
+            for keyword in work_keywords:
+                if keyword in message_lower:
+                    # Take the sentence containing the keyword
+                    sentences = message.split(".")
+                    for sentence in sentences:
+                        if keyword in sentence.lower():
+                            self.answers.work = sentence.strip()
+                            break
+                    break
+
+        # Extract help needed
+        if not self.answers.help:
+            help_keywords = ["help", "need", "want", "looking for", "trying to"]
+            for keyword in help_keywords:
+                if keyword in message_lower:
+                    sentences = message.split(".")
+                    for sentence in sentences:
+                        if keyword in sentence.lower() and len(sentence.strip()) > 10:
+                            self.answers.help = sentence.strip()
+                            break
+                    break
+
+        # Save to USER.md if we got new info
+        self._save_to_user_md()
+
+    def has_all_required_info(self) -> bool:
+        """Check if we have all the minimum required information."""
+        # Required: name, location, work, help
+        return bool(
+            self.answers.name and self.answers.location and self.answers.work and self.answers.help
+        )

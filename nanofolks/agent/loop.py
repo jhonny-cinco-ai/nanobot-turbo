@@ -545,7 +545,49 @@ class AgentLoop:
             )
 
         onboarding = self._chat_onboarding
+
+        # Load onboarding state from session metadata if available
+        onboarding_data = session.metadata.get("_chat_onboarding")
+        if onboarding_data:
+            # Restore state to existing onboarding object (don't replace it)
+            try:
+                state_value = onboarding_data.get("state")
+                if state_value:
+                    try:
+                        onboarding.state = OnboardingState(state_value)
+                    except ValueError:
+                        pass
+
+                # Restore current question index
+                current_q = onboarding_data.get("current_question")
+                if current_q is not None:
+                    onboarding.current_question = current_q
+                    logger.debug(f"Restored onboarding current_question: {current_q}")
+
+                # Restore answers
+                answers_data = onboarding_data.get("answers", {})
+                if answers_data:
+                    for key, value in answers_data.items():
+                        if hasattr(onboarding.answers, key):
+                            setattr(onboarding.answers, key, value)
+                    logger.debug(f"Restored onboarding answers: {list(answers_data.keys())}")
+
+                logger.debug(
+                    f"Onboarding state restored: state={onboarding.state.value}, question={onboarding.current_question}"
+                )
+            except Exception as e:
+                logger.debug(f"Could not restore onboarding state: {e}")
+
         user_message = msg.content.strip()
+
+        # Helper to get leader bot name
+        def _get_leader_name():
+            leader_profile = (
+                self._team_manager.get_bot_team_profile("leader", workspace_path=self.workspace)
+                if self._team_manager
+                else None
+            )
+            return leader_profile.bot_name if leader_profile else "Captain"
 
         # Check if this is a special command during onboarding
         cmd = user_message.lower()
@@ -558,6 +600,7 @@ class AgentLoop:
                 content="🐚 I'm getting to know you first! Answer a few questions "
                 "and I'll introduce you to the team. 😊",
                 room_id=msg.room_id or self._current_room_id,
+                bot_name=_get_leader_name(),
             )
 
         # Handle "tell me about X" during onboarding
@@ -591,61 +634,116 @@ class AgentLoop:
                     chat_id=msg.chat_id,
                     content=intro,
                     room_id=msg.room_id or self._current_room_id,
+                    bot_name=_get_leader_name(),
                 )
 
         # Check onboarding state
-        if onboarding.state == OnboardingState.NOT_STARTED:
-            # First message - start onboarding with greeting
-            onboarding.state = OnboardingState.IN_PROGRESS
-            first_question = onboarding.get_next_question()
+        if onboarding.state in [OnboardingState.NOT_STARTED, OnboardingState.IN_PROGRESS]:
+            # Use LLM to handle onboarding conversationally
+            logger.debug(f"Processing onboarding message: {user_message[:50]}...")
 
-            # Get leader greeting from team profile
+            # Build system context for LLM
             profile = (
                 self._team_manager.get_bot_team_profile("leader", workspace_path=self.workspace)
                 if self._team_manager
                 else None
             )
-            greeting = profile.greeting if profile else "Ahoy there!"
 
-            response = f"{greeting} 🎉\n\nI'm excited to get to know you! "
-            if first_question:
-                response += first_question["question"]
+            # Get SOUL.md content for personality
+            soul_content = ""
+            soul_file = self.workspace / "bots" / "leader" / "SOUL.md"
+            if soul_file.exists():
+                soul_content = soul_file.read_text()
 
-            # Save state
-            self._save_chat_onboarding(session)
-            session.add_message("user", user_message)
-            session.add_message("assistant", response)
-            self.sessions.save(session)
+            # Build system prompt
+            system_prompt = f"""You are {profile.bot_name if profile else "the leader"}, {profile.bot_title if profile else "Captain"}.
 
-            return MessageEnvelope(
-                channel=msg.channel,
-                chat_id=msg.chat_id,
-                content=response,
-                room_id=msg.room_id or self._current_room_id,
-            )
+{soul_content[:500] if soul_content else "Lead the team with confidence and personality."}
 
-        elif onboarding.state == OnboardingState.IN_PROGRESS:
-            # Process answer and get next question
-            response = onboarding.process_answer(user_message)
+You are in ONBOARDING mode. Your job is to get to know a new user who just joined.
 
-            # Check if we moved to team intro
-            if onboarding.state == OnboardingState.TEAM_INTRO:
-                # Save state and complete
+Information you need to collect (ask naturally in conversation):
+- Name: {onboarding.answers.name or "not collected yet"}
+- Location: {onboarding.answers.location or "not collected yet"}
+- What they are working on: {onboarding.answers.work or "not collected yet"}
+- How you can help: {onboarding.answers.help or "not collected yet"}
+
+Guidelines:
+- Speak in your natural character voice (pirate, rock star, executive, etc.)
+- Be warm and welcoming
+- Ask for information conversationally, not like a form
+- If they already told you something, acknowledge it and ask for what's missing
+- Keep responses brief and engaging
+
+Current conversation history:
+"""
+
+            # Add conversation history
+            for m in session.messages[-5:]:  # Last 5 messages for context
+                role = m.get("role", "user")
+                content = m.get("content", "")
+                system_prompt += f"\n{role}: {content}"
+
+            # Add current user message
+            system_prompt += f"\nuser: {user_message}\n\nRespond naturally as yourself:"
+
+            # Call LLM for response
+            try:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ]
+
+                llm_response = await self.provider.chat(
+                    messages=messages,
+                    model=self.model,
+                    temperature=0.7,
+                    max_tokens=512,
+                )
+
+                response_text = (
+                    llm_response.content if llm_response else "Welcome! Tell me about yourself."
+                )
+
+                # Extract information from user message
+                onboarding.extract_info_from_message(user_message)
+
+                # Check if we have all required info
+                if onboarding.has_all_required_info():
+                    onboarding.state = OnboardingState.TEAM_INTRO
+                    onboarding.complete()
+
+                # Save state
                 self._save_chat_onboarding(session)
-                onboarding.complete()
-                self._save_chat_onboarding(session)
+                session.add_message("user", user_message)
+                session.add_message("assistant", response_text)
+                self.sessions.save(session)
 
-            # Save to session
-            session.add_message("user", user_message)
-            session.add_message("assistant", response)
-            self.sessions.save(session)
+                leader_name = profile.bot_name if profile else "Captain"
 
-            return MessageEnvelope(
-                channel=msg.channel,
-                chat_id=msg.chat_id,
-                content=response,
-                room_id=msg.room_id or self._current_room_id,
-            )
+                return MessageEnvelope(
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    content=response_text,
+                    room_id=msg.room_id or self._current_room_id,
+                    bot_name=leader_name,
+                )
+
+            except Exception as e:
+                logger.warning(f"LLM onboarding failed, using fallback: {e}")
+                # Fallback to simple response
+                response = "Welcome! Tell me a bit about yourself so I can help you better."
+                session.add_message("user", user_message)
+                session.add_message("assistant", response)
+                self.sessions.save(session)
+
+                return MessageEnvelope(
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    content=response,
+                    room_id=msg.room_id or self._current_room_id,
+                    bot_name=profile.bot_name if profile else "Captain",
+                )
 
         elif onboarding.state == OnboardingState.TEAM_INTRO:
             # Handle questions about bots
@@ -677,6 +775,7 @@ class AgentLoop:
                         chat_id=msg.chat_id,
                         content=intro,
                         room_id=msg.room_id or self._current_room_id,
+                        bot_name=_get_leader_name(),
                     )
 
             # Otherwise, normal conversation after onboarding
@@ -1320,6 +1419,9 @@ class AgentLoop:
             else:
                 self._current_tier = "medium"
 
+            # Store reasoning_effort for REASONING tier
+            self._reasoning_effort = routing_ctx.metadata.get("reasoning_effort")
+
             # Log routing decision
             if routing_ctx.decision:
                 logger.info(
@@ -1413,8 +1515,15 @@ class AgentLoop:
 
         # Check if onboarding is needed for first-time users
         onboarding_response = None
+        logger.debug(
+            f"Checking onboarding needed. Session metadata: {session.metadata.get('_chat_onboarding')}"
+        )
         if self._check_onboarding_needed(session):
+            logger.debug(f"Onboarding is needed, calling _handle_chat_onboarding")
             onboarding_response = await self._handle_chat_onboarding(msg, session)
+            logger.debug(
+                f"Onboarding returned: {onboarding_response is not None}, content: {onboarding_response.content[:50] if onboarding_response and onboarding_response.content else 'EMPTY'}"
+            )
             # If onboarding returns a response, send it
             if onboarding_response is not None:
                 return onboarding_response
@@ -1753,6 +1862,7 @@ class AgentLoop:
                         model=selected_model,
                         chunk_callback=self._stream_callback,
                         session=session,
+                        reasoning_effort=getattr(self, "_reasoning_effort", None),
                     )
                 else:
                     response = await self.provider.chat(
@@ -1761,6 +1871,7 @@ class AgentLoop:
                         model=selected_model,
                         temperature=self.temperature,
                         max_tokens=self.max_tokens,
+                        reasoning_effort=getattr(self, "_reasoning_effort", None),
                     )
             except Exception as e:
                 # Try secondary model if available
@@ -2350,6 +2461,7 @@ class AgentLoop:
         model: str,
         chunk_callback: callable,
         session: Session,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         """Stream LLM response with real-time updates.
 
@@ -2359,6 +2471,7 @@ class AgentLoop:
             model: Model to use
             chunk_callback: Called with each chunk content
             session: Current session (for logging)
+            reasoning_effort: Optional thinking effort level (low/medium/high)
 
         Returns:
             Complete LLMResponse
@@ -2379,6 +2492,7 @@ class AgentLoop:
             model=model,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            reasoning_effort=reasoning_effort,
         ):
             if chunk.content:
                 accumulated_content.append(chunk.content)

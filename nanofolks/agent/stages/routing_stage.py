@@ -44,6 +44,9 @@ class RoutingContext:
             self.model = tier_config.model
             # Store secondary model for fallback
             self.metadata["secondary_model"] = tier_config.secondary_model
+            # Store reasoning_effort for REASONING tier
+            if tier_config.reasoning_effort:
+                self.metadata["reasoning_effort"] = tier_config.reasoning_effort
 
         self.metadata["routing_tier"] = decision.tier.value
         self.metadata["routing_confidence"] = decision.confidence

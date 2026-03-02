@@ -37,10 +37,15 @@ from nanofolks.cli.advanced_layout import (
 )
 from nanofolks.cli.room_ui import RoomList, StatusBar, TeamRoster
 from nanofolks.config.loader import get_data_dir, load_config
+from nanofolks.utils.logging import configure_logging
 
 # Initialize Rich console
 console = Console()
 ACCENT_COLOR = "bright_magenta"
+
+# Initialize logging with SUCCESS level to keep CLI quiet by default.
+# This must happen before other major imports that might trigger logs.
+configure_logging(level="SUCCESS")
 
 # Main CLI app
 app = typer.Typer(name="nanofolks", help="🐱 nanofolks - Your friendly AI team")
@@ -150,7 +155,7 @@ def _flush_pending_tty_input() -> None:
 
 
 # Exit commands for interactive mode
-EXIT_COMMANDS = {"exit", "quit", "/exit", "/quit", ":q"}
+EXIT_COMMANDS = {"exit", "quit", "/exit", "/quit", ":q", "q"}
 
 # Room creation detection prompt for AI-assisted room creation
 ROOM_CREATION_PROMPT = """You are an expert at understanding project requirements.
@@ -203,9 +208,9 @@ async def _read_interactive_input_async(room_id: str = "general") -> str:
         raise RuntimeError("Call _init_prompt_session() first")
     try:
         with patch_stdout():
-            room_indicator = f"[#{room_id}]" if room_id else ""
+            # Unified format matching bot responses
             return await _PROMPT_SESSION.prompt_async(
-                HTML(f"<b fg='ansigreen'>{room_indicator}</b> <b fg='ansiblue'>You:</b> "),
+                HTML(f"<b fg='ansiblue'>You:</b> "),
             )
     except EOFError as exc:
         raise KeyboardInterrupt from exc
@@ -232,43 +237,40 @@ def _print_agent_response(
         team_emoji: Emoji for the team (e.g., "🏴‍☠️")
     """
     content = response or ""
-    timestamp = datetime.now().strftime("%H:%M")
 
-    # Build bot identifier line with team emoji
+    # Don't print anything if content is empty
+    if not content.strip():
+        return
+
+    # Build bot identifier line with team emoji (unified format like user prompt)
     emoji_prefix = f"{team_emoji} " if team_emoji else ""
     if bot_name and bot_title:
-        bot_identifier = (
-            f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}] - {bot_title}"
-        )
+        bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}] - [bold {ACCENT_COLOR}]{bot_title}[/bold {ACCENT_COLOR}]"
     elif bot_name:
         bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}]"
     else:
         bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]Assistant[/bold {ACCENT_COLOR}]"
 
-    # Build room info line
-    room_info = f"Room #{room_id} · {timestamp}" if room_id else f"{timestamp}"
-
-    console.print()
-    # Main response line: Emoji Bot - Title: Content
-    if already_streamed and content:
+    # Unified format: Bot Identifier: Content (single line style)
+    if already_streamed:
         # Content was already streamed, just show header
         console.print(f"{bot_identifier}:")
-        console.print(f"[dim]{room_info}[/dim]")
     else:
-        # Show full response
-        body = Markdown(content) if render_markdown else Text(content)
-        console.print(f"{bot_identifier}:")
-        console.print(body)
-        console.print(f"[dim]{room_info}[/dim]")
+        # Show full response inline
+        # Strip leading/trailing whitespace to avoid extra blank lines
+        content = content.strip()
+        if content:
+            body = Markdown(content) if render_markdown else Text(content)
+            console.print(f"{bot_identifier}:", end=" ")
+            console.print(body)
 
-    console.print()
 
-
-def _get_team_emoji(team_manager=None) -> str | None:
+def _get_team_emoji(team_manager=None, workspace_path=None) -> str | None:
     """Get the team emoji from the current team (leader bot's emoji).
 
     Args:
         team_manager: Optional TeamManager instance
+        workspace_path: Optional workspace path for team detection
 
     Returns:
         Team emoji string or None if not found
@@ -277,7 +279,7 @@ def _get_team_emoji(team_manager=None) -> str | None:
         from nanofolks.teams import TeamManager
 
         if team_manager is None:
-            team_manager = TeamManager()
+            team_manager = TeamManager(workspace_path=workspace_path)
 
         # Get leader bot profile to get team emoji
         team_profile = team_manager.get_bot_team_profile("leader")
@@ -1491,7 +1493,14 @@ def chat(
     ),
 ):
     """Start an interactive chat session."""
+    from nanofolks.utils.logging import configure_logging
     from loguru import logger
+
+    # Reconfigure logging based on flags (chat starts quiet by default)
+    if logs:
+        configure_logging(verbose=True)
+    else:
+        configure_logging(level="SUCCESS", verbose=False)
 
     from nanofolks.agent.loop import AgentLoop
     from nanofolks.bots.room_manager import get_room_manager
@@ -1516,15 +1525,6 @@ def chat(
     bus = MessageBus()
     bus.set_room_manager(room_manager)  # Enable cross-channel broadcast
     provider = _make_provider(config)
-
-    from nanofolks.utils.logging import configure_logging
-
-    if logs:
-        configure_logging(verbose=True)
-    else:
-        # Default is already configured in main.py, but we can re-ensure here
-        # specifically if we want to be sure it's at the SUCCESS level for chat.
-        configure_logging(verbose=False)
 
     # Get user's timezone from USER.md (or default to UTC)
     from nanofolks.utils.user_profile import get_user_timezone
@@ -1628,13 +1628,15 @@ def chat(
                 with _thinking_ctx():
                     response = await _send_cli_message(message)
                 if response and response.content is not None:
+                    # Check if content was actually streamed
+                    was_streamed = streaming_content and len(streaming_content) > 0
                     _print_agent_response(
                         response.content,
                         render_markdown=markdown,
-                        already_streamed=True,
+                        already_streamed=was_streamed,
                         room_id=response.room_id or room,
                         bot_name=response.bot_name,
-                        team_emoji=_get_team_emoji(),
+                        team_emoji=_get_team_emoji(workspace_path=config.workspace_path),
                     )
                     _print_compaction_notice(response.metadata if response else None)
                     _print_context_usage(
@@ -1643,14 +1645,6 @@ def chat(
                         if config and config.memory and config.memory.enhanced_context
                         else None,
                     )
-                    _print_status_bar_line(
-                        room,
-                        current_room.participants if current_room else [],
-                        context_usage=(response.metadata or {}).get("context_usage")
-                        if response
-                        else None,
-                    )
-                    _print_team_inline(current_room.participants if current_room else [])
 
                 # NEW: Show thinking logs after response
                 thinking_display = await _show_thinking_logs(agent_loop)
@@ -1666,41 +1660,55 @@ def chat(
         # Interactive mode
         _init_prompt_session()
 
-        # Get team manager for team-styled names
+        # Get team manager for team-styled names (with workspace path for correct team detection)
         from nanofolks.bots.room_manager import get_room_manager
         from nanofolks.teams import TeamManager
 
-        team_manager = TeamManager()
+        team_manager = TeamManager(workspace_path=config.workspace_path)
         room_manager_local = get_room_manager()
 
         # Ensure current_room and room_manager are available
         assert current_room is not None, "current_room should not be None"
         assert room_manager_local is not None, "room_manager should not be None"
 
-        # Display enhanced UI with team roster and room list
-        console.print(f"{__logo__} Interactive mode\n")
+        # Display friendly welcome UI
+        console.print("\n[bold green]Welcome to Nanofolks![/bold green] 🎉\n")
 
-        # Team roster with team-styled character names
-        console.print(_render_team_roster(current_room.participants, team_manager))
+        # Get leader info (use actual bot name from team profile)
+        leader_profile = team_manager.get_bot_team_profile("leader")
+        if leader_profile and leader_profile.bot_name:
+            leader_name = leader_profile.bot_name
+            leader_emoji = leader_profile.emoji or "🏴‍☠️"
+        else:
+            leader_name = "Captain"
+            leader_emoji = "🏴‍☠️"
 
-        # Room list
-        console.print(_render_room_list(room_manager_local, room))
+        console.print(
+            f"You're in Room [bold cyan]#{current_room.id}[/bold cyan] with {leader_emoji} {leader_name}, your Captain."
+        )
+        console.print("He's ready to help and can bring in specialists when needed.\n")
 
-        # Status bar
-        console.print(_render_status_bar(room, current_room.participants, team_manager))
+        console.print("[dim]Available crew (invite anytime):[/dim]")
 
-        console.print()
-        console.print("[dim]Commands:[/dim]")
-        console.print("  [bold]/room[/bold]              Show room details")
-        console.print("  [bold]/create <name> [type][/bold]  Create a new room")
-        console.print("  [bold]/invite <bot>[/bold]       Invite bot to current room")
-        console.print("  [bold]/switch <room>[/bold]      Switch to a different room")
-        console.print("  [bold]/list-rooms[/bold]         Show all available rooms")
-        console.print("  [bold]/explain[/bold]            Show how last decision was made")
-        console.print("  [bold]/logs[/bold]               Show work log summary")
-        console.print("  [bold]/how <topic>[/bold]        Search work log for specific topic")
-        console.print("  [bold]exit[/bold]                Exit conversation")
-        console.print()
+        # Show available bots with their names
+        available_bots = [
+            ("researcher", "🧭"),
+            ("coder", "🔫"),
+            ("creative", "🎨"),
+            ("social", "👀"),
+            ("auditor", "⚖"),
+        ]
+
+        for bot_role, emoji in available_bots:
+            profile = team_manager.get_bot_team_profile(bot_role)
+            if profile:
+                name = profile.bot_name or profile.bot_title or bot_role
+                title = profile.bot_title or bot_role.capitalize()
+                role = bot_role.capitalize()
+                console.print(f"  {emoji} {name} - {title} - {role}")
+
+        console.print("\n[dim]Type /help for commands.[/dim]")
+        console.print(f"\n[bold yellow]👉 Start by saying hi to {leader_name}![/bold yellow]\n")
 
         def _exit_on_sigint(signum, frame):
             _restore_terminal()
@@ -1737,52 +1745,30 @@ def chat(
                 logger.debug(f"Layout redraw failed: {e}")
 
         async def _send_initial_greeting_if_needed(agent_loop, room_id: str) -> None:
-            """Send initial greeting if user onboarding is needed."""
+            """Initialize onboarding session if needed, but let LLM handle the greeting."""
             try:
                 # Get session to check if onboarding is needed
-                session_key = f"cli:cli"
-                from nanofolks.session.manager import SessionManager
+                from nanofolks.utils.ids import room_to_session_id
+                from nanofolks.session.dual_mode import create_session_manager
+                from nanofolks.agent.chat_onboarding import OnboardingState
 
-                session_manager = SessionManager(agent_loop.workspace)
+                session_key = room_to_session_id(room_id)
+                session_manager = create_session_manager(agent_loop.workspace, config)
                 session = session_manager.get_or_create(session_key)
 
                 # Check if onboarding is needed
                 if agent_loop._check_onboarding_needed(session):
-                    # Get the first question for initial greeting
-                    from nanofolks.agent.chat_onboarding import ChatOnboarding
-                    from nanofolks.teams import TeamManager
-
-                    team_manager = TeamManager()
-                    onboarding = ChatOnboarding(
-                        workspace_path=agent_loop.workspace, team_manager=team_manager
-                    )
-
-                    # Get first question
-                    first_q = onboarding.get_next_question()
-                    if first_q:
-                        greeting = f"Ahoy! {first_q['question']}"
-
-                        # Create welcome envelope
-                        welcome_msg = MessageEnvelope(
-                            channel="cli", chat_id="cli", content=greeting, room_id=room_id
-                        )
-
-                        # Display the greeting (leader bot with team emoji)
-                        _print_agent_response(
-                            greeting,
-                            render_markdown=True,
-                            already_streamed=False,
-                            room_id=room_id,
-                            bot_name="Blackbeard",
-                            bot_title="Captain",
-                            team_emoji="🏴‍☠️",
-                        )
-                        _print_status_bar_line(
-                            room_id, current_room.participants if current_room else []
-                        )
-                        _print_team_inline(current_room.participants if current_room else [])
+                    # Mark onboarding as ready but don't send greeting yet
+                    # The LLM will handle the greeting when user says hi
+                    session.metadata["_chat_onboarding"] = {
+                        "state": OnboardingState.IN_PROGRESS.value,
+                        "current_question": 0,
+                        "answers": {},
+                    }
+                    session_manager.save(session)
+                    logger.debug("Onboarding initialized, waiting for user to say hi")
             except Exception as e:
-                logger.debug(f"Could not send initial greeting: {e}")
+                logger.debug(f"Could not initialize onboarding: {e}")
 
         async def run_interactive():
             nonlocal current_room, room_manager_local, room  # Allow updating current_room, accessing room, and updating room
@@ -1818,6 +1804,9 @@ def chat(
                     sidebar_manager = None
 
             agent_task = asyncio.create_task(agent_loop.run())
+
+            # Wait a moment for agent loop to initialize, then send greeting
+            await asyncio.sleep(0.5)
 
             # Send initial greeting if onboarding is needed
             await _send_initial_greeting_if_needed(agent_loop, room)
@@ -1895,12 +1884,27 @@ def chat(
                         continue
 
                     if command == "/room":
-                        # Show current room info
+                        # Show current room info with team-styled names
                         console.print(f"\n[bold cyan]📁 Room: #{current_room.id}[/bold cyan]")
                         console.print(f"   Type: {current_room.type.value}")
                         console.print(f"   Participants ({len(current_room.participants)}):")
+
+                        # Get team manager for styled names
+                        from nanofolks.teams import TeamManager
+
+                        team_manager = TeamManager()
+
                         for bot in current_room.participants:
-                            console.print(f"   • {bot}")
+                            team_profile = team_manager.get_bot_team_profile(bot)
+                            if team_profile:
+                                emoji = team_profile.emoji or "•"
+                                name = team_profile.bot_name or team_profile.bot_title or bot
+                                title = team_profile.bot_title or ""
+                                role = bot.capitalize()
+                                console.print(f"   {emoji} {name} - {title} - {role}")
+                            else:
+                                console.print(f"   • {bot}")
+
                         console.print(
                             f"\n[dim]Use 'nanofolks room invite {current_room.id} <bot>' to add bots[/dim]\n"
                         )
@@ -2090,9 +2094,9 @@ def chat(
                     if command in ["/help", "/help-rooms", "/?", "/commands"]:
                         console.print("\n[bold cyan]Available Room Commands:[/bold cyan]")
                         console.print()
-                        console.print("  [bold]/create <name> [type][/bold]")
-                        console.print("    Create a new room. Types: project, direct, coordination")
-                        console.print("    Example: [dim]/create website-design project[/dim]")
+                        console.print("  [bold]/create <name>[/bold]")
+                        console.print("    Create a new room for your project")
+                        console.print("    Example: [dim]/create website-design[/dim]")
                         console.print()
                         console.print("  [bold]/invite <bot> [reason][/bold]")
                         console.print("    Invite a bot to the current room")
@@ -2121,6 +2125,9 @@ def chat(
                         console.print()
                         console.print("  [bold]/help[/bold]")
                         console.print("    Show this help message")
+                        console.print()
+                        console.print("  [bold]exit, q[/bold]")
+                        console.print("    Exit the conversation")
                         console.print()
                         continue
 
@@ -2195,13 +2202,15 @@ def chat(
                     # Clear the streaming indicator line
                     console.print("\r" + " " * 120 + "\r", end="", highlight=False)
                     if response and response.content is not None:
+                        # Check if content was actually streamed
+                        was_streamed = streaming_content and len(streaming_content) > 0
                         _print_agent_response(
                             response.content,
                             render_markdown=markdown,
-                            already_streamed=True,
+                            already_streamed=was_streamed,
                             room_id=response.room_id or room,
                             bot_name=response.bot_name,
-                            team_emoji=_get_team_emoji(),
+                            team_emoji=_get_team_emoji(workspace_path=config.workspace_path),
                         )
                         _print_compaction_notice(response.metadata if response else None)
                         _print_context_usage(
@@ -2210,14 +2219,6 @@ def chat(
                             if config and config.memory and config.memory.enhanced_context
                             else None,
                         )
-                        _print_status_bar_line(
-                            room,
-                            current_room.participants if current_room else [],
-                            context_usage=(response.metadata or {}).get("context_usage")
-                            if response
-                            else None,
-                        )
-                        _print_team_inline(current_room.participants if current_room else [])
 
                     # NEW: Show thinking logs after response
                     thinking_display = await _show_thinking_logs(agent_loop)
@@ -3047,14 +3048,18 @@ def routines_run(
         if result_holder:
             result = result_holder[0]
             if isinstance(result, str):
-                _print_agent_response(result, render_markdown=True, team_emoji=_get_team_emoji())
+                _print_agent_response(
+                    result,
+                    render_markdown=True,
+                    team_emoji=_get_team_emoji(workspace_path=config.workspace_path),
+                )
             else:
                 # Assume it's a MessageEnvelope or similar object
                 _print_agent_response(
                     result.content if hasattr(result, "content") else str(result),
                     render_markdown=True,
                     bot_name=getattr(result, "bot_name", None),
-                    team_emoji=_get_team_emoji(),
+                    team_emoji=_get_team_emoji(workspace_path=config.workspace_path),
                 )
     else:
         console.print(f"[red]Failed to run job {job_id}[/red]")

@@ -236,6 +236,7 @@ class LiteLLMProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         """
         Send a chat completion request via LiteLLM.
@@ -262,6 +263,11 @@ class LiteLLMProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+
+        # Add reasoning_effort for models that support it (o3, Claude, etc.)
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["drop_params"] = True  # Ignore if model doesn't support it
 
         # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
         self._apply_model_overrides(model, kwargs)
@@ -300,6 +306,7 @@ class LiteLLMProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """
         Stream a chat completion request via LiteLLM.
@@ -310,6 +317,7 @@ class LiteLLMProvider(LLMProvider):
             model: Model identifier (e.g., 'anthropic/claude-sonnet-4-5').
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
+            reasoning_effort: Optional thinking effort level (low/medium/high).
 
         Yields:
             StreamChunk objects as they arrive.
@@ -323,6 +331,11 @@ class LiteLLMProvider(LLMProvider):
             "temperature": temperature,
             "stream": True,
         }
+
+        # Add reasoning_effort for models that support it
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["drop_params"] = True
 
         self._apply_model_overrides(model, kwargs)
 

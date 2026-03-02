@@ -257,13 +257,13 @@ class DocumentToolsConfig(Base):
     max_chars: int = 200000
     summary_chars: int = 1200
     max_digests_in_prompt: int = 5
-    
+
     # PDF complexity detection
     complexity_detection: bool = True  # Analyze PDF complexity before processing
     complexity_max_pages: int = 30  # > this = complex
-    complexity_max_images: int = 10  # > this = complex  
+    complexity_max_images: int = 10  # > this = complex
     complexity_min_text_density: int = 200  # < this chars/page = complex
-    
+
     # Markdown.new integration (Cloudflare)
     use_markdown_new: bool = True  # Use markdown.new for unsupported formats
     markdown_new_for_complex_pdf: bool = True  # Fallback to markdown.new for complex PDFs
@@ -321,6 +321,9 @@ class RoutingTierConfig(Base):
     model: str
     cost_per_mtok: float = 1.0
     secondary_model: str | None = None  # Fallback if primary fails
+    reasoning_effort: str | None = (
+        None  # low/medium/high - enables LLM thinking mode (REASONING tier)
+    )
 
 
 class RoutingTiersConfig(Base):
@@ -347,7 +350,10 @@ class RoutingTiersConfig(Base):
     )
     reasoning: RoutingTierConfig = Field(
         default_factory=lambda: RoutingTierConfig(
-            model="openai/o3", cost_per_mtok=2.0, secondary_model="openai/gpt-4o"
+            model="openai/o3",
+            cost_per_mtok=2.0,
+            secondary_model="openai/gpt-4o",
+            reasoning_effort="medium",  # Enable thinking mode for reasoning tasks
         )
     )
     coding: RoutingTierConfig = Field(
@@ -696,7 +702,7 @@ class SecurityConfig(Base):
     )
     allow_network_installs: bool = False  # Allow curl/wget during skill install
     sandbox_skills: bool = False  # Run skills in sandbox (future feature)
-    
+
     # External content security (web fetch/prompt injection)
     web_content_isolation: bool = True  # Store web content separately, not inline
     require_confirmation: bool = True  # Ask before acting on web content suggestions

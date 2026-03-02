@@ -8,6 +8,7 @@ from typing import Any, AsyncGenerator
 @dataclass
 class StreamChunk:
     """A chunk from a streaming LLM response."""
+
     content: str = ""
     reasoning_content: str | None = None
     tool_calls: list = field(default_factory=list)
@@ -18,6 +19,7 @@ class StreamChunk:
 @dataclass
 class ToolCallRequest:
     """A tool call request from the LLM."""
+
     id: str
     name: str
     arguments: dict[str, Any]
@@ -26,6 +28,7 @@ class ToolCallRequest:
 @dataclass
 class LLMResponse:
     """Response from an LLM provider."""
+
     content: str | None
     tool_calls: list[ToolCallRequest] = field(default_factory=list)
     finish_reason: str = "stop"
@@ -58,6 +61,7 @@ class LLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         """
         Send a chat completion request.
@@ -68,6 +72,7 @@ class LLMProvider(ABC):
             model: Model identifier (provider-specific).
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
+            reasoning_effort: Optional thinking effort level (low/medium/high).
 
         Returns:
             LLMResponse with content and/or tool calls.
@@ -86,6 +91,7 @@ class LLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        reasoning_effort: str | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """
         Stream a chat completion request.
@@ -98,6 +104,7 @@ class LLMProvider(ABC):
             tools: Optional list of tool definitions.
             model: Model identifier (provider-specific).
             max_tokens: Maximum tokens in response.
+            reasoning_effort: Optional thinking effort level (low/medium/high).
             temperature: Sampling temperature.
 
         Yields:
