@@ -2136,6 +2136,7 @@ Current conversation history:
             content=final_content,
             room_id=msg.room_id or self._current_room_id,
             metadata=response_metadata,  # Includes context usage if enabled
+            bot_name=self.bot_name,
         )
 
     async def _process_system_message(self, msg: MessageEnvelope) -> MessageEnvelope | None:
