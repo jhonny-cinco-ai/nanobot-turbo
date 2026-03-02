@@ -16,7 +16,7 @@ LOCAL_CLASSIFICATION_PROMPT = """Classify this message into one tier:
 - REASONING: proofs, logic, math
 
 Respond with only JSON:
-{"tier": "SIMPLE|MEDIUM|CODING|COMPLEX|REASONING", "reasoning": "why", "needs_tools": true|false}
+{{"tier": "SIMPLE|MEDIUM|CODING|COMPLEX|REASONING", "reasoning": "why", "needs_tools": true|false}}
 
 Message: {content}
 """
@@ -87,11 +87,16 @@ class LocalRouter:
 
             session = fm.LanguageModelSession()
             response = await session.respond(prompt)
+            logger.debug(f"Local model raw response: {response}")
 
             result = self._parse_response(response)
+            logger.debug(f"Local model parsed result: {result}")
+
+            # Use .get() with fallback to avoid KeyError like '"tier"'
+            tier_str = result.get("tier", "medium").lower()
 
             return RoutingDecision(
-                tier=RoutingTier(result["tier"].lower()),
+                tier=RoutingTier(tier_str),
                 model="apple-on-device",
                 confidence=result.get("confidence", 0.8),
                 layer="local",
@@ -112,24 +117,43 @@ class LocalRouter:
             return None
 
     def _parse_response(self, response: str) -> dict[str, Any]:
-        """Parse the model's JSON response."""
+        """Parse the model's JSON response with robust cleaning."""
+        content = response.strip()
+        
+        # 1. Handle markdown JSON blocks
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
         try:
-            result = json.loads(response.strip())
-            tier = result.get("tier", "medium").upper()
-            if tier not in ["SIMPLE", "MEDIUM", "CODING", "COMPLEX", "REASONING"]:
-                tier = "MEDIUM"
+            result = json.loads(content)
+            
+            # Ensure it's a dictionary
+            if not isinstance(result, dict):
+                return self._fallback_parse(content)
+
+            # 2. Key cleaning: remove accidental quotes from keys (e.g. '"tier"' -> 'tier')
+            cleaned_result = {}
+            for k, v in result.items():
+                if isinstance(k, str):
+                    cleaned_key = k.strip().strip('"').strip("'")
+                    cleaned_result[cleaned_key] = v
+                else:
+                    cleaned_result[k] = v
+
             return {
-                "tier": tier,
-                "confidence": result.get("confidence", 0.8),
-                "reasoning": result.get("reasoning", "Classified by local model"),
-                "needs_tools": result.get("needs_tools", True),
+                "tier": str(cleaned_result.get("tier", "medium")).upper(),
+                "confidence": cleaned_result.get("confidence", 0.8),
+                "reasoning": cleaned_result.get("reasoning", "Classified by local model"),
+                "needs_tools": cleaned_result.get("needs_tools", True),
             }
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse local model response: {response[:100]}")
+        except Exception:
+            # If JSON parsing fails at any level, use fallback text search
             return self._fallback_parse(response)
 
     def _fallback_parse(self, response: str) -> dict[str, Any]:
-        """Fallback parsing when JSON is not valid."""
+        """Fallback parsing when JSON is not valid (case-insensitive)."""
         response_lower = response.lower()
         if "simple" in response_lower:
             tier = "SIMPLE"

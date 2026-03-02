@@ -210,7 +210,7 @@ async def _read_interactive_input_async(room_id: str = "general") -> str:
         with patch_stdout():
             # Unified format matching bot responses
             return await _PROMPT_SESSION.prompt_async(
-                HTML(f"<b fg='ansiblue'>You:</b> "),
+                HTML(f"<b fg='ansiyellow'>You:</b> "),
             )
     except EOFError as exc:
         raise KeyboardInterrupt from exc
@@ -249,19 +249,21 @@ def _print_agent_response(
     elif bot_name:
         bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]{bot_name}[/bold {ACCENT_COLOR}]"
     else:
-        bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]Assistant[/bold {ACCENT_COLOR}]"
+        bot_identifier = f"{emoji_prefix}[bold {ACCENT_COLOR}]Bot[/bold {ACCENT_COLOR}]"
 
     # Unified format: Bot Identifier: Content (single line style)
     if already_streamed:
-        # Content was already streamed, just show header
+        # Content was already streamed, just show header with newline for spacing
         console.print(f"{bot_identifier}:")
+        console.print()
     else:
         # Show full response inline safely via grid to handle window resizing
         content = content.strip()
         if content:
             body = Markdown(content) if render_markdown else Text(content)
-            
+
             from rich.table import Table
+
             table = Table.grid(padding=(0, 1))
             table.add_row(f"{bot_identifier}:", body)
             console.print(table)
@@ -1566,44 +1568,53 @@ def chat(
     # Show spinner when logs are off (no output to miss); skip when logs are on
     def _get_loader_text() -> str:
         import random
-        
+
         try:
-            from nanofolks.roster import TeamRoster
-            roster = TeamRoster(workspace_path=config.workspace_path)
+            from nanofolks.teams import get_bot_team_profile, TeamManager
+
+            team_manager = TeamManager(workspace_path=config.workspace_path)
+            team = team_manager.get_current_team()
+            team_name = team["name"] if team else ""
         except Exception:
-            roster = None
+            team_name = ""
 
         bots = [p for p in current_room.participants if p != "user"]
-        
+
         # Single bot phrases
         single_phrases = [
             "{name} is thinking...",
             "{name} is pondering...",
             "{name} is working on it...",
-            "{name} is typing..."
+            "{name} is typing...",
         ]
-        
+
         # Multi bot phrases
         multi_phrases = [
             "The team is conferring...",
             "The crew is discussing...",
             "The team is working on it...",
         ]
-        
+
         if len(bots) == 1:
-            bot_name = bots[0]
-            display_name = bot_name.title()
-            if roster:
-                info = roster.get_bot_info(bot_name)
-                if info and 'name' in info:
-                    display_name = info['name']
-            
+            bot_role = bots[0]
+            display_name = bot_role.title()
+            try:
+                from nanofolks.teams import get_bot_team_profile
+
+                profile = get_bot_team_profile(
+                    bot_role, team_name, workspace_path=config.workspace_path
+                )
+                if profile and profile.bot_name:
+                    display_name = profile.bot_name
+            except Exception:
+                pass
+
             phrase = random.choice(single_phrases)
             return phrase.format(name=display_name)
-            
+
         if len(bots) > 1:
             return random.choice(multi_phrases)
-            
+
         return "Thinking..."
 
     def _thinking_ctx():
@@ -2244,8 +2255,9 @@ def chat(
 
                     with _thinking_ctx():
                         response = await _send_cli_message(user_input)
-                    # Clear the streaming indicator line
-                    console.print("\r" + " " * 120 + "\r", end="", highlight=False)
+                    # Add newline after streamed content to separate from next prompt
+                    if streaming_content:
+                        console.print()
                     if response and response.content is not None:
                         # Check if content was actually streamed
                         was_streamed = streaming_content and len(streaming_content) > 0
