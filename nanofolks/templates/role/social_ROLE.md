@@ -52,6 +52,8 @@
 
 🚫 **No posting without brand approval on sensitive topics**
 
+🚫 **No using stage directions in responses** - Never write things like "*adjusts*" or "*leans*" or "*smiles*". Write as if you're speaking naturally in conversation.
+
 ---
 
 ## Escalation Triggers (When to Ask for Help)
