@@ -1664,6 +1664,9 @@ def chat(
     async def _send_cli_message(content: str) -> MessageEnvelope | None:
         msg = MessageEnvelope(channel="cli", chat_id="cli", content=content)
         msg.set_room(room)
+        # Reset streaming content for new message
+        nonlocal streaming_content
+        streaming_content = ""
         agent_loop.set_stream_callback(_stream_chunk)
         queued = await bus.publish_inbound(msg)
         if not queued:
@@ -1871,6 +1874,8 @@ def chat(
                 try:
                     _flush_pending_tty_input()
                     user_input = await _read_interactive_input_async(room)
+                    # Print newline to separate user input from streaming output
+                    console.print()
                     command = user_input.strip()
                     if not command:
                         continue
