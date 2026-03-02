@@ -173,6 +173,21 @@ class OnboardingWizard:
             self._save_room(general_room, workspace_path)
             # Post-onboard verification: print per-bot file status
             self._print_post_onboard_summary(workspace_path)
+
+            # Show completion message after verification
+            console.print("\n[green]✓ Setup complete![/green]\n")
+            console.print("Your AI team is ready!")
+            console.print("\n[bold]Get started:[/bold]")
+            console.print(
+                "  [bright_magenta]nanofolks chat[/bright_magenta]        - Start chatting"
+            )
+            console.print("  [bright_magenta]#general[/bright_magenta]            - Team chat room")
+            console.print(
+                "  [bright_magenta]@researcher[/bright_magenta]        - DM a bot directly"
+            )
+            console.print(
+                "  [bright_magenta]nanofolks configure[/bright_magenta]  - Add more providers/models\n"
+            )
         else:
             console.print(
                 "[yellow]⚠ Could not determine workspace path - skipping team file creation[/yellow]"
@@ -804,19 +819,7 @@ Then restart nanofolks for secure access.
         console.print()
 
         if self._confirm("🚀 Launch your team?", default=True):
-            console.print("\n[green]✓ Setup complete![/green]\n")
-            console.print("Your AI team is ready!")
-            console.print("\n[bold]Get started:[/bold]")
-            console.print(
-                "  [bright_magenta]nanofolks chat[/bright_magenta]        - Start chatting"
-            )
-            console.print("  [bright_magenta]#general[/bright_magenta]            - Team chat room")
-            console.print(
-                "  [bright_magenta]@researcher[/bright_magenta]        - DM a bot directly"
-            )
-            console.print(
-                "  [bright_magenta]nanofolks configure[/bright_magenta]  - Add more providers/models\n"
-            )
+            console.print("\n[green]✓ Your team has been launched![/green]\n")
         else:
             console.print("[yellow]Setup cancelled[/yellow]\n")
 
@@ -906,7 +909,9 @@ Then restart nanofolks for secure access.
             shared_files = ["USER.md", "TOOLS.md"]
             for filename in shared_files:
                 file_path = workspace_path / filename
-                status = "[green]Created[/green]" if file_path.exists() else "[yellow]Missing[/yellow]"
+                status = (
+                    "[green]Created[/green]" if file_path.exists() else "[yellow]Missing[/yellow]"
+                )
                 shared_table.add_row(filename, status)
 
             console.print(shared_table)
