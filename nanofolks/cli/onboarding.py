@@ -819,7 +819,7 @@ Then restart nanofolks for secure access.
         console.print()
 
         if self._confirm("🚀 Launch your team?", default=True):
-            console.print("\n[green]✓ Your team has been launched![/green]\n")
+            console.print()
         else:
             console.print("[yellow]Setup cancelled[/yellow]\n")
 
@@ -987,6 +987,7 @@ Then restart nanofolks for secure access.
                     )
                     if profile:
                         console.print(f"  {profile.emoji} {profile.bot_title} ({bot_name})")
+                console.print()
 
             # Create per-bot files (AGENTS.md, IDENTITY.md if not already created)
             self._create_bot_files(workspace_path)

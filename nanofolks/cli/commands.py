@@ -256,13 +256,15 @@ def _print_agent_response(
         # Content was already streamed, just show header
         console.print(f"{bot_identifier}:")
     else:
-        # Show full response inline
-        # Strip leading/trailing whitespace to avoid extra blank lines
+        # Show full response inline safely via grid to handle window resizing
         content = content.strip()
         if content:
             body = Markdown(content) if render_markdown else Text(content)
-            console.print(f"{bot_identifier}:", end=" ")
-            console.print(body)
+            
+            from rich.table import Table
+            table = Table.grid(padding=(0, 1))
+            table.add_row(f"{bot_identifier}:", body)
+            console.print(table)
 
 
 def _get_team_emoji(team_manager=None, workspace_path=None) -> str | None:
@@ -1562,13 +1564,56 @@ def chat(
     cli_channel = CLIChannel(config=config, bus=bus, send_callback=_send_cli)
 
     # Show spinner when logs are off (no output to miss); skip when logs are on
+    def _get_loader_text() -> str:
+        import random
+        
+        try:
+            from nanofolks.roster import TeamRoster
+            roster = TeamRoster(workspace_path=config.workspace_path)
+        except Exception:
+            roster = None
+
+        bots = [p for p in current_room.participants if p != "user"]
+        
+        # Single bot phrases
+        single_phrases = [
+            "{name} is thinking...",
+            "{name} is pondering...",
+            "{name} is working on it...",
+            "{name} is typing..."
+        ]
+        
+        # Multi bot phrases
+        multi_phrases = [
+            "The team is conferring...",
+            "The crew is discussing...",
+            "The team is working on it...",
+        ]
+        
+        if len(bots) == 1:
+            bot_name = bots[0]
+            display_name = bot_name.title()
+            if roster:
+                info = roster.get_bot_info(bot_name)
+                if info and 'name' in info:
+                    display_name = info['name']
+            
+            phrase = random.choice(single_phrases)
+            return phrase.format(name=display_name)
+            
+        if len(bots) > 1:
+            return random.choice(multi_phrases)
+            
+        return "Thinking..."
+
     def _thinking_ctx():
         if logs:
             from contextlib import nullcontext
 
             return nullcontext()
         # Animated spinner is safe to use with prompt_toolkit input handling
-        return console.status("[dim]nanofolks is thinking...[/dim]", spinner="dots")
+        loader_text = _get_loader_text()
+        return console.status(f"[dim]{loader_text}[/dim]", spinner="dots")
 
     # Streaming callback for real-time chunk display
     streaming_content = ""
@@ -1688,7 +1733,7 @@ def chat(
         )
         console.print("He's ready to help and can bring in specialists when needed.\n")
 
-        console.print("[dim]Available crew (invite anytime):[/dim]")
+        console.print("[dim]Available team:[/dim]")
 
         # Show available bots with their names
         available_bots = [
