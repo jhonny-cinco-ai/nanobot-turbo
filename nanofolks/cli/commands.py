@@ -253,8 +253,7 @@ def _print_agent_response(
 
     # Unified format: Bot Identifier: Content (single line style)
     if already_streamed:
-        # Content was already streamed, just show header with newline for spacing
-        console.print(f"{bot_identifier}:")
+        # Content was already streamed with header, just add newline for spacing
         console.print()
     else:
         # Show full response inline safely via grid to handle window resizing
@@ -1630,9 +1629,10 @@ def chat(
     streaming_content = ""
     tool_progress = []
     activity_line = ""
+    header_printed = False
 
     def _stream_chunk(chunk: str):
-        nonlocal streaming_content, tool_progress, activity_line
+        nonlocal streaming_content, tool_progress, activity_line, header_printed
         # Check if this is a tool progress message (starts with ↳)
         if chunk.startswith("↳ "):
             tool_progress.append(chunk)
@@ -1646,6 +1646,12 @@ def chat(
                 _render_activity_line(activity_line.replace("...", "done"), final=True)
         else:
             # Regular content chunk - show in real-time
+            # Print header on first content chunk
+            if not header_printed:
+                header_printed = True
+                bot_name = agent_loop.bot_name or "Assistant"
+                emoji_prefix = _get_team_emoji(workspace_path=config.workspace_path) or "🏴"
+                console.print(f"\n{emoji_prefix} {bot_name}:", end=" ", highlight=False)
             streaming_content += chunk
             # Show content directly (not just preview)
             console.print(f"[{ACCENT_COLOR}]{chunk}[/{ACCENT_COLOR}]", end="", highlight=False)
@@ -1664,9 +1670,10 @@ def chat(
     async def _send_cli_message(content: str) -> MessageEnvelope | None:
         msg = MessageEnvelope(channel="cli", chat_id="cli", content=content)
         msg.set_room(room)
-        # Reset streaming content for new message
-        nonlocal streaming_content
+        # Reset streaming content and header flag for new message
+        nonlocal streaming_content, header_printed
         streaming_content = ""
+        header_printed = False
         agent_loop.set_stream_callback(_stream_chunk)
         queued = await bus.publish_inbound(msg)
         if not queued:
